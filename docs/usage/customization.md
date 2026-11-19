@@ -47,6 +47,16 @@ With `deprecated_class` and `deprecated_instance`, `source_path` depends on what
 - an instance has no module of its own, so the path is the proxy's name, e.g. `"config_dict"`;
 - a deprecated `attrs_mapping` attribute appends the attribute name, e.g. `"mypackage.LegacyConfig.old_attr"` (its `source_name` is the attribute name).
 
+The `TEMPLATE_WARNING_*` constants live in `deprecate.messaging` (for example `from deprecate.messaging import TEMPLATE_WARNING_CALLABLE`). An unknown placeholder or a malformed conversion in `message_template` raises `ValueError` at decoration time, listing the available placeholders.
+
+An empty `deprecated_in` emits a `UserWarning` at decoration time, except when `stream=None` or a `message_template` is set; `deprecated_module` always emits it.
+
+Proxy warnings pick their template and placeholder values by warning kind, which differs from `@deprecated`:
+
+- a call through `deprecated_class` or `deprecated_instance` uses `TEMPLATE_WARNING_CALLABLE` when a replacement target is set;
+- a call that passes an old `args_mapping` name uses `TEMPLATE_WARNING_ARGUMENTS` even when a replacement class is the target, and `target_name` is the new argument name;
+- an `attrs_mapping` access sets `source_name` to the old attribute and `target_name` to the new attribute name, and `target_path` to `Owner.attr`.
+
 ### Custom template example
 
 ```python

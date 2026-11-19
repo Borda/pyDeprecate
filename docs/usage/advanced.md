@@ -140,8 +140,9 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
-          extensions:
-            - deprecate.docstring.griffe_ext:RuntimeDocstrings
+          options:
+            extensions:
+              - deprecate.docstring.griffe_ext:RuntimeDocstrings
 ```
 
 ## Injecting new required arguments
@@ -461,7 +462,7 @@ gen = iter_ids(10, 3)
 
 # The warning fires here — on the first item
 print(list(gen))  # warns: FutureWarning
-# FutureWarning: The `iter_ids` was deprecated since v0.9 in favor of `generate_ids`.
+# FutureWarning: The `iter_ids` was deprecated since v0.9 in favor of `your_module.generate_ids`.
 #                It will be removed in v1.0.
 # [10, 11, 12]
 ```

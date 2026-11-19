@@ -58,6 +58,8 @@ deprecated_module(
 
 `import old_calculator; old_calculator.add(1, 2)` invokes the `FutureWarning` path and returns the result. Every public attribute access — real functions, classes, constants — takes that path because `deprecated_module()` replaces the module's `__class__` with an intercepting wrapper. Standard filters can suppress repeated display.
 
+`attrs_mapping` also works here without a `target`. `{"old_name": "new_name"}` serves the module's own `new_name` for `old_name`, even when `old_name` still exists in the module, and `{"gone": None}` makes `gone` raise `AttributeError`. Use it to rename or remove a module attribute in place.
+
 **Call it at module top level when omitting `name`.** Auto-detection reads the caller frame's `__name__`. This only names the intended module when the call sits directly in the module body. Calling without `name` from a function or class body (e.g. a `_setup_deprecations()` helper) raises `TypeError`. The frame's `__name__` would point at the enclosing module and silently deprecate all of it. Pass `name` explicitly to call from any other scope.
 
 ## Mode 2 — redirect to a replacement module
@@ -160,6 +162,16 @@ The counter is **one budget shared** across every attribute name on the module. 
     Omit `stream` to deliver the module warning through `warnings.warn` (the default; `help(deprecated_module)` shows it as `<warnings.warn>`). An explicit `stream=None` does the same today, but emits a `FutureWarning` at the `deprecated_module(...)` call.
 
     In v1.0 `stream=None` will silence the module warning, as it already does for `@deprecated`, `deprecated_class` and `deprecated_instance`. In the same release the `num_warns` default changes from `-1` to `1`. Pass `num_warns=-1` explicitly to keep a warning on every access.
+
+**A missing `deprecated_in` warns at install time.** `deprecated_module` emits a `UserWarning` ("has no `deprecated_in` set") when `deprecated_in` is empty. Unlike `@deprecated`, `deprecated_class` and `deprecated_instance`, neither `stream=None` nor a `message_template` silences it; pass `deprecated_in`.
+
+## Existing module hooks and repeat calls
+
+The install itself can emit three more `UserWarning` notices:
+
+- **Existing `__getattr__`.** A module that already defines a PEP 562 `__getattr__` keeps it: lookups the wrapper cannot serve are chained to it, and the install warns that it is chaining.
+- **Repeat call.** An identical repeat call is silent. A repeat with a different configuration is ignored with a warning, and the original configuration stays.
+- **Custom `__class__`.** A module whose `__class__` is already custom, for example one installed by a lazy loader, is overwritten with the wrapper and its prior behaviour is lost; the install warns about it.
 
 ## Star imports also warn
 

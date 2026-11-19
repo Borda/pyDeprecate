@@ -139,32 +139,36 @@ Validate wrappers to check argument names, mapping effects, and targets:
 - The mapping must have a real effect.
 - The target must not point back to the same function.
 
-`validate_deprecation_wrapper()` inspects one function. `find_deprecation_wrappers()` scans an entire package.
+`validate_deprecation_wrapper()` inspects one decorated callable, a proxy, or a module deprecated with `deprecated_module()`. `find_deprecation_wrappers()` scans an entire package.
 
 Both functions return `DeprecationWrapperInfo` dataclasses.
 
-| Field                        | Meaning                                                                                                        |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `module`                     | The defining module name, empty for direct validation.                                                         |
-| `function`                   | The function name.                                                                                             |
-| `deprecated_info`            | The decorator's `__deprecation_config__` attribute, a `DeprecationConfig` dataclass.                           |
-| `invalid_args`               | `args_mapping` keys absent from the function signature.                                                        |
-| `empty_args_mapping`         | `True` when `args_mapping` is `None` or empty.                                                                 |
-| `identity_args_mapping`      | Arguments whose key equals their value, such as `{"arg": "arg"}`, with no effect.                              |
-| `self_reference`             | `True` when the target points to the same function.                                                            |
-| `no_effect`                  | `True` for zero-impact wrappers: self-reference, empty mapping, or all-identity mapping.                       |
-| `misconfigured_target`       | `True` when the target contradicts its configuration; see the cases below.                                     |
-| `all_identity`               | `True` when every `args_mapping` entry maps a key to itself.                                                   |
-| `chain_type`                 | The chain classification, such as `TARGET` or `STACKED`.                                                       |
-| `empty_deprecated_in`        | `True` when `deprecated_in` is absent or empty; useful for CI version-annotation checks.                       |
-| `api_type`                   | The inferred report kind: for example, `callable`, `args`, `class`, `dataclass attributes`, or `class method`. |
-| `pep702_message`             | `None` on pyDeprecate rows; the decorator's message string, possibly empty, on PEP 702-only rows.              |
-| `source_file`, `source_line` | Since v0.16, the absolute source file and definition line; see the exceptions below.                           |
+| Field                          | Meaning                                                                                                                 |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `module`                       | The defining module name, empty for direct validation.                                                                  |
+| `function`                     | The function name.                                                                                                      |
+| `deprecated_info`              | The decorator's `__deprecation_config__` attribute, a `DeprecationConfig` dataclass.                                    |
+| `invalid_args`                 | `args_mapping` keys absent from the function signature.                                                                 |
+| `empty_args_mapping`           | `True` when `args_mapping` is `None` or empty.                                                                          |
+| `identity_args_mapping`        | Arguments whose key equals their value, such as `{"arg": "arg"}`, with no effect.                                       |
+| `self_reference`               | `True` when the target points to the same function.                                                                     |
+| `no_effect`                    | `True` for zero-impact wrappers: self-reference, empty mapping, or all-identity mapping.                                |
+| `misconfigured_target`         | `True` when the target contradicts its configuration; see the cases below.                                              |
+| `all_identity`                 | `True` when every `args_mapping` entry maps a key to itself.                                                            |
+| `chain_type`                   | The chain classification, such as `TARGET` or `STACKED`.                                                                |
+| `empty_deprecated_in`          | `True` when `deprecated_in` is absent or empty; useful for CI version-annotation checks.                                |
+| `api_type`                     | The inferred report kind: for example, `callable`, `args`, `class`, `dataclass attributes`, or `class method`.          |
+| `pep702_message`               | `None` on pyDeprecate rows; the decorator's message string, possibly empty, on PEP 702-only rows.                       |
+| `args_mapping_auto_expanded`   | `args_mapping` keys copied automatically from `attrs_mapping` by the dataclass dual-surface expansion; empty otherwise. |
+| `args_mapping_positional_only` | `args_mapping` old keys whose target is a positional-only constructor parameter; empty otherwise.                       |
+| `inner_order_property`         | `True` for the inner-order `@property @deprecated` shape, where only the getter warns; `check` fails on it.             |
+| `source_file`, `source_line`   | Since v0.16, the absolute source file and definition line; see the exceptions below.                                    |
 
 **Contradictory targets.** `misconfigured_target` covers these cases:
 
 - `NOTIFY` has an `args_mapping`, `args_extra`, or `attrs_mapping`.
 - `ARGS_REMAP` has an empty `args_mapping`.
+- `deprecated_class(target=TargetMode.ATTRS_REMAP)` has no `attrs_mapping`.
 - A served object is not callable but has an `args_mapping` or `args_extra`.
 - The target is the invalid `target=False`.
 
@@ -719,10 +723,10 @@ The function accepts the same `module`, `recursive`, and `include_members` argum
 
 `generate_deprecation_table()` renders discovered wrapper metadata as a Markdown table suitable for embedding in your project documentation. It supports two `style=` options:
 
-| Style                 | Layout                                                                                                                              |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `"compact"` (default) | One row per symbol, with a **Current Status** column: `📢 Deprecation Active`, `💥 Past Removal Date`, `ℹ️ No Removal Target`, etc. |
-| `"matrix"`            | One column per release, with `D` (deprecated), `R` (remove), and `D/R` (both in the same release) markers.                          |
+| Style                 | Layout                                                                                                                                                                  |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `"compact"` (default) | One row per symbol, with a **Current Status** column: `📢 Deprecation Active`, `💥 Past Removal Date`, `ℹ️ No Removal Target`, and the other labels in the table below. |
+| `"matrix"`            | One column per release, with `D` (deprecated), `R` (remove), and `D/R` (both in the same release) markers.                                                              |
 
 **Equivalent release spellings.** Matrix columns combine spellings such as `1.0`, `v1.0`, and `1.0.0` under the shortest spelling when the `audit` extra is installed. Without `packaging`, only the `v` prefix is ignored.
 
@@ -759,6 +763,19 @@ The following selected rows illustrate the rendered table, using `my_package` as
 | `my_package.depr_func_same_version`         | callable          | `—`                                   |    v2.0    |  v2.0  | 🕒 Scheduled Deprecation |
 | `my_package.depr_pow_args`                  | callable          | `my_package.base_pow_args`            |    v1.0    |  v1.3  | 💥 Past Removal Date     |
 | `my_package.decorated_sum`                  | callable          | `my_package.base_sum_kwargs`          |    v0.1    |  v0.5  | 💥 Past Removal Date     |
+
+Compact-table status labels, matching `DeprecationStatus`, and what triggers each:
+
+| Status                      | Trigger                                                                                  |
+| :-------------------------- | :--------------------------------------------------------------------------------------- |
+| `🕒 Scheduled Deprecation`  | The current version is below `deprecated_in`.                                            |
+| `ℹ️ No Removal Target`      | `remove_in` is not set.                                                                  |
+| `⚪ Status Unknown`         | `remove_in` is set but no current version is available.                                  |
+| `⚪ Invalid Removal Target` | `remove_in` cannot be parsed as a version.                                               |
+| `📢 Deprecation Active`     | The current version is below `remove_in`, in a different base release.                   |
+| `⏰ Removal Imminent`       | The current version is a dev, alpha or beta pre-release of the `remove_in` base release. |
+| `🔔 Remove Before Release`  | The current version is a release candidate (`rc`) of the `remove_in` base release.       |
+| `💥 Past Removal Date`      | The current version is at or above `remove_in`.                                          |
 
 **Matrix style** gives each release a column with `D`, `R`, or `D/R` lifecycle markers:
 

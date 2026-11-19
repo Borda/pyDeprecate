@@ -132,7 +132,7 @@ pre-commit installs the hook into an *isolated environment*. It contains pyDepre
 
     `additional_dependencies` *replaces* the hook's own dependency list. Start with `"pyDeprecate[audit]"`, then append your package's runtime dependencies. pip resolves that entry to the hook's own checkout, including its `audit` extra.
 
-    Omitting that entry leaves `pydeprecate` without its CLI dependencies. Python 3.9–3.10 also cannot read `[tool.pydeprecate]` from `pyproject.toml`.
+    Omitting that entry leaves `pydeprecate` without `packaging`, which `expiry` and any `policy` version comparison need. Python 3.9–3.10 also cannot read `[tool.pydeprecate]` from `pyproject.toml`.
 
 ```yaml
 # .pre-commit-config.yaml
@@ -217,15 +217,15 @@ Name the package explicitly for multiple-package roots, such as `args: [mypkg]`.
 
 Each hook already includes its subcommand in `entry`:
 
-| Hook ID                                         | Command                                                                             |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `pydeprecate-check`, or its alias `pydeprecate` | Run `check`.                                                                        |
-| `pydeprecate-policy`                            | Run `policy`.                                                                       |
-| `pydeprecate-expiry`                            | Run `expiry`.                                                                       |
-| `pydeprecate-chains`                            | Run `chains`.                                                                       |
-| `pydeprecate-all`                               | Run `all`.                                                                          |
-| `pydeprecate-expiry-static`                     | Run import-free `expiry`, equivalent to `args: [--static]` on `pydeprecate-expiry`. |
-| `pydeprecate-policy-static`                     | Run import-free `policy`, equivalent to `args: [--static]` on `pydeprecate-policy`. |
+| Hook ID                                         | Command                                                                                                                          |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `pydeprecate-check`, or its alias `pydeprecate` | Run `check`.                                                                                                                     |
+| `pydeprecate-policy`                            | Run `policy`.                                                                                                                    |
+| `pydeprecate-expiry`                            | Run `expiry`.                                                                                                                    |
+| `pydeprecate-chains`                            | Run `chains`.                                                                                                                    |
+| `pydeprecate-all`                               | Run `all`.                                                                                                                       |
+| `pydeprecate-expiry-static`                     | Run import-free `expiry`: the same scan as `args: [--static]` on `pydeprecate-expiry`, but also verbose and run on TOML changes. |
+| `pydeprecate-policy-static`                     | Run import-free `policy`: the same scan as `args: [--static]` on `pydeprecate-policy`, but also verbose and run on TOML changes. |
 
 See [Static mode](cli.md#static-mode) for import-free scanning.
 
@@ -358,11 +358,14 @@ The step returns the CLI's exit code. Exit `3` also produces an error annotation
 
 **Action-specific failures.** These conditions behave as follows:
 
-| Condition                                 | Exit behavior           |
-| ----------------------------------------- | ----------------------- |
-| A `path` starts with `-`.                 | Exit `2`.               |
-| `pip install` fails with `install: true`. | Return pip's exit code. |
-| The CLI process cannot start.             | Return `1`.             |
+| Condition                                                                                                                         | Exit behavior           |
+| --------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| A `path` starts with `-`.                                                                                                         | Exit `2`.               |
+| `pip install` fails with `install: true`.                                                                                         | Return pip's exit code. |
+| The CLI process cannot start.                                                                                                     | Return `1`.             |
+| `args` holds `--`, `-h`/`--help`, or a `--report-json` or `--report-sarif` option; use the `report-json` output to keep a report. | Exit `2`.               |
+| A boolean input is not `true`, `false`, `1` or `0`.                                                                               | Exit `2`.               |
+| `exit-zero`, `fail-on-gap` or `sarif` is combined with `status`, or `fail-on-gap` with `exit-zero`.                               | Exit `2`.               |
 
 **Static and advisory runs.** The action has no static input. Pass `--static` through `args` with `subcommand: expiry` or `policy`. See [Static mode](cli.md#static-mode).
 
@@ -372,7 +375,7 @@ Set `exit-zero: true` to report hard errors without blocking while clearing a ba
 
 Findings become annotations on their wrapper's line:
 
-1. Annotate errors first, then warnings, up to 50 findings.
+1. Annotate errors first, then warnings, within GitHub's limit of 10 annotations per level for one step. Gaps and the gate's own `exited 1` error use some of those slots first, so a few fewer findings are shown.
 2. Add one notice counting the remaining findings.
 
 **Annotation limits and accepted findings.** The log and report retain every finding. Findings accepted through `--ignore` or `--baseline` are never annotated. Gaps keep one warning per kind.

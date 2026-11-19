@@ -52,12 +52,12 @@ pydeprecate status tests --version 1.2
     pydeprecate check mypackage.submodule
     ```
 
-    | Finding                                                                    | Exit code                                                                                                                                                                          |
-    | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-    | Invalid argument mappings                                                  | The command exits 1.                                                                                                                                                               |
-    | Misconfigured targets                                                      | The command exits 1 for `target=False`, `TargetMode.NOTIFY` with an ignored `args_mapping`, `attrs_mapping` or `args_extra`, or `TargetMode.ARGS_REMAP` without an `args_mapping`. |
-    | Inner-order `@property @deprecated` wrappers                               | The command exits 1; only the getter warns, leaving the setter and deleter unprotected.                                                                                            |
-    | Chains, identity mappings, no-effect wrappers and positional-only mappings | These are reported as warnings; the command exits 0.                                                                                                                               |
+    | Finding                                                                    | Exit code                                                                                                                                                                                                                                                           |
+    | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | Invalid argument mappings                                                  | The command exits 1.                                                                                                                                                                                                                                                |
+    | Misconfigured targets                                                      | The command exits 1 for `target=False`, `TargetMode.NOTIFY` with an ignored `args_mapping`, `attrs_mapping` or `args_extra`, or `TargetMode.ARGS_REMAP` without an `args_mapping`, or `deprecated_class(target=TargetMode.ATTRS_REMAP)` without an `attrs_mapping`. |
+    | Inner-order `@property @deprecated` wrappers                               | The command exits 1; only the getter warns, leaving the setter and deleter unprotected.                                                                                                                                                                             |
+    | Chains, identity mappings, no-effect wrappers and positional-only mappings | These are reported as warnings; the command exits 0.                                                                                                                                                                                                                |
 
     !!! note "Chains in `all`"
 
@@ -461,7 +461,7 @@ min-grace = "0.3"  # quoted dotted delta; false switches the rule off (TOML has 
 message-required = true
 ```
 
-Each setting resolves independently as **flag → `pyproject.toml` → built-in default**. Every run's header lines name the source of each value: `flag`, `pyproject.toml`, or `built-in`. A log therefore always shows what was applied:
+Each setting resolves independently as **flag → `pyproject.toml` → built-in default**. The `Exclude:` header line (printed when the list is non-empty) and the `Policy:` header line name the source of each value: `flag`, `pyproject.toml`, or `built-in`. The other settings (`strict`, `gate`, `ignore`, `baseline`) print no source line:
 
 ```text
 Exclude: my_package.tests, *._legacy* (pyproject.toml)
@@ -734,11 +734,11 @@ A usage error (exit `2`) on any path stops the run before anything is scanned, o
 
 With `--static`, these are also usage errors:
 
-| Error                         | Detail or diagnostic                                                                                                   |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Unsupported subcommand        | The flag is used on a subcommand other than `expiry` and `policy`: `` --static supports `expiry` and `policy` only ``. |
-| Dotted module names           | Locating one would import its parent packages; pass its directory instead.                                             |
-| Modules without Python source | A built-in or compiled module has no Python source.                                                                    |
+| Error                         | Detail or diagnostic                                                                                                                                                    |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unsupported subcommand        | The flag is used on a subcommand other than `expiry` and `policy`: `` --static, --no-static and --nostatic are supported by `expiry` and `policy` only, not `check` ``. |
+| Dotted module names           | Locating one would import its parent packages; pass its directory instead.                                                                                              |
+| Modules without Python source | A built-in or compiled module has no Python source.                                                                                                                     |
 
 ### Scan and internal errors
 
@@ -776,11 +776,14 @@ On GitHub Actions the CLI also ships as a ready-made step, `uses: Borda/pyDeprec
 
 All subcommands accept these path formats:
 
-| Format                     | Behaviour                                                                                                               |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| **Package directory**      | Provide a path to a directory with `__init__.py`, such as `src/mypackage`.                                              |
-| **Importable module name** | Provide a dotted module path such as `mypackage.utils` in import mode. Static mode accepts only top-level module names. |
-| **Plain directory**        | The scan reads top-level `.py` files only. Nested files are reported as a `nested files not audited` gap.               |
+| Format                     | Behaviour                                                                                                                                              |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Package directory**      | Provide a path to a directory with `__init__.py`, such as `src/mypackage`.                                                                             |
+| **Importable module name** | Provide a dotted module path such as `mypackage.utils` in import mode. Static mode accepts only top-level module names.                                |
+| **Plain directory**        | The scan reads top-level `.py` files only. Nested files are reported as a `nested files not audited` gap.                                              |
+| **No path**                | The scan picks the single package under `src/`, else the single package at the repository root. With several packages the run fails, so pass the path. |
+
+The subcommand may be omitted too: `pydeprecate src/mypackage` runs `check`.
 
 **Unsupported paths.** A single `.py` file, or a directory holding two or more top-level packages, is a usage error (exit `2`) for every subcommand.
 

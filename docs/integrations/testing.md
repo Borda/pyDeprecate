@@ -187,6 +187,7 @@ print(clean_session)
 | Tool                                                       | Use when...                                                 | Behaviour                                              |
 | ---------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------ |
 | `pytest.warns(FutureWarning)`                              | Testing that a deprecated function DOES warn on first call  | Fails if no matching warning is raised                 |
+| `assert_no_warnings()` (no argument)                       | Testing that no warning of any type is raised               | Fails if any warning is raised                         |
 | `assert_no_warnings(FutureWarning)`                        | Testing that new code or subsequent calls do NOT warn       | Fails if a matching warning IS raised                  |
 | `assert_no_warnings(FutureWarning, match="pattern")`       | Testing that a specific warning message is absent           | Only fails if a warning matching the pattern is raised |
 | `filterwarnings` config (`pyproject.toml` / `conftest.py`) | Calling deprecated code in fixtures/setup without assertion | Silently suppresses matching warnings; never fails     |
@@ -194,6 +195,10 @@ print(clean_session)
 !!! note "Substring matching"
 
     `assert_no_warnings` accepts a substring through `match`. It checks the captured warnings' message content. You can forbid **one specific deprecation** while allowing unrelated warnings.
+
+## Failing the suite on deprecated calls
+
+To fail a run when your own code still calls a deprecated API, make deprecations fatal for the suite: `DEPRECATE_AS_EXCEPTIONS=1 pytest` turns every deprecation that defers to the global switch into a `DeprecatedError`. To scope it to one stretch of code, wrap it in the `as_exceptions()` context manager, or exempt a block from a strict run with `as_exceptions(False)`. See [Fatal deprecations](../usage/functions.md#fatal-deprecations) for the semantics.
 
 ## See also
 

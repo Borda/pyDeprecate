@@ -306,7 +306,7 @@ print(result)
 ## See also
 
 - [Use Cases](index.md) covers worked examples of deprecation patterns, including those that use `void()`.
-- [Troubleshooting](../troubleshooting.md) explains why `deprecated_instance` does not emit warnings on arithmetic or comparison operators (same CPython dunder limitation).
+- [Troubleshooting](../troubleshooting.md) explains which `deprecated_instance` operators warn and which stay silent.
 
 ______________________________________________________________________
 

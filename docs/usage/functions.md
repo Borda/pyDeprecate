@@ -160,7 +160,7 @@ The warning names what a caller can import:
 - For a partial, it names the wrapped function or class, using the innermost one for a nested partial.
 - For a callable instance, it names the instance's class.
 
-`deprecated_class` accepts a partial target too, for example `partial(NewWidget, theme="dark")`.
+`deprecated_class` accepts a partial target too, for example `partial(NewWidget, theme="dark")`. `@deprecated` on a class forwards only a class `target`, so use `deprecated_class(target=...)` for a function or partial target.
 
 A keyword the partial binds is the replacement's intended value, so the source's own default for that argument is **not forwarded** over it.
 
@@ -406,10 +406,10 @@ These modes differ in whether the function body runs, whether a warning fires, a
 | **Warning emitted**               | Yes — up to `num_warns` times (default: once)                                                             | Per deprecated arg, up to `num_warns` times (default: once)                | Yes — up to `num_warns` times (default: once)                                                                                                                                                  |
 | **Warning template**              | `"… was deprecated since vX. It will be removed in vY."`                                                  | `"… uses deprecated arguments: …"`                                         | `"… was deprecated … in favour of …"`                                                                                                                                                          |
 | **`message_template` specifiers** | `source_name`, `source_path`, `deprecated_in`, `remove_in` only — `target_name`/`target_path` unavailable | `source_name`, `source_path`, `argument_map`, `deprecated_in`, `remove_in` | All specifiers incl. `target_name`, `target_path`                                                                                                                                              |
-| **Function body**                 | Runs with caller's args + source defaults filled in                                                       | Runs after argument renaming/dropping                                      | **Does not run** under normal forwarding — body is dead code, calls intercepted first. **Exception**: `skip_if=True` at call time bypasses forwarding and executes the source body as fallback |
+| **Function body**                 | Runs with the caller's arguments unchanged                                                                | Runs after argument renaming/dropping                                      | **Does not run** under normal forwarding — body is dead code, calls intercepted first. **Exception**: `skip_if=True` at call time bypasses forwarding and executes the source body as fallback |
 | **`args_mapping` applied**        | `⚠`                                                                                                       | `✓` renames or drops listed args                                           | `✓` renames or drops args before forwarding                                                                                                                                                    |
 | **`args_extra` injected**         | `⚠`                                                                                                       | `✓` merged into kwargs before call                                         | `✓` merged into kwargs before forwarding                                                                                                                                                       |
-| **Source defaults merged**        | `✓`                                                                                                       | `✗`                                                                        | `✓`                                                                                                                                                                                            |
+| **Source defaults merged**        | `✗`                                                                                                       | `✗`                                                                        | `✓`                                                                                                                                                                                            |
 | **`skip_if` effect**              | `⊛`                                                                                                       | `⊛`                                                                        | `⊛`                                                                                                                                                                                            |
 | **`stream=None` effect**          | `⊘` body still runs                                                                                       | `⊘` remapping still runs                                                   | `⊘` forwarding still runs                                                                                                                                                                      |
 
@@ -940,7 +940,7 @@ For class aliases see [Classes → Type annotations and static analysis](classes
 
     Deprecate the underlying function and put the cache on top (`@functools.lru_cache` above `@deprecated(...)`). The cache attributes then exist, but a cache hit never reaches the wrapper. The warning therefore fires only on a miss.
 
-    Callable objects without a `__name__`, such as `functools.partial`, are rejected at decoration time; wrap those with `deprecated_instance()`.
+    A `functools.partial` is rejected at decoration time; wrap it in a plain `def` and decorate that. Other callable objects without a `__name__` are rejected too; wrap those with `deprecated_instance()`.
 
 ## See also
 

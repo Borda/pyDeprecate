@@ -5,7 +5,7 @@ description: Upgrade pyDeprecate safely with source-version checklists, compatib
 
 # Migration Guide
 
-The latest release is **v0.14**; changes on the unreleased line are listed under `[UnReleased]` in the [Changelog](../changelog.md). This guide contains *only* rewrites, deprecations, and observable changes that existing users need to handle when upgrading. New APIs and capabilities belong in the [Changelog](../changelog.md) and topic guides.
+The latest release is **v0.15**; changes on the unreleased line are listed under `[UnReleased]` in the [Changelog](../changelog.md). This guide contains *only* rewrites, deprecations, and observable changes that existing users need to handle when upgrading. New APIs and capabilities belong in the [Changelog](../changelog.md) and topic guides.
 
 ## Migrate Legacy Target Values
 
@@ -175,16 +175,17 @@ The same rule applies to `deprecated_class()` and `deprecated_instance()`: `targ
 
 Contradictory combinations emit `UserWarning` at decoration time. The warning is a **migration task**: <u>the ignored configuration is scheduled to become an error in v1.0</u>.
 
-| Combination                                                         | Migration                                                                                                        |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `TargetMode.ARGS_REMAP` without `args_mapping`                      | Add a real mapping, or use `TargetMode.NOTIFY` for warn-only behavior.                                           |
-| Explicit `TargetMode.NOTIFY` with `args_mapping`                    | Omit `target` so `AUTO` infers `ARGS_REMAP`, select `ARGS_REMAP` explicitly, or remove the mapping.              |
-| Explicit `TargetMode.NOTIFY` with `args_extra`                      | Use a callable `target` if extra kwargs must reach a replacement, or remove `args_extra`.                        |
-| `deprecated_class(target=TargetMode.NOTIFY, attrs_mapping=...)`     | Omit `target` so the proxy infers `ATTRS_REMAP`, select `ATTRS_REMAP` explicitly, or remove the mapping.         |
-| `deprecated_class(target=TargetMode.ATTRS_REMAP)` without a mapping | Add `attrs_mapping={"old": "new"}`, or use `NOTIFY` for class-wide warnings.                                     |
-| `@deprecated(target=TargetMode.ATTRS_REMAP)`                        | Use `deprecated_class(attrs_mapping=...)`; the common front door does not expose the proxy-only `attrs_mapping`. |
+| Combination                                                         | Migration                                                                                                |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `TargetMode.ARGS_REMAP` without `args_mapping`                      | Add a real mapping, or use `TargetMode.NOTIFY` for warn-only behavior.                                   |
+| Explicit `TargetMode.NOTIFY` with `args_mapping`                    | Omit `target` so `AUTO` infers `ARGS_REMAP`, select `ARGS_REMAP` explicitly, or remove the mapping.      |
+| Explicit `TargetMode.NOTIFY` with `args_extra`                      | Use a callable `target` if extra kwargs must reach a replacement, or remove `args_extra`.                |
+| `deprecated_class(target=TargetMode.NOTIFY, attrs_mapping=...)`     | Omit `target` so the proxy infers `ATTRS_REMAP`, select `ATTRS_REMAP` explicitly, or remove the mapping. |
+| `deprecated_class(target=TargetMode.ATTRS_REMAP)` without a mapping | Add `attrs_mapping={"old": "new"}`, or use `NOTIFY` for class-wide warnings.                             |
 
 An explicitly supplied `NOTIFY` is **never rewritten**: its mapping stays inert. Inference happens *only* when `target` is omitted.
+
+`@deprecated(target=TargetMode.ATTRS_REMAP)` is not in this table because it no longer warns: it has raised `TypeError` since v0.12, for function and class sources alike. Use `deprecated_class(attrs_mapping=...)`; the common front door does not expose the proxy-only `attrs_mapping`.
 
 ### `DeprecationWrapperInfo` field renames
 
@@ -248,7 +249,7 @@ This guide works at **minor-line granularity**. `v0.N.x` means the latest availa
 
 Patch and post releases are folded into their minor interval rather than receiving separate sections.
 
-Releases with no migration work are skipped. Where a later release superseded an intermediate behavior, the section describes the final v0.15.x development behavior.
+Releases with no migration work are skipped. Where a later release superseded an intermediate behavior, the section describes the final v0.15.x behavior.
 
 ### Coming from v0.14.x
 

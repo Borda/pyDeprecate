@@ -66,7 +66,7 @@ Calling `addition(1, 2)` now **emits a `FutureWarning`** and transparently **for
 - **Mode inference:** `@deprecated` defaults to `TargetMode.AUTO`. Configuration resolves the mode at decoration time. Audit tools see the concrete mode, never `AUTO`.
 - **Public proxy protocol:** Annotate against [`DeprecationProxy`](api-reference.md) instead of private `_DeprecatedProxy`. Proxies carry `__wrapped__` / `__signature__` breadcrumbs. These let `inspect`, Sphinx, griffe, and IDEs resolve the source.
 - **Configurable frequency:** `num_warns=1` defaults to one warning per function. Set `-1` for always or `N` for exactly N times.
-- **Docstring injection:** `update_docstring=True` automatically appends a Sphinx `.. deprecated::` or MkDocs admonition notice. This keeps rendered API docs accurate.
+- **Docstring injection:** `update_docstring=True` automatically inserts a Sphinx `.. deprecated::` or MkDocs admonition notice before the first docstring section. This keeps rendered API docs accurate.
 - **Sphinx Plugin:** `deprecate.docstring.sphinx_ext` renders `_DeprecatedProxy` objects with their injected deprecation notices in Sphinx autodoc.
 - **MkDocs Plugin:** `deprecate.docstring.griffe_ext` exposes runtime-injected `!!! warning` admonitions in mkdocstrings-generated API docs.
 - **Decorator stacking:** Stack `@deprecated` decorators for multi-version migrations. Rename arguments across releases (`ARGS_REMAP + ARGS_REMAP`), then deprecate the function when a replacement arrives (`ARGS_REMAP + NOTIFY`). Unsupported combinations warn at decoration time.

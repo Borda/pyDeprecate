@@ -21,7 +21,7 @@ Do you have a real project where one of these gets in the way? These boundaries 
 
 ### Callable objects with `async def __call__` are not detected as coroutine functions
 
-`inspect.iscoroutinefunction` does not look at `__call__`. `@deprecated` rejects a plain callable instance with `TypeError`, so such an object cannot serve as an `async def` source.
+`inspect.iscoroutinefunction` does not look at `__call__`. `@deprecated` rejects a nameless callable instance with `TypeError`. An instance that carries a `__name__` is accepted and `await wrapper(...)` works, but `inspect.iscoroutinefunction(wrapper)` is `False` and the warning fires at the call, not at the `await`.
 
 !!! tip "Workaround"
 
@@ -43,6 +43,8 @@ A native generator function called with the wrong number of arguments raises `Ty
 
 That arity `TypeError` uses pyDeprecate's own wording and raises on the first `next()` or `async for` step. A `Failed mapping` error from a forwarding target also raises at that step. See [Deprecating generator functions](usage/advanced.md#deprecating-generator-functions).
 
+**Changed in v0.15:** before v0.15 generator wrappers warned at call time and were not generator functions.
+
 ### Cycle detection is lazy
 
 A `target=` chain that loops back on itself is not caught at decoration time. The `RuntimeError` fires when a wrapper in the cycle is first called.
@@ -61,9 +63,21 @@ Recurse through the replacement's own name instead. See [the cycle error](troubl
 
 !!! warning "A custom mutator slips through"
 
-    Besides writes through the proxy, `read_only` blocks the collection methods `append`, `clear`, `discard`, `extend`, `insert`, `pop`, `remove`, `setdefault`, `update` and `add`. A custom method such as `register()` or `reload()` still mutates the wrapped object.
+    Besides attribute and item writes and in-place operators, `read_only` blocks ten standard collection mutators: `append`, `clear`, `discard`, `extend`, `insert`, `pop`, `remove`, `setdefault`, `update` and `add`. Other built-in mutators such as `sort`, `reverse`, `popitem` and the set `*_update` methods are not blocked, and neither is a custom method such as `register()` or `reload()`.
 
     See [read_only troubleshooting](troubleshooting.md#my-object-mutated-despite-read_onlytrue).
+
+### A class alias is not a type, so `except`, `match` and `singledispatch` reject it
+
+`deprecated_class` replaces the class name with a proxy, and the proxy is not a type. `isinstance(obj, Old)` and `issubclass(Sub, Old)` work, as does subclassing. Three other uses of the name fail with `TypeError`, and none of them warns:
+
+- `except Old:` raises `TypeError` as soon as any exception reaches the clause, hiding the original exception, and so does `except (Old, KeyError):`.
+- `match value: case Old():` raises `TypeError`.
+- `functools.singledispatch.register(Old)` calls the proxy instead of registering a type.
+
+This matters most when renaming an exception class. Raising or constructing the old name works and warns, but callers who catch it by that name break. What works today is to keep the old name as a real subclass of the new class and decorate its `__init__` with `@deprecated(target=TargetMode.NOTIFY, ...)`.
+
+`except OldError:` and `except NewError:` then both catch an `OldError`, and creating one warns. `except OldError:` does not catch a plain `NewError`, so migrate the `except` clauses to the new name first. For `match` and `singledispatch`, switch the call sites to the new class. If you need the alias itself usable in these positions, please [open an issue](https://github.com/Borda/pyDeprecate/issues) with your use case.
 
 ### A proxy over a `str` or `bytes` value claims `os.PathLike`
 
@@ -132,6 +146,8 @@ Keep the replacement the same type as the old object, or a subclass. See [Servin
 ### A `bool`, `None` or a module cannot be a replacement object
 
 `target=None` means no replacement; `target=True`, `target=False` and a module raise `TypeError`. To replace a `bool` constant, wrap the new value itself (`deprecated_instance(NEW_FLAG, name="OLD_FLAG", ...)`); redirect a module with `deprecated_module`.
+
+A proxied scalar warns only on data-use operations such as `int(flag)` or `value + 1`. Truth tests (`if OLD_FLAG:`), `==`, `str()` and f-strings stay silent, and `OLD_FLAG is True` is `False`. A flag read through `if` therefore never warns; if that is your main use, please [open an issue](https://github.com/Borda/pyDeprecate/issues) with your case.
 
 ### `args_mapping` passes a renamed value by keyword when the called object hides its signature
 
@@ -219,7 +235,7 @@ The following settings are reported as a `not statically resolvable` gap rather 
 
 A gap does not fail the run unless `--strict` is enabled; strict mode exits with status `1` for a recorded gap. Static mode cannot see:
 
-- It cannot see wrappers built in loops or through `getattr`, `importlib` or `exec`.
+- It cannot resolve wrappers built in loops, in `if` blocks or through `getattr`, `importlib` or `exec`; a loop or branch use of `deprecated` prints an `unrecognized use` gap. A computed `globals()` or `setattr(sys.modules[...])` write leaves every wrapper of that module unresolved.
 - It cannot see a proxy built from the private `_DeprecatedProxy` directly.
 - It cannot see a deprecated object or configured decorator imported from outside the scanned package.
 

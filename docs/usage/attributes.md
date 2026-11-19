@@ -358,7 +358,7 @@ print(LegacyConfig.batch_size)  # silent — unlisted attribute
 
 </details>
 
-Instantiation also forwards to `Config`: `LegacyConfig(lr=0.05)` returns a `Config` instance.
+Instantiation also forwards to `Config`: `LegacyConfig()` returns a `Config` instance.
 
 !!! warning "Returned instances"
 

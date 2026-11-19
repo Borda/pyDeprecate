@@ -111,24 +111,24 @@ Not sure which API to reach for? This table maps common scenarios to the right t
 
 **All `@deprecated` parameters:**
 
-| Param              | Default               | Purpose                                                                                                                                                                 |
-| ------------------ | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `target`           | `TargetMode.AUTO`     | `Callable` to forward to · `TargetMode.ARGS_REMAP` to remap args · `TargetMode.NOTIFY` warn-only · `TargetMode.AUTO` (default) infers the mode from the other arguments |
-| `deprecated_in`    | `""`                  | Version when deprecated (e.g. `"1.0"`)                                                                                                                                  |
-| `remove_in`        | `""`                  | Version when removed (e.g. `"2.0"`)                                                                                                                                     |
-| `stream`           | `deprecation_warning` | Output sink callable (set `None` to silence deprecation messages)                                                                                                       |
-| `num_warns`        | `1`                   | `0` never · `1` once · `-1` always · `N` exactly N times                                                                                                                |
-| `args_mapping`     | `None`                | `{"old": "new"}` rename · `{"old": None}` drop                                                                                                                          |
-| `message_template` | `None`                | Custom deprecation message template (`%`-style placeholders)                                                                                                            |
-| `args_extra`       | `None`                | Fixed kwargs injected into the target call                                                                                                                              |
-| `skip_if`          | `False`               | `bool` or `Callable → bool`; deactivate the deprecation machinery when true                                                                                             |
-| `as_exception`     | `None`                | Raise `DeprecatedError` instead of warning; `None` follows the global `deprecate.AS_EXCEPTIONS`                                                                         |
-| `update_docstring` | `False`               | Append Sphinx `.. deprecated::` notice to docstring                                                                                                                     |
-| `docstring_style`  | `"auto"`              | Style of the injected notice: `"auto"`, `"rst"`, `"mkdocs"`, `"markdown"`                                                                                               |
+| Param              | Default               | Purpose                                                                                                                                                                                  |
+| ------------------ | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `target`           | `TargetMode.AUTO`     | `Callable` to forward to · `TargetMode.ARGS_REMAP` to remap args · `TargetMode.NOTIFY` warn-only · `TargetMode.AUTO` (default) infers the mode from the other arguments                  |
+| `deprecated_in`    | `""`                  | Version when deprecated (e.g. `"1.0"`); leaving it empty emits a decoration-time `UserWarning` unless `stream=None` or a `message_template` is set (`deprecated_module` always emits it) |
+| `remove_in`        | `""`                  | Version when removed (e.g. `"2.0"`)                                                                                                                                                      |
+| `stream`           | `deprecation_warning` | Output sink callable (set `None` to silence deprecation messages)                                                                                                                        |
+| `num_warns`        | `1`                   | `0` never · `1` once · `-1` always · `N` exactly N times                                                                                                                                 |
+| `args_mapping`     | `None`                | `{"old": "new"}` rename · `{"old": None}` drop                                                                                                                                           |
+| `message_template` | `None`                | Custom deprecation message template (`%`-style placeholders)                                                                                                                             |
+| `args_extra`       | `None`                | Fixed kwargs injected into the target call                                                                                                                                               |
+| `skip_if`          | `False`               | `bool` or `Callable → bool`; deactivate the deprecation machinery when true                                                                                                              |
+| `as_exception`     | `None`                | Raise `DeprecatedError` instead of warning; `None` follows the global `deprecate.AS_EXCEPTIONS`                                                                                          |
+| `update_docstring` | `False`               | Insert a Sphinx or MkDocs deprecation notice into the docstring, before its first section                                                                                                |
+| `docstring_style`  | `"auto"`              | Style of the injected notice: `"auto"`, `"rst"`, `"mkdocs"`, `"markdown"`                                                                                                                |
 
 *Prefer* passing an explicit `target` (`TargetMode.NOTIFY`, `TargetMode.ARGS_REMAP`, or a callable) so the intent is visible at the call site. `TargetMode.AUTO` is only the front-door default that resolves an omitted `target`. You never write it yourself.
 
-All three decorators (`@deprecated`, `deprecated_callable()`, `deprecated_class()`) share every parameter above. They differ as follows:
+All three decorators (`@deprecated`, `deprecated_callable()`, `deprecated_class()`) share every parameter above; pass them by keyword on `deprecated_class()` and `deprecated_instance()`, which take only `target` or `obj` positionally. They differ as follows:
 
 - `deprecated_class()` adds `attrs_mapping` for attribute-name remapping. Passing it to the other two raises `TypeError`.
 - `@deprecated` dispatches a class source to `deprecated_class`. `deprecated_callable()` rejects a class source with `TypeError`.
@@ -167,6 +167,8 @@ The matrix lists every parameter each factory accepts, with its default.
     - `deprecation_warning` is the default `FutureWarning` sink (`stream=None` silences it).
 
     - `deprecated_module` is the exception: omit `stream` to warn through `warnings.warn`. An explicit `stream=None` still warns there and emits a `FutureWarning` at the call. It silences the module warning only from v1.0.
+
+    - On `deprecated_instance`, the keyword-only `target`, `args_mapping` and `attrs_mapping` are available since v0.16.
 
     - `name` is a display label for `deprecated_instance`. For `deprecated_module`, it is the module's `__name__`, auto-detected from the caller when omitted.
 

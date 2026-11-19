@@ -257,7 +257,7 @@ FutureWarning: The `order_total` was deprecated since v0.1. It will be removed i
 
 ### 🧰 Deprecate a method or a property
 
-The same decorator works on methods, class methods, static methods and properties. Put `@deprecated` below `@property`; the property warns on read:
+The same decorator works on methods, class methods, static methods and properties. Put `@deprecated` above `@property` (the outer order); the property warns on read. The inner order `@property @deprecated` fails `pydeprecate check`:
 
 ```python
 from deprecate import TargetMode, deprecated
@@ -277,8 +277,8 @@ class Invoice:
         return self.total()
 
     # DEPRECATED API — read `amount` instead
-    @property
     @deprecated(deprecated_in="1.1", remove_in="2.0")
+    @property
     def value(self) -> float:
         return self.amount
 

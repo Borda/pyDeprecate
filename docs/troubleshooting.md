@@ -1297,6 +1297,14 @@ _cache auto-expanded: False
 
 `store` is excluded from `args_mapping` — calling `DepConfig(store={})` would raise `TypeError`. Leave the `init=False` field out of constructor calls. `attrs_mapping` applies to class-proxy access, not attributes on returned instances.
 
+### Why does `except OldError:` raise `TypeError` after I deprecated an exception class?
+
+A class deprecated with `deprecated_class` is replaced by a proxy, and the proxy is not a type, so `except`, `match` class patterns and `functools.singledispatch.register` reject it. Python raises `TypeError: catching classes that do not inherit from BaseException is not allowed` and no deprecation warning fires.
+
+**Q:** I renamed an exception class with `deprecated_class`. Raising the old name works, but `except OldError:` in caller code now raises `TypeError` as soon as any exception reaches it. Why?
+
+Keep the old name as a real subclass of the new class and decorate its `__init__` with `@deprecated(target=TargetMode.NOTIFY, ...)`. Raising or constructing it warns, and both `except OldError:` and `except NewError:` catch it. Migrate `except` clauses to the new name first, because `except OldError:` does not catch a plain `NewError`. See [A class alias is not a type](limitations.md#a-class-alias-is-not-a-type-so-except-match-and-singledispatch-reject-it).
+
 ## Instances and proxies
 
 ### Do arithmetic and operator protocol methods emit deprecation notices on `deprecated_instance` proxies?
@@ -1404,11 +1412,11 @@ print(OLD_THRESHOLD["value"])
 
 ### My object mutated despite `read_only=True`
 
-`read_only=True` intercepts only the following standard collection mutator names: `append`, `clear`, `discard`, `extend`, `insert`, `pop`, `remove`, `setdefault`, `update`, `add`. These cover the mutating methods on Python's built-in `list`, `dict`, and `set` types.
+`read_only=True` blocks attribute and item writes, in-place operators and ten standard collection mutator names: `append`, `clear`, `discard`, `extend`, `insert`, `pop`, `remove`, `setdefault`, `update`, `add`. Other built-in mutators such as `sort`, `reverse`, `popitem` and the set `*_update` methods are not blocked.
 
 **Q:** I passed `read_only=True` to `deprecated_instance()` but a method on my object still mutated its state. Why?
 
-Custom method names — for example `register()`, `reload()`, or `set_value()` — are not in this list and call through to the underlying object without any guard.
+Those built-in mutators and custom method names — for example `register()`, `reload()`, or `set_value()` — are not in this list and call through to the underlying object without any guard.
 
 !!! warning "An active skip disables mutation guards"
 
@@ -1722,6 +1730,8 @@ No, this is intended. Calling the wrapper only creates a generator object and ru
 
 A generator that is never iterated never warns.
 
+**Changed in v0.15:** before v0.15 a generator wrapper warned at call time and was not a generator function.
+
 The wrapper remains a generator function, so `inspect.isgeneratorfunction(wrapper)` stays `True`. Frameworks depend on that flag: pytest uses it to run a deprecated `yield` fixture's setup and teardown.
 
 The warning points at the line taking the first item. In tests, put `pytest.warns()` around iteration rather than the call.
@@ -1761,7 +1771,7 @@ print(list(gen))  # warns: FutureWarning
 
 ### My deprecated async generator does not warn until I iterate it
 
-No, this is intended. Calling the wrapper only creates an async generator object. The warning fires on the first `async for` step, at the first `__anext__()`.
+No, this is intended. Calling the wrapper only creates an async generator object. The warning fires on the first `async for` step, at the first `__anext__()`. Before v0.15 an async generator wrapper warned at call time and was not an async generator function.
 
 **Q:** My async generator function is decorated with `@deprecated`. Calling the function does not warn — the deprecation warning only appears once my `async for` loop starts. Is this a bug?
 
@@ -2332,7 +2342,7 @@ To migrate stored instances:
 
 ### TypeError: `<obj>` is wrapped in a deprecation proxy and cannot be pickled directly
 
-Versions before [PR #212](https://github.com/Borda/pyDeprecate/pull/212) raised this error. Since PR #212, `pickle.dumps(proxy)` reconstructs `deprecated_instance` proxies on unpickle with deprecation semantics preserved. Upgrade pyDeprecate if this error persists on such a proxy.
+Versions before v0.11 raised this error. Since v0.11, `pickle.dumps(proxy)` reconstructs `deprecated_instance` proxies on unpickle with deprecation semantics preserved. Upgrade pyDeprecate if this error persists on such a proxy.
 
 **Q:** I get `TypeError: ... is wrapped in a deprecation proxy and cannot be pickled directly` when passing a `deprecated_instance` proxy to `pickle.dumps`, `multiprocessing`, or `joblib`.
 
@@ -2345,7 +2355,7 @@ Two caveats remain:
 
 ### My expiry gate reports more expired wrappers after upgrading
 
-`validate_deprecation_expiry` now includes deprecated class members by default (`include_members=True`), matching `find_deprecation_wrappers` and `generate_deprecation_table`. Expired member wrappers — for example an `__init__` carrying deprecation metadata — are now counted, so totals can rise after upgrading even though your code is unchanged. The newly reported entries are real expired deprecations that were previously invisible to the gate.
+Since v0.11, `validate_deprecation_expiry` includes deprecated class members by default (`include_members=True`), matching `find_deprecation_wrappers` and `generate_deprecation_table`. Expired member wrappers — for example an `__init__` carrying deprecation metadata — are counted, so totals can rise when you upgrade from before v0.11 even though your code is unchanged. The newly reported entries are real expired deprecations that were previously invisible to the gate.
 
 **Q:** After upgrading pyDeprecate, `validate_deprecation_expiry` (and `pydeprecate expiry`) suddenly reports more expired wrappers than before — nothing in my code changed. Why?
 
@@ -2355,7 +2365,7 @@ from deprecate import validate_deprecation_expiry
 # For testing purposes, we use the test module; normally you would import your own package
 from tests.collections.api_deprecated import core as my_package
 
-# Default scope now includes deprecated class members
+# Default scope includes deprecated class members
 expired = validate_deprecation_expiry(my_package, "0.5")
 print(f"Found {len(expired)} expired")
 
@@ -2558,7 +2568,7 @@ Choose a setup matching your audit needs:
 
 - **Use the remote hook with dependencies.** List your package's dependencies in `additional_dependencies`. This replaces the hook's own list, so start with `"pyDeprecate[audit]"` and append yours.
 
-- For removal deadlines and policy rules only, use the import-free `pydeprecate-expiry-static` and `pydeprecate-policy-static` hooks, which need none of your dependencies (from `v0.16.0`).
+- For removal deadlines and policy rules only, use the import-free `pydeprecate-expiry-static` and `pydeprecate-policy-static` hooks, which need none of your dependencies (since v0.16).
 
 !!! warning "Retain the hook's extras"
 
@@ -2580,9 +2590,8 @@ Recognized wrappers can be checked when the required settings are statically res
 
     A recognized wrapper with unresolved settings prints `pydeprecate gap: not statically resolvable: <file>:<line>: <reason>`. This does not change the exit code unless strict mode is enabled. Read the gaps and spell settings literally where gating matters.
 
-    These forms are invisible and produce no gap:
+    A loop or `if` block that calls `deprecated` prints an `unrecognized use` gap, and a computed `globals()` or `setattr(sys.modules[...])` write leaves every wrapper of that module unresolved. These forms are invisible and produce no gap:
 
-    - Wrappers built in loops are invisible.
     - Wrappers built through `getattr`, `importlib`, or `exec` are invisible.
     - Wrappers imported from outside the scanned package are invisible.
 

@@ -46,7 +46,7 @@ Add invoice line quantities.
 
 </details>
 
-The option is named `update_docstring` and **defaults to `False`** on `deprecated` and `deprecated_class`. The notice includes the removal version when supplied, and a replacement reference when `target` is callable.
+The option is named `update_docstring` and **defaults to `False`** on `deprecated`, `deprecated_callable` and `deprecated_class`; `deprecated_instance` and `deprecated_module` have no such option, so they inject no docstring notice. The notice includes the removal version when supplied, and a replacement reference when `target` is callable.
 
 | `docstring_style`  | Injected format                                        |
 | ------------------ | ------------------------------------------------------ |
@@ -143,6 +143,7 @@ See the repository's [MkDocs demo](https://github.com/Borda/pyDeprecate/blob/mai
 - Without `args_mapping`, general notices precede the first recognized Google-style or NumPy-style section, or follow the docstring when no section exists.
 - With `args_mapping`, Google-style `Args:` / `Arguments:` and Sphinx `:param` entries receive inline notes for deprecated arguments.
 - With `TargetMode.ARGS_REMAP`, finding every deprecated argument suppresses the general notice because only arguments are deprecated.
+- MkDocs shows the notice only for the decorator form: Griffe reads a call-form alias such as `Old = deprecated_class(...)(New)` as an attribute with no docstring, so it gets no notice.
 - Callable targets still receive a general notice after inline argument annotations. Missing argument entries also cause a general notice.
 
 **Existing text is required:** `update_docstring=True` leaves a missing or empty docstring **unchanged**. The Griffe extension also requires an existing static docstring and deprecation metadata. It does not create documentation for undocumented objects.
