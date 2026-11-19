@@ -378,7 +378,16 @@ _SECTION_HEADERS: dict[_Rule, str] = {
 
 
 def _row_detail(finding: _Finding) -> str:
-    """Return the text after ``module.function:`` in a finding's console row."""
+    """Return the text after ``module.function:`` in a finding's console row.
+
+    Examples:
+        >>> from types import SimpleNamespace
+        >>> _row_detail(SimpleNamespace(rule=_Rule.CHAIN, details=("first", "second")))
+        'first'
+        >>> _row_detail(SimpleNamespace(rule=_Rule.INNER_ORDER_PROPERTY, details=()))
+        'use @deprecated(...) above @property'
+
+    """
     if finding.rule is _Rule.INNER_ORDER_PROPERTY:
         return "use @deprecated(...) above @property"
     if finding.rule in (_Rule.MISCONFIGURED_TARGET, _Rule.CHAIN):

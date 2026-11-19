@@ -396,6 +396,7 @@ def _plan_path(target: _ScanTarget, options: _RunOptions) -> Optional[_PathPlan]
     policy = None
     if gates is not None and options.policy_flags is not None:
         policy = _resolve_policy_spec(options.policy_flags, config)
+    # give up when the gate list was invalid, or policy flags were given and their spec failed to resolve
     if gates is None or (options.policy_flags is not None and policy is None):
         return None
     return _PathPlan(target, config, strict, suppressor, gates, policy, tuple(exclude[0]), options.recursive)
@@ -799,8 +800,8 @@ def _expiry_derive(
     """Record and return the active ``expired`` findings, or ``None`` when the check could not run (gap printed).
 
     A ``--static`` scan (*static*) checks the wrappers whose ``remove_in`` the source settled; a ``not statically
-    resolvable`` gap names each one it left out, printed only once the check has run — when it could not (no version, an
-    invalid one, no ``packaging``) it has already printed why, and a gap per wrapper would imply that the others were
+    resolvable`` gap names each one it left out, printed only once the check has run — when it could not (no version,
+    an invalid one, no ``packaging``) it has already printed why, and a gap per wrapper would imply that the others were
     checked.
 
     """

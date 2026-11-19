@@ -189,6 +189,17 @@ def _docstring_parts(function: Callable[..., int]) -> tuple[str, dict[str, str]]
 
     Double backticks become single ones and ``%`` is escaped, since argparse formats help strings with ``%``.
 
+    Examples:
+        >>> def cmd_demo():
+        ...     '''Check things.
+        ...
+        ...     Args:
+        ...         path: Where to look.
+        ...         strict: Fail on any gap (100% of them).
+        ...     '''
+        >>> _docstring_parts(cmd_demo)
+        ('Check things.', {'path': 'Where to look.', 'strict': 'Fail on any gap (100%% of them).'})
+
     """
     doc = (inspect.getdoc(function) or "").replace("``", "`").replace("%", "%%")
     description, _, rest = doc.partition("\nArgs:\n")
@@ -349,6 +360,7 @@ def _bind_legacy_version(command: _CliCommand, kwargs: dict[str, Any], subparser
 
     """
     paths = kwargs.get(_PATH, [])
+    # not the legacy form: the command takes no version, there are not exactly two paths, or the second is no version
     if not command.takes_version or len(paths) != 2 or not _is_legacy_version(paths[1]):
         return
     if _VERSION in kwargs:
@@ -388,6 +400,7 @@ def _parse_cli_args(argv: Sequence[str]) -> Optional[tuple[_CliCommand, dict[str
     subparser = subparsers[name]
     options, operands = (rest[: rest.index("--")], rest[rest.index("--") + 1 :]) if "--" in rest else (rest, [])
     normalized = _normalize_options(options, command.bool_params)
+    # the command has no `--static` flag, yet the line spells it, with or without `no`, and with or without a value
     if "static" not in command.bool_params and any(
         arg.startswith("--") and arg[2:].partition("=")[0] in _STATIC_SPELLINGS for arg in normalized
     ):

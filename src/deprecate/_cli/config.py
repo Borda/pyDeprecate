@@ -32,11 +32,18 @@ def _is_missing_packaging_import_error(error: ImportError) -> bool:
     Returns:
         True if the error indicates that the ``packaging`` library is unavailable.
 
+    Examples:
+        >>> _is_missing_packaging_import_error(ModuleNotFoundError("No module named 'packaging'", name="packaging"))
+        True
+        >>> _is_missing_packaging_import_error(ImportError("cannot import name 'x'", name="other"))
+        False
+
     """
     for exc in (error, getattr(error, "__cause__", None)):
         if exc is None:
             continue
         name = getattr(exc, "name", None)
+        # the failed import is `packaging` itself or one of its submodules
         if isinstance(name, str) and (name == "packaging" or name.startswith("packaging.")):
             return True
     return "No module named 'packaging'" in str(error)
@@ -148,6 +155,7 @@ def _load_pydeprecate_config(path: str) -> Optional[_Config]:
     """
     if not Path(path).exists():
         return {}, None
+    # neither the standard-library TOML parser nor the `tomli` backport is available
     if not (_is_package_available("tomllib") or _is_package_available("tomli")):
         if next(_iter_pyproject_paths(path), None) is not None:
             keys = ", ".join(f"`{key}`" for key in _CONFIG_KEYS)
@@ -199,7 +207,17 @@ def _resolve_setting(
 
 
 def _describe_source(flag: str, table_name: str, source: str) -> str:
-    """Name where a value came from, for usage errors."""
+    """Name where a value came from, for usage errors.
+
+    Examples:
+        >>> _describe_source("exclude", "[tool.pydeprecate]", "flag")
+        '`--exclude`'
+        >>> _describe_source("exclude", "[tool.pydeprecate]", "built-in")
+        'the built-in default'
+        >>> _describe_source("exclude", "[tool.pydeprecate]", "pyproject.toml")
+        '`[tool.pydeprecate]` in pyproject.toml'
+
+    """
     if source == "flag":
         return f"`--{flag}`"
     if source == "built-in":
@@ -208,7 +226,13 @@ def _describe_source(flag: str, table_name: str, source: str) -> str:
 
 
 def _source_label(source: str) -> str:
-    """Short provenance tag for header lines — ``flag``, ``built-in`` or ``pyproject.toml``."""
+    """Short provenance tag for header lines — ``flag``, ``built-in`` or ``pyproject.toml``.
+
+    Examples:
+        >>> _source_label("flag"), _source_label("/work/proj/pyproject.toml")
+        ('flag', 'pyproject.toml')
+
+    """
     return source if source in ("flag", "built-in") else "pyproject.toml"
 
 
@@ -250,6 +274,7 @@ def _resolve_exclude(
         if config is None:
             return None
     raw, source = _resolve_setting(exclude, config[0], _EXCLUDE_KEY, [], config)
+    # a typed `--exclude` that is a Python list or tuple literal rather than comma-separated patterns
     if source == "flag" and isinstance(raw, str) and _is_list_literal(raw):
         # a list literal would become one pattern that matches nothing, leaving the scan silently unexcluded
         _print(
@@ -264,6 +289,7 @@ def _resolve_exclude(
         patterns = []
     else:
         patterns = list(raw) if isinstance(raw, (list, tuple)) else raw
+    # the value is not a list made only of text patterns
     if not isinstance(patterns, list) or not all(isinstance(item, str) for item in patterns):
         _print(
             f"Invalid `exclude` value `{raw}` from {_describe_source(_EXCLUDE_KEY, _CONFIG_TABLE_NAME, source)}; "
@@ -301,6 +327,7 @@ def _resolve_strict(strict: _ConfigBool, exit_zero: bool, config: _Config) -> Op
             stderr=True,
         )
         return None
+    # nothing contradicts: strict mode is off, or ``--exit-zero`` was not given
     if not (value and exit_zero):
         return value
     described = _describe_source(_STRICT_KEY, _CONFIG_TABLE_NAME, source)
@@ -368,6 +395,7 @@ def _resolve_suppressor(ignore: _ConfigList, baseline: _ConfigFlag, config: _Con
 
     """
     raw_ignore, ignore_source = _resolve_setting(ignore, config[0], _IGNORE_KEY, [], config)
+    # the value is neither text nor a list of text entries
     if not isinstance(raw_ignore, (str, list, tuple)) or not all(isinstance(item, str) for item in raw_ignore):
         _print(
             f"Invalid `{_IGNORE_KEY}` value `{raw_ignore}` from "
@@ -421,6 +449,7 @@ def _resolve_gate(gate: _ConfigList, config: _Config) -> Optional[frozenset[str]
     raw, source = _resolve_setting(gate, config[0], _GATE_KEY, [], config)
     origin = _describe_source(_GATE_KEY, _CONFIG_TABLE_NAME, source)
     expected = ", ".join(f"`{check}`" for check in _GATE_ORDER)
+    # the value is neither text nor a list of text check names
     if not isinstance(raw, (str, list, tuple)) or not all(isinstance(item, str) for item in raw):
         _print(
             f'Invalid `{_GATE_KEY}` value `{raw}` from {origin}; expected a list of checks such as `["policy"]`.',
