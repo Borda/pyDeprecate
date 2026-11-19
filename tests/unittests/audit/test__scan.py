@@ -488,7 +488,7 @@ class TestFindDeprecationWrappersReexport:
             def __getattribute__(cls, name: str) -> object:
                 """Forbid dynamic reads of the class name after setup."""
                 if name == "__name__" and cls.guard_name:
-                    raise RuntimeError("metaclass name hook was called")
+                    raise AttributeError("metaclass name hook was called")
                 return super().__getattribute__(name)
 
         class ThemeColor(metaclass=NameGuard):
