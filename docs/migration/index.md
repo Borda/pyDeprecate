@@ -21,20 +21,20 @@ Prefer an explicit `target=TargetMode.NOTIFY`, as the examples here do. Omitting
 - # DEPRECATED API — legacy sentinel
 - @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
 + # DEPRECATED API — current warn-only form
-+ @deprecated(deprecated_in="1.0", remove_in="2.0")
++ @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
 ```
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 
 
-@deprecated(deprecated_in="1.0", remove_in="2.0")
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
 def refresh_cache(cache_key: str) -> str:
     """Refresh one cached value."""
     return f"refreshed:{cache_key}"
 
 
-print(refresh_cache("products"))
+print(refresh_cache("products"))  # warns: FutureWarning
 ```
 
 <details>

@@ -415,10 +415,11 @@ def deprecated_module(
             bodies coexist): a listed name is always resolved via the mapping, never returned as its stale local
             value.  When supplied alongside ``target``, listed names resolve via the mapping and all other names fall
             through to ``target``.
-        deprecated_in: Version string when this module was deprecated (e.g. ``"1.0"``).  Defaults to ``""``;
-            when omitted a decoration-time :class:`UserWarning` fires (the notice omits the version and expiry
-            audits cannot gate the module), matching :func:`~deprecate.deprecated`.
-        remove_in: Version string when this module will be removed (e.g. ``"2.0"``).  Defaults to ``""``.
+        deprecated_in: Version string when this module was deprecated (e.g. ``"1.0"``). Defaults to ``""``.
+            Omitting it emits a decoration-time :class:`UserWarning` unless a nonempty ``message_template``
+            supplies the notice.
+        remove_in: Version string when this module will be removed (e.g. ``"2.0"``). Defaults to ``""``.
+            Expiry audits enforce an explicit deadline even when ``deprecated_in`` is omitted.
         stream: Callable used to emit the warning instead of :func:`warnings.warn`.  Omit it (the default, which
             :func:`help` and :func:`inspect.signature` show as ``<warnings.warn>``) to use the standard
             :mod:`warnings` machinery.  An explicit ``None`` still selects :func:`warnings.warn` but emits a
@@ -499,12 +500,8 @@ def deprecated_module(
     # instead of a cryptic TypeError/KeyError (or silent dict-dump corruption) on the first warn emit.
     _validate_message_template(message_template)
 
-    # Missing-version notice, mirroring `@deprecated`: a deprecation without a `deprecated_in` version
-    # produces a vaguer notice and cannot be gated by expiry audits. Fired once here at call time (module
-    # deprecation runs once at import) so the gap surfaces during development, not silently at runtime.
-    # Both notices below follow every argument check above, so a rejected call raises without announcing.
-    # A custom ``message_template`` writes the whole message and is exempt, as with ``@deprecated``; ``stream=None`` is
-    # not, because a module keeps delivering its warning (see the ``stream=None`` notice below).
+    # Announce a missing deprecation version at installation if the built-in notice will need it.
+    # A nonempty custom template supplies its own wording. Expiry audits still use an explicit `remove_in`.
     if not deprecated_in and not message_template:
         warnings.warn(
             f"`deprecated_module` on {module_name!r} has no `deprecated_in` set."

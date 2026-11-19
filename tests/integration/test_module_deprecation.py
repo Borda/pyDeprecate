@@ -548,8 +548,8 @@ class TestMessageTemplateValidation:
 class TestMissingDeprecatedIn:
     """The missing-``deprecated_in`` notice of ``deprecated_module()`` follows the other factories.
 
-    A deprecation without a version gets a vaguer notice and no expiry gate, so the call warns once. A custom
-    ``message_template`` takes over the wording and need not name the version, as with ``@deprecated``.
+    A custom ``message_template`` supplies the notice and suppresses the missing-version warning at installation.
+    An explicit ``remove_in`` still sets the deadline for expiry audits.
     """
 
     def test_empty_deprecated_in_warns(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
@@ -560,17 +560,24 @@ class TestMissingDeprecatedIn:
             deprecated_module(mod_name, remove_in="2.0")
         assert len([w for w in caught if issubclass(w.category, UserWarning)]) == 1
 
-    def test_message_template_silences_the_notice(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
-        """A module with its own ``message_template`` and no ``deprecated_in`` is deprecated without any notice.
+    def test_message_template_silences_notice_and_keeps_expiry(
+        self, make_tmp_module: Callable[..., types.ModuleType]
+    ) -> None:
+        """A custom notice suppresses the missing-version warning and preserves an explicit removal deadline.
 
-        The maintainer writes the whole message, version included, so a reminder to pass ``deprecated_in`` only adds
-        noise; ``@deprecated``, ``deprecated_class`` and ``deprecated_instance`` stay silent in the same case.
+        Maintainers can explain the migration in their own words and still rely on CI to flag the module
+        once the package reaches its removal version.
         """
         mod_name = "_test_missing_version_template_tmp"
-        make_tmp_module(mod_name)
+        mod = make_tmp_module(mod_name)
         with captured_warnings() as caught:
             deprecated_module(mod_name, message_template="`%(source_name)s` moved, see the guide.", remove_in="2.0")
         assert not caught
+        assert validate_deprecation_expiry(mod, "1.9", recursive=False) == []
+        assert validate_deprecation_expiry(mod, "2.0", recursive=False) == [
+            f"Module `{mod_name}` was scheduled for removal in version 2.0"
+            " but still exists in version 2.0. Please delete this deprecated code."
+        ]
 
     def test_stream_none_still_notices(self, make_tmp_module: Callable[..., types.ModuleType]) -> None:
         """``stream=None`` does not silence the notice, because a module keeps delivering its warning until v1.0.
