@@ -82,6 +82,26 @@ class TestWrapperFindings:
                 id="args-remap-without-mapping",
             ),
             pytest.param(
+                DeprecationConfig(target=TargetMode.ATTRS_REMAP, attrs_mapping=None),
+                "`TargetMode.ATTRS_REMAP` without an `attrs_mapping`",
+                id="attrs-remap-without-mapping",
+            ),
+            pytest.param(
+                DeprecationConfig(target=TargetMode.ATTRS_REMAP, attrs_mapping={"a": "b"}, args_mapping={"x": "y"}),
+                "`TargetMode.ATTRS_REMAP` with `args_mapping`",
+                id="attrs-remap-with-args-mapping",
+            ),
+            pytest.param(
+                DeprecationConfig(target=TargetMode.ATTRS_REMAP, attrs_mapping={"a": "b"}, args_extra={"bias": 1}),
+                "`TargetMode.ATTRS_REMAP` with `args_extra`",
+                id="attrs-remap-with-args-extra",
+            ),
+            pytest.param(
+                DeprecationConfig(target=TargetMode.ARGS_REMAP, args_mapping={"x": "y"}, attrs_mapping={"a": "b"}),
+                "`TargetMode.ARGS_REMAP` with an ignored `attrs_mapping`",
+                id="args-remap-with-attrs-mapping",
+            ),
+            pytest.param(
                 DeprecationConfig(target=TargetMode.NOTIFY, misconfigured=True), "`target=False`", id="target-false"
             ),
             pytest.param(

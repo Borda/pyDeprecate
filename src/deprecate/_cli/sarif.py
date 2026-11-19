@@ -44,7 +44,7 @@ _RULE_TEXT: dict[_Rule, tuple[str, str]] = {
     ),
     _Rule.MISCONFIGURED_TARGET: (
         "target contradicts the rest of the configuration",
-        "target=False, TargetMode.NOTIFY with a mapping it ignores, or TargetMode.ARGS_REMAP without args_mapping.",
+        "target=False, a mapping the target mode ignores, or an ARGS_REMAP or ATTRS_REMAP without its mapping.",
     ),
     _Rule.INNER_ORDER_PROPERTY: (
         "inner-order @property @deprecated leaves setter and deleter unprotected",

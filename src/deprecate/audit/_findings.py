@@ -151,7 +151,16 @@ def _misconfiguration(info: DeprecationWrapperInfo) -> str:
         options = " and ".join(f"`{name}`" for name in ("args_mapping", "args_extra") if getattr(config, name))
         return f"{options or 'call-time options'} on a served object that is not callable"
     if config.target is TargetMode.ARGS_REMAP:
+        # both mappings were given: ``ARGS_REMAP`` renames call arguments only, so ``attrs_mapping`` is the ignored one
+        if config.args_mapping and config.attrs_mapping:
+            return "`TargetMode.ARGS_REMAP` with an ignored `attrs_mapping`"
         return "`TargetMode.ARGS_REMAP` with an empty `args_mapping`"
+    if config.target is TargetMode.ATTRS_REMAP:
+        # ``ATTRS_REMAP`` needs an ``attrs_mapping`` and ignores call-time options such as ``args_mapping``
+        if not config.attrs_mapping:
+            return "`TargetMode.ATTRS_REMAP` without an `attrs_mapping`"
+        ignored = next(name for name in ("args_mapping", "args_extra") if getattr(config, name))
+        return f"`TargetMode.ATTRS_REMAP` with `{ignored}`"
     for field_name in ("args_mapping", "attrs_mapping", "args_extra"):
         if getattr(config, field_name):
             return f"`TargetMode.NOTIFY` with `{field_name}`"
