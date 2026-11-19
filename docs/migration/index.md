@@ -15,7 +15,7 @@ v0.8 introduced `TargetMode` so deprecation intent no longer depends on the lega
 
 `target=None` means "**warn, then run the decorated body**". It still works, but emits `FutureWarning` at decoration time.
 
-Prefer an explicit `target=TargetMode.NOTIFY`, as the examples here do. Omitting `target` is the **shortest form** and resolves to the same mode, because the `TargetMode.AUTO` default picks `TargetMode.NOTIFY` when no mapping is present.
+For a warn-only migration without `args_mapping` or `attrs_mapping`, prefer an explicit `target=TargetMode.NOTIFY`, as the examples here do. Omitting `target` is the **shortest form** and resolves to the same mode, because the `TargetMode.AUTO` default picks `TargetMode.NOTIFY` when no mapping is present. A decorator that carries a mapping is a different case: see [Misconfigured `TargetMode` combinations](#misconfigured-targetmode-combinations), where choosing the remap mode activates a mapping that `target=None` left inert, and removing the mapping keeps the warn-only behavior.
 
 ```diff
 - # DEPRECATED API — legacy sentinel
