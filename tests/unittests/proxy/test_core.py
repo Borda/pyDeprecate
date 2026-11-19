@@ -1556,3 +1556,66 @@ def test_nested_data_proxy_construction_does_not_evaluate_skip() -> None:
     assert object.__getattribute__(outer, "__wrapped__") is inner
     assert object.__getattribute__(outer, "__signature__") is None
     assert calls == []
+
+
+def _caught_by(error: BaseException, target: Any) -> bool:  # noqa: ANN401
+    """Raise *error* inside ``try`` and report whether ``except target`` caught it."""
+    try:
+        raise error
+    except target:
+        return True
+    return False  # pragma: no cover - the exception propagates when no clause matches
+
+
+class TestClassProxyIsNotAType:
+    """A class alias made by ``deprecated_class`` is a proxy, so positions that need a real type reject it."""
+
+    @pytest.fixture
+    def alias(self) -> Any:  # noqa: ANN401
+        """A renamed exception class kept under its old name, as a maintainer writes it after a rename."""
+
+        class NewError(Exception):
+            """Replacement exception raised by the new API."""
+
+        return deprecated_class(target=NewError, **_DEPRS_CASE_STD_ARGS, stream=None)(NewError)
+
+    @pytest.mark.parametrize(
+        "clause",
+        [
+            pytest.param(lambda alias: (alias,), id="single"),
+            pytest.param(lambda alias: (alias, KeyError), id="tuple"),
+        ],
+    )
+    def test_except_clause_raises_type_error(self, alias: Any, clause: Callable[[Any], tuple]) -> None:  # noqa: ANN401
+        """``except Old:`` fails with ``TypeError`` when an exception reaches it, hiding the original exception.
+
+        A caller who catches the renamed exception by its old name gets a ``TypeError`` instead of the handler. The
+        interpreter checks the ``except`` target at the C level and ignores ``__subclasscheck__``, so no proxy can
+        satisfy it. This pins the documented limitation and its recipe: keep a real subclass, or make the new class
+        inherit from the old one.
+
+        """
+        with pytest.raises(TypeError, match="do not inherit from BaseException"):
+            _caught_by(ValueError("boom"), clause(alias))
+
+    def test_instance_and_subclass_checks_still_work(self, alias: Any) -> None:  # noqa: ANN401
+        """``isinstance`` and ``issubclass`` accept the alias, so only the type-only positions are affected."""
+        replacement = object.__getattribute__(alias, "_DeprecatedProxy__config").obj
+        assert isinstance(replacement("x"), alias)
+        assert issubclass(replacement, alias)
+
+    def test_reverse_hierarchy_keeps_old_except_clauses_working(self) -> None:
+        """A new exception class that inherits from the old one is caught by ``except Old:`` as well.
+
+        This is the working route for a renamed exception: callers keep their handlers while the code raises the new
+        name, and they migrate the clauses on their own schedule.
+
+        """
+
+        class OldError(Exception):
+            """Old name kept as the base of the new class."""
+
+        class NewError(OldError):
+            """New name raised by the API."""
+
+        assert _caught_by(NewError("boom"), OldError) is True
