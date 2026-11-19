@@ -375,9 +375,7 @@ The same pattern works for `@classmethod`. Declare both the deprecated and the r
 
 The receiver may have any name on either side (`cls`, `klass`, `mcs`). The bound class, including a subclass, is forwarded into the replacement's own receiver parameter.
 
-!!! warning "Receiver-name collisions"
-
-    With differently named receivers, a caller keyword passed through `**kwargs` can match the replacement's receiver name. This raises before warning unless `args_mapping` renames or drops it. `""` keeps the name unchanged, so the collision still raises without spending the warning budget.
+**Receiver-name collisions.** With differently named receivers, a caller keyword passed through `**kwargs` can match the replacement's receiver name. This raises before warning unless `args_mapping` renames or drops it. `""` keeps the name unchanged, so the collision still raises without spending the warning budget.
 
 A mismatch surfaces as `TypeError`, at a point that depends on the direction:
 

@@ -58,21 +58,13 @@ deprecated_module(
 
 `import old_calculator; old_calculator.add(1, 2)` invokes the `FutureWarning` path and returns the result. Every public attribute access — real functions, classes, constants — takes that path because `deprecated_module()` replaces the module's `__class__` with an intercepting wrapper. Standard filters can suppress repeated display.
 
-!!! warning "Call it at module top level when omitting `name`"
-
-    Auto-detection reads the caller frame's `__name__`. This only names the intended module when the call sits directly in the module body.
-
-    Calling without `name` from a function or class body (e.g. a `_setup_deprecations()` helper) raises `TypeError`. The frame's `__name__` would point at the enclosing module and silently deprecate all of it. Pass `name` explicitly to call from any other scope.
+**Call it at module top level when omitting `name`.** Auto-detection reads the caller frame's `__name__`. This only names the intended module when the call sits directly in the module body. Calling without `name` from a function or class body (e.g. a `_setup_deprecations()` helper) raises `TypeError`. The frame's `__name__` would point at the enclosing module and silently deprecate all of it. Pass `name` explicitly to call from any other scope.
 
 ## Mode 2 — redirect to a replacement module
 
 Use this when you rename an entire module. Attribute lookups missing from the old module's `__dict__` are forwarded to `new_calculator`, so callers get both a warning and the correct value. Real attributes already defined in the old module (functions, constants) are served from its `__dict__` directly; they warn but are **not forwarded**.
 
-!!! note "Redirect cycles"
-
-    Redirect cycle detection uses context-local state and restores the prior state when the outer lookup finishes. Cyclic redirects raise `AttributeError` rather than recursing indefinitely.
-
-    Contexts copied during a lookup can resolve the same name again after that lookup finishes. This applies whether it returned a value or raised an exception.
+Redirect cycle detection uses context-local state and restores the prior state when the outer lookup finishes. Cyclic redirects raise `AttributeError` rather than recursing indefinitely. Contexts copied during a lookup can resolve the same name again after that lookup finishes. This applies whether it returned a value or raised an exception.
 
 ```python
 # phmdoctest:skip — CI template; new_calculator is not installed
@@ -163,7 +155,7 @@ The counter is **one budget shared** across every attribute name on the module. 
 
 `-1` avoids budget locking but still performs metadata lookup and warning handling. Use a finite budget for a worker service whose custom stream or warning filter would otherwise record repeated accesses.
 
-!!! warning "`stream=None` and the `num_warns` default change in v1.0"
+!!! info "Changes in v1.0"
 
     Omit `stream` to deliver the module warning through `warnings.warn` (the default; `help(deprecated_module)` shows it as `<warnings.warn>`). An explicit `stream=None` does the same today, but emits a `FutureWarning` at the `deprecated_module(...)` call.
 
@@ -192,7 +184,7 @@ module_items = [r for r in deprecated_items if r.api_type == "module"]
 
 `deprecated_module(..., as_exception=True)` turns every public attribute access on the module into a raised `DeprecatedError` — see [Fatal deprecations](functions.md#fatal-deprecations) for the full contract, including the process-wide `DEPRECATE_AS_EXCEPTIONS` switch. It ignores `num_warns` (every access raises, not just the first) and does not depend on `stream`.
 
-!!! warning "Tools that walk module attributes"
+!!! note "Tools that walk module attributes"
 
     A module is the broadest surface this feature covers, so expect the blast radius to match. Tools that walk module attributes <u>stop at a fatal module</u> rather than skipping it. This includes pytest collection, Sphinx autodoc, `pickle`, and `copy`.
 

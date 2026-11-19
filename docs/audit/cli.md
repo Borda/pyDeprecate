@@ -59,7 +59,7 @@ pydeprecate status tests --version 1.2
     | Inner-order `@property @deprecated` wrappers                               | The command exits 1; only the getter warns, leaving the setter and deleter unprotected.                                                                                            |
     | Chains, identity mappings, no-effect wrappers and positional-only mappings | These are reported as warnings; the command exits 0.                                                                                                                               |
 
-    !!! note "Chain handling differs in `all`"
+    !!! note "Chains in `all`"
 
         `check` treats chains as advisory warnings (exit 0). `all` treats chains as hard errors (exit 1), because `all` ≡ `check + expiry + policy + chains`. The `chains` check exits 1 on any chain found.
 
@@ -79,9 +79,7 @@ pydeprecate status tests --version 1.2
 
     The command exits 1 if any wrapper is past its removal deadline. Use `--exit-zero` to suppress exit 1 when expired wrappers are found.
 
-    !!! warning "Missing `packaging` skips expiry"
-
-        If `packaging` is not installed, the check is skipped with a warning. It exits 0, or exit 1 under strict mode.
+    **Missing `packaging` skips expiry.** If `packaging` is not installed, the check is skipped with a warning. It exits 0, or exit 1 under strict mode.
 
 === "policy"
 
@@ -110,11 +108,9 @@ pydeprecate status tests --version 1.2
     | The nearest `pyproject.toml` cannot be read or parsed | The command exits 2 and prints `Cannot read <path>: <err>`. |
     | The scan is clean, or `--exit-zero` is passed         | The command exits 0.                                        |
 
-    !!! warning "Missing `packaging` skips only `min-grace`"
+    **Missing `packaging` skips only `min-grace`.** If `packaging` is not installed, `min-grace` is skipped with a warning. `message-required` still runs and can return exit 1.
 
-        If `packaging` is not installed, `min-grace` is skipped with a warning. `message-required` still runs and can return exit 1.
-
-    !!! warning "`all` reports policy violations without failing on them, unless `--gate=policy`"
+    !!! note "Advisory policy in `all`"
 
         The policy defaults encode *a* project convention: a three-minor grace window on a clean release boundary. Not every repository shares that convention, so `pydeprecate all` runs this check in **advisory** mode by default. Violations are printed but never change `all`'s exit code.
 
@@ -146,9 +142,7 @@ pydeprecate status tests --version 1.2
     - [`validate_deprecation_policy()`](policy.md#enforcing-a-deprecation-policy) checks policy.
     - [`validate_deprecation_chains()`](index.md#detecting-deprecation-chains) detects chains.
 
-    !!! warning "Missing `packaging` leaves some checks running"
-
-        If `packaging` is not installed, expiry and policy's `min-grace` rule are skipped with a warning. `message-required` still runs, and the other checks continue.
+    **Missing `packaging` leaves some checks running.** If `packaging` is not installed, expiry and policy's `min-grace` rule are skipped with a warning. `message-required` still runs, and the other checks continue.
 
     ```bash
     # explicit version
@@ -166,13 +160,11 @@ pydeprecate status tests --version 1.2
 
     The command exits 1 if any hard error is found. Hard errors include invalid argument mappings, misconfigured targets, inner-order properties, deprecated-to-deprecated chains, or expired wrappers. The deprecation table is always appended regardless of pass/fail outcome.
 
-    !!! note "Policy gating"
+    **Policy violations are advisory here by default**, because the defaults encode a project convention that not every repository shares. They render as `[WARNING]` with a trailer noting the check is advisory and naming `pydeprecate policy` as the gate. They never contribute to the exit code.
 
-        **Policy violations are advisory here by default**, because the defaults encode a project convention that not every repository shares. They render as `[WARNING]` with a trailer noting the check is advisory and naming `pydeprecate policy` as the gate. They never contribute to the exit code.
+    `--gate=policy` (since v0.16) makes them errors that fail `all` exactly as `pydeprecate policy` would. `--gate` takes a comma-separated list of `check`, `expiry`, `policy` and `chains`, and only adds checks. `check`, `expiry` and `chains` always gate, so today only `policy` changes anything.
 
-        `--gate=policy` (since v0.16) makes them errors that fail `all` exactly as `pydeprecate policy` would. `--gate` takes a comma-separated list of `check`, `expiry`, `policy` and `chains`, and only adds checks. `check`, `expiry` and `chains` always gate, so today only `policy` changes anything.
-
-    !!! warning "Configuration failures and missing dependencies"
+    !!! note "Configuration failures"
 
         Advisory treatment covers violation *counts* only. A policy **configuration** failure still exits `2`, printing `Cannot read <path>: <err>`, before the chains check ever runs. This includes an unreadable or unparsable nearest `pyproject.toml`, or a malformed `[tool.pydeprecate.policy]` value.
 
@@ -197,9 +189,7 @@ pydeprecate status tests --version 1.2
     | `--style compact` (default) | It renders one row per symbol with a status column.                                                                                  |
     | `--style matrix`            | It renders one column per release with `D`, `R` and `D/R` lifecycle markers. `D/R` means deprecated and removed in the same release. |
 
-    !!! note "Equivalent release spellings"
-
-        With the `audit` extra installed, spellings of one release such as `1.0`, `v1.0` and `1.0.0` share a column. Without `packaging`, only spellings that differ by the `v` prefix merge.
+    **Equivalent release spellings.** With the `audit` extra installed, spellings of one release such as `1.0`, `v1.0` and `1.0.0` share a column. Without `packaging`, only spellings that differ by the `v` prefix merge.
 
     `--output FILE` writes the table to a file in addition to printing it to stdout.
 
@@ -257,9 +247,7 @@ The following conditions exit `2` with nothing scanned:
 
 A plain directory takes part in import-name checks with the bare name of each top-level file it scans. A file its `exclude` leaves out takes no part.
 
-!!! note "Missing submodules are found later"
-
-    Validation looks up *only* the top-level package without importing it. A missing submodule of an importable package (`pkg.nosuch`) therefore exits `2` when its path is scanned, after the paths before it. No report is written.
+**Missing submodules are found later.** Validation looks up *only* the top-level package without importing it. A missing submodule of an importable package (`pkg.nosuch`) therefore exits `2` when its path is scanned, after the paths before it. No report is written.
 
 #### Duplicate and covered paths
 
@@ -286,13 +274,11 @@ Each path takes its `[tool.pydeprecate]` settings from the `pyproject.toml` near
 
 A typed `--version` applies to every path, and the run says so before the first scan header. Flags apply to every path.
 
-!!! note "Run-wide exit handling"
-
-    `--exit-zero` applies to the whole run. It conflicts with a typed `--strict`, but overrides strict mode configured in any path’s `pyproject.toml`.
+**Run-wide exit handling.** `--exit-zero` applies to the whole run. It conflicts with a typed `--strict`, but overrides strict mode configured in any path’s `pyproject.toml`.
 
 The report holds every path in `paths`, `versions`, and each finding's and gap's `path`. The SARIF file lists them in `run.properties.paths` and gives each result its `path`.
 
-!!! warning "Legacy positional versions"
+!!! info "Legacy positional versions"
 
     With exactly two positionals, `expiry`, `all` and `status` can still read the second one as the version. It must name no existing path or findable module and parse as a version, as in `pydeprecate expiry src/mypackage 2.0`.
 
@@ -304,7 +290,7 @@ The report holds every path in `paths`, `versions`, and each finding's and gap's
 
 #### Audit gaps
 
-!!! warning "A passing run can have gaps"
+!!! warning "Passing runs can have gaps"
 
     A run can pass without auditing everything. A gap leaves the exit code alone unless strict mode is on; see [Exit codes](#exit-codes).
 
@@ -399,9 +385,7 @@ The layout is described by the JSON Schema [`docs/schemas/report-1.schema.json`]
 
 The keys added in v0.16 (per-finding records, `gate`, `mode`, …) did not bump it. Every key a v0.15 report has (`schema`, `table`, `gaps[].kind`/`detail`/`hint`) keeps its type and meaning. A v0.15 reader therefore still reads a v0.16 report.
 
-!!! note "Report publication"
-
-    The file is written only when the run exits `0` or `1`. A usage error (exit `2`) or crash (exit `3`) leaves any existing report unchanged. Consumers <u>must check the exit code</u> before reading or publishing a report.
+**Report publication.** The file is written only when the run exits `0` or `1`. A usage error (exit `2`) or crash (exit `3`) leaves any existing report unchanged. Consumers <u>must check the exit code</u> before reading or publishing a report.
 
 The [GitHub Action](ci-integration.md#github-action) builds its gap annotations and job summary from this file.
 
@@ -434,9 +418,7 @@ The repository root is resolved in this order:
 
 The CLI can therefore run from any directory of the checkout. Scan the package in the checkout rather than an installed copy.
 
-!!! note "PEP 702-only symbols"
-
-    There is intentionally no `--include-pep702` flag. Every subcommand evaluates pyDeprecate schedule metadata (`deprecated_in`, `remove_in`, a replacement) that symbols deprecated only with `warnings.deprecated` lack. List those with the Python API: `find_deprecation_wrappers(..., include_pep702=True)`; see [PEP 702-only deprecations](index.md#pep-702-only-deprecations).
+**PEP 702-only symbols.** There is intentionally no `--include-pep702` flag. Every subcommand evaluates pyDeprecate schedule metadata (`deprecated_in`, `remove_in`, a replacement) that symbols deprecated only with `warnings.deprecated` lack. List those with the Python API: `find_deprecation_wrappers(..., include_pep702=True)`; see [PEP 702-only deprecations](index.md#pep-702-only-deprecations).
 
 ### Policy rule flags
 
@@ -460,9 +442,7 @@ The removal must be one clean bump of a single component: `1.2` → `1.5` or `2.
 | `--min-grace=1.0`, or `min-grace = "1.0"` in `pyproject.toml` | This is the strict "removals only at a major release" policy.                                                                                       |
 | A `0.x` project                                               | No special setting is needed. A bump to `1.0` is a major step and clears any window. Removals inside the `0.x` line are counted in minors as usual. |
 
-!!! warning "Malformed grace windows"
-
-    A malformed `--min-grace` value is rejected before the scan starts. It exits `2` with a message naming the accepted spellings; it is never silently ignored.
+**Malformed grace windows.** A malformed `--min-grace` value is rejected before the scan starts. It exits `2` with a message naming the accepted spellings; it is never silently ignored.
 
 ### Project configuration in `pyproject.toml`
 
@@ -501,7 +481,7 @@ There is **one table per project**: a nested file declaring it replaces the pare
 
 A wrapper is reported *if and only if* the module it is reported under does not match `exclude`. Even when something else in the package imports an excluded module, its wrappers stay out.
 
-!!! warning "Configuration validation"
+!!! failure "Configuration validation"
 
     A malformed value from the file exits `2`. The message names the `pyproject.toml` it came from.
 
@@ -514,7 +494,7 @@ A wrapper is reported *if and only if* the module it is reported under does not 
 
     Unknown keys in either table are reported on stderr and ignored, never silently enforced. `min_grace` with an underscore is the usual typo.
 
-!!! warning "A TOML parser is required"
+!!! warning "TOML parser required"
 
     Reading the file needs a TOML parser. It is built in on Python 3.11+; on 3.9–3.10, use the `tomli` backport from the `[audit]` extra.
 
@@ -524,9 +504,7 @@ A wrapper is reported *if and only if* the module it is reported under does not 
 
 `pydeprecate all` applies the same resolved settings to its single scan and its advisory policy pass.
 
-!!! note "Python policy API"
-
-    The Python API (`validate_deprecation_policy()`) takes a module object or importable name, never a filesystem path. It does not read `pyproject.toml`; pass its keyword arguments, including `exclude`, explicitly.
+**Python policy API.** The Python API (`validate_deprecation_policy()`) takes a module object or importable name, never a filesystem path. It does not read `pyproject.toml`; pass its keyword arguments, including `exclude`, explicitly.
 
 #### Version auto-detection
 
@@ -544,11 +522,9 @@ Installed metadata is tried under these names in order:
 
 The full name takes priority because a dotted component can have a separately versioned distribution.
 
-!!! note "Lookup boundaries"
+**Lookup boundaries.** An unresolved version does not fall through to an ancestor project. A bare module *name* skips the `pyproject.toml` lookup, so it cannot pick up an unrelated project's version from your current working directory.
 
-    An unresolved version does not fall through to an ancestor project. A bare module *name* skips the `pyproject.toml` lookup, so it cannot pick up an unrelated project's version from your current working directory.
-
-    The Python API (`validate_deprecation_expiry()`, `generate_deprecation_table()`) resolves the module's top-level package through this chain without the `pyproject.toml` step. It receives a module, never a path.
+The Python API (`validate_deprecation_expiry()`, `generate_deprecation_table()`) resolves the module's top-level package through this chain without the `pyproject.toml` step. It receives a module, never a path.
 
 Only a genuinely unresolved version skips the expiry check with a `version not resolved` gap and exit `0`, or exit `1` under `--strict`. Pass `--version` to supply it explicitly.
 
@@ -654,9 +630,7 @@ Factory names are followed however they are imported. Examples include `import d
 
 ### Unsettled settings
 
-!!! warning "Recognized but unresolved deprecations are reported"
-
-    A form the scan recognizes as a deprecation but cannot settle from the source is reported rather than skipped. Each unsettled wrapper or setting produces one stderr line: `pydeprecate gap: not statically resolvable: <file>:<line>: <reason>`.
+**Recognized but unresolved deprecations are reported.** A form the scan recognizes as a deprecation but cannot settle from the source is reported rather than skipped. Each unsettled wrapper or setting produces one stderr line: `pydeprecate gap: not statically resolvable: <file>:<line>: <reason>`.
 
 | Unsettled form                  | Detail                                                                                                                                                                                                                                                               |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -680,7 +654,7 @@ The wrapper is left out only of rules that read the unsettled setting. A version
 
 A module kept out of the walk by `--no-recursive` or `--exclude` is read on demand when a walked module re-exports from it. Its gap lines are printed too.
 
-!!! warning "Use strict mode for complete CI gates"
+!!! tip "Use strict mode"
 
     A gap does not change the exit code unless strict mode is on, as with every other gap. A static run therefore passes when everything it could read is clean.
 
@@ -697,19 +671,13 @@ Without `--version`, the resolver tries these sources in order:
 3. Try installed metadata.
 4. Read the `__version__` literal in the package's `__init__.py`. Follow `from .module import __version__`, `... import version as __version__` and `from module import *` re-exports.
 
-!!! warning "Rebound versions can fall back to stale metadata"
-
-    A `__version__` rebound inside `if` or `try`, or through a function's `global`, makes the source read yield nothing. It does not yield the literal before the rebinding. Resolution therefore falls back to the package's installed metadata, which may be stale for a development checkout.
-
-    Pass `--version` **explicitly** in that case.
+**Rebound versions can fall back to stale metadata.** A `__version__` rebound inside `if` or `try`, or through a function's `global`, makes the source read yield nothing. It does not yield the literal before the rebinding. Resolution therefore falls back to the package's installed metadata, which may be stale for a development checkout. Pass `--version` **explicitly** in that case.
 
 ### Locations and blind spots
 
 A static run's findings carry the same `location` as an import run's: the file and the line of the wrapper's first decorator. Results from `--report-sarif` therefore show in GitHub code scanning. A wrapper of an object defined in another module or bound more than once has `location: null`.
 
-!!! warning "No gap line does not prove full coverage"
-
-    Gap lines cover only what the scan recognizes, so they do not prove that nothing was missed. The blind spots below are invisible to the scan and print no gap line. A clean static run does not show they hold no deprecation.
+**No gap line does not prove full coverage.** Gap lines cover only what the scan recognizes, so they do not prove that nothing was missed. The blind spots below are invisible to the scan and print no gap line. A clean static run does not show they hold no deprecation.
 
 | Blind spot                                           | Detail                                                                                                                                                                                                                                  |
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -762,9 +730,7 @@ A usage error (exit `2`) on any path stops the run before anything is scanned, o
 | Several top-level packages                   | A directory holding two or more top-level packages produces `contains multiple packages (…)`; pass the package sub-directory instead.                                                                                    |
 | Missing paths or modules                     | A name is neither an existing path nor an importable module. This produces `No such path or importable module`, also for relative spellings such as `./typo` or `.pkg`.                                                  |
 
-!!! note "Missing submodules are checked during the scan"
-
-    Only a missing submodule of an importable package (`pkg.nosuch`) is found when its own path is scanned. With several paths, the ones before it are scanned first. It still exits `2` with no report.
+**Missing submodules are checked during the scan.** Only a missing submodule of an importable package (`pkg.nosuch`) is found when its own path is scanned. With several paths, the ones before it are scanned first. It still exits `2` with no report.
 
 With `--static`, these are also usage errors:
 
@@ -783,9 +749,7 @@ Exit `3` means the audit itself did not run. Neither error writes a `--report-js
 | `pydeprecate: scan error: …`     | The scanned package cannot be imported because its module-level code raises or exits. This never occurs with `--static`, which imports nothing. |
 | `pydeprecate: internal error: …` | There is a bug in the CLI. The diagnostic includes the issue tracker to report it to.                                                           |
 
-!!! note "Submodule failures"
-
-    A *submodule* that fails is a `module not audited` gap unless explicitly requested. When explicitly requested, the run exits `3` even when a parent scan covers it.
+**Submodule failures.** A *submodule* that fails is a `module not audited` gap unless explicitly requested. When explicitly requested, the run exits `3` even when a parent scan covers it.
 
 Policy violations are the one finding `all` reports without acting on by default: they move `all` from `0` to `1` only with `--gate=policy`.
 
@@ -818,9 +782,7 @@ All subcommands accept these path formats:
 | **Importable module name** | Provide a dotted module path such as `mypackage.utils` in import mode. Static mode accepts only top-level module names. |
 | **Plain directory**        | The scan reads top-level `.py` files only. Nested files are reported as a `nested files not audited` gap.               |
 
-!!! warning "Unsupported paths"
-
-    A single `.py` file, or a directory holding two or more top-level packages, is a usage error (exit `2`) for every subcommand.
+**Unsupported paths.** A single `.py` file, or a directory holding two or more top-level packages, is a usage error (exit `2`) for every subcommand.
 
 While scanning, the imported code sees no pydeprecate arguments in `sys.argv`. The header line `Imported from:` names the file the package was actually imported from.
 

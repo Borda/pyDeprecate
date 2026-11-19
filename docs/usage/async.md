@@ -100,7 +100,7 @@ b'https://example.com'
 
 </details>
 
-!!! warning "Concurrent coroutines and warning counts"
+!!! note "Concurrent coroutines and counts"
 
     Warning-budget reservations are protected by a per-wrapper lock. An async wrapper reserves its callable or per-argument budget **before its first `await`**. Concurrent coroutines sharing the wrapper therefore cannot race while reserving those counters.
 

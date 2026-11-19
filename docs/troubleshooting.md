@@ -117,9 +117,7 @@ To check whether the path is still used, choose one option:
 - Restart the process to reset the counter, then watch for the warning.
 - Temporarily redeploy with `num_warns=-1` to invoke the configured warning path on every call.
 
-!!! note "Delivery and display differ"
-
-    Standard warning filters can still suppress repeated display. A custom stream can record each delivery.
+**Delivery and display differ.** Standard warning filters can still suppress repeated display. A custom stream can record each delivery.
 
 ### How do I redirect deprecation output to a logger instead of `warnings.warn`?
 
@@ -186,7 +184,7 @@ GET /api/users
 - Messages are always emitted regardless of Python's warning filter state, with no `-W` flag interaction.
 - Timestamps appear automatically if your formatter adds them.
 
-!!! note "Logging still uses the warning budget"
+!!! tip "Log every call site"
 
     With `stream=logging.warning`, `num_warns` still controls how many times the message is emitted. Combine `num_warns=-1` with `stream=logging.warning` to log every deprecated call site. Use log analytics to measure migration progress.
 
@@ -204,12 +202,7 @@ This location rule covers call-time notices, decoration-time configuration warni
 
 Two cases can report a different frame:
 
-- **A custom `stream` written in Python.** pyDeprecate counts `stacklevel` from the frame calling the stream. A Python function forwarding to `warnings.warn` adds a frame, placing the warning one frame short, inside pyDeprecate. Use `warnings.warn`, its `functools.partial`, or a bound logger method such as `logging.getLogger().warning`. Alternatively, add `1` to the received `stacklevel` before forwarding it.
-
-!!! warning "Module-level logging differs by Python version"
-
-    `logging.warning` gives the correct location only on Python 3.11 and newer. On 3.9 and 3.10, it adds a logging frame, so the record points one frame short.
-
+- **A custom `stream` written in Python.** pyDeprecate counts `stacklevel` from the frame calling the stream. A Python function forwarding to `warnings.warn` adds a frame, placing the warning one frame short, inside pyDeprecate. Use `warnings.warn`, its `functools.partial`, or a bound logger method such as `logging.getLogger().warning`. Module-level `logging.warning` gives the correct location only on Python 3.11 and newer: on 3.9 and 3.10, it adds a logging frame, so the record points one frame short. Alternatively, add `1` to the received `stacklevel` before forwarding it.
 - **A `@cached_property` source.** The getter runs inside `functools.cached_property.__get__`, which is the first frame outside pyDeprecate, so the warning reports `functools.py`. Filter on the warning category or message instead of the module.
 
 ## Functions and argument mapping
@@ -517,7 +510,7 @@ print(my_func(3))
 
 </details>
 
-!!! danger "This misconfiguration will become a TypeError in v1.0"
+!!! info "Becomes a TypeError in v1.0"
 
     Migrate now to avoid a hard break on upgrade. Use the [audit tools](audit/index.md) to detect this combination across your codebase automatically — `find_deprecation_wrappers()` reports it via the `misconfigured_target` flag on `DeprecationWrapperInfo`.
 
@@ -567,9 +560,7 @@ print(MyService().run(3))
 
 If you are intentionally delegating to another class, convert the target to a standalone function or use `@deprecated_class` to deprecate the whole class instead.
 
-!!! note "Static methods can forward across classes"
-
-    The guard skips sources that are `@staticmethod` descriptors because they receive no `self`. Use `@deprecated(...) @staticmethod` or the equivalent `@staticmethod @deprecated(...)` order:
+**Static methods can forward across classes.** The guard skips sources that are `@staticmethod` descriptors because they receive no `self`. Use `@deprecated(...) @staticmethod` or the equivalent `@staticmethod @deprecated(...)` order:
 
 ```python
 from deprecate import deprecated
@@ -711,9 +702,7 @@ print(sample(5))
 
 This matches other pyDeprecate warnings: they fire when the deprecated callable is invoked. They are never deferred to later use of its return value.
 
-!!! note "Warning timing cannot be deferred"
-
-    There is no option to delay this warning until `sample(...)` runs. That would require intercepting `old_wrapper`'s return value with another wrapper, adding `num_warns` and introspection complications without a clear benefit.
+**Warning timing cannot be deferred.** There is no option to delay this warning until `sample(...)` runs. That would require intercepting `old_wrapper`'s return value with another wrapper, adding `num_warns` and introspection complications without a clear benefit.
 
 To warn at the wrapped function's call site, choose one approach:
 
@@ -793,11 +782,9 @@ The same rule applies to `@staticmethod`.
 
 Define a plain `def` or `async def` with the desired public signature and decorate that named function.
 
-!!! note "Async detection and object aliases"
+**Async detection.** For async targets, pyDeprecate follows `inspect.iscoroutinefunction` on the supported Python runtime. An async callable instance returning an awaitable is a distinct kind and might not be recognized as a coroutine function.
 
-    For async targets, pyDeprecate follows `inspect.iscoroutinefunction` on the supported Python runtime. An async callable instance returning an awaitable is a distinct kind and might not be recognized as a coroutine function.
-
-    `deprecated_instance` deprecates an object alias. It does not substitute for a decorated function source.
+**Object aliases.** `deprecated_instance` deprecates an object alias. It does not substitute for a decorated function source.
 
 ```python
 import asyncio
@@ -975,14 +962,12 @@ Since v0.12, `@deprecated` on a class is first-class supported and permanent. It
 
 **Q:** I applied `@deprecated` directly to a class and got `` UserWarning: `@deprecated` on class `MyClass` now dispatches to `@deprecated_class`. `` Is this a problem, and how do I stop it?
 
-!!! note "The dispatch notice is temporary"
+!!! info "Notice removed in v1.0"
 
     The `UserWarning` is a one-time informational notice that the dispatch happened. Only this notice is removed entirely in v1.0; class dispatch remains supported.
 
     - The notice fires at most once per class, rather than on every decoration.
-
     - The cache key combines the module and qualified name. Same-named classes in different modules each warn.
-
     - The cache is thread-safe and retains at most 4096 class keys in insertion order. An evicted class may receive the notice again.
 
 You have two ways to quiet it, and one alternative pattern for a different use case:
@@ -1245,15 +1230,11 @@ print(LegacyConfig(time_limit=30).timeout)  # old name — FutureWarning emitted
 
 </details>
 
-!!! warning "Explicit targets disable auto-resolution"
+**Explicit targets disable auto-resolution.** Auto-resolution applies only when `target` is omitted. Explicit `target=TargetMode.NOTIFY` with `args_mapping` is a misconfiguration:
 
-    Auto-resolution applies only when `target` is omitted. Explicit `target=TargetMode.NOTIFY` with `args_mapping` is a misconfiguration.
-
-    - A `UserWarning` fires at decoration time; this becomes `TypeError` in v1.0.
-
-    - The mode stays `NOTIFY`, and the mapping is inert at runtime.
-
-    - Audit metadata preserves the mapping and flags it as `misconfigured`.
+- A `UserWarning` fires at decoration time; this becomes `TypeError` in v1.0.
+- The mode stays `NOTIFY`, and the mapping is inert at runtime.
+- Audit metadata preserves the mapping and flags it as `misconfigured`.
 
 Explicit configuration is never silently rewritten. When `target` is omitted, a present `args_mapping` resolves to `TargetMode.ARGS_REMAP`. On the `@deprecated` front door, the `TargetMode.AUTO` default performs this inference.
 
@@ -1328,9 +1309,7 @@ Python invokes special methods on the object's type, bypassing `__getattr__`. Th
 
 Each proxy uses a cached `_DeprecatedProxy` subclass carrying only the protocols defined by the wrapped object's type. A proxy over a `dict` is neither `callable()` nor an `Iterator`, just like the dict.
 
-!!! note "Text conversion support"
-
-    Text is the exception to that protocol matching. `int()`, `float()`, `complex()` and `os.fspath()` keep working on a proxy over `str` or `bytes`.
+Text is the exception to that protocol matching. `int()`, `float()`, `complex()` and `os.fspath()` keep working on a proxy over `str` or `bytes`.
 
 **What warns (data-use operations):**
 
@@ -1375,11 +1354,9 @@ int
 
 </details>
 
-!!! warning "Strict-type reflected operators"
+**Strict-type reflected operators.** A proxy on the right cannot intercept an operation if the left operand raises `TypeError` instead of returning `NotImplemented`. Python cannot fall back to the proxy's reflected method.
 
-    A proxy on the right cannot intercept an operation if the left operand raises `TypeError` instead of returning `NotImplemented`. Python cannot fall back to the proxy's reflected method.
-
-    For example, `"prefix" + proxy_str` fails because `str.__add__` raises `TypeError` for non-string operands. The proxy-on-left form works normally and warns:
+For example, `"prefix" + proxy_str` fails because `str.__add__` raises `TypeError` for non-string operands. The proxy-on-left form works normally and warns:
 
 ```python
 from deprecate import deprecated_instance
@@ -1465,35 +1442,13 @@ Synchronous data-use operations normally warn only after success. A `KeyError` f
 
 **Q:** My code probes a deprecated mapping with `try: settings[key] except KeyError: ...`. The miss emitted no `FutureWarning`, but the next successful `settings["threshold"]` read did.
 
-!!! note "Some operations warn before completion"
+??? note "Some operations warn before completion"
 
     - `next(proxy)` warns before advancing the wrapped iterator, so failed warning delivery loses no item. An exhausting `next()` raising `StopIteration` still spends the budget.
-
     - `__anext__` and `__await__` warn when they obtain the underlying awaitable, before it runs. Later async failure or exhaustion still consumes the budget.
-
     - If warning delivery raises after context entry acquires a resource, the proxy invokes that context's exit method before propagating the error.
-
     - Calling a proxy warns before the call, as `@deprecated` does. A deprecated constructor that raises therefore still reports the deprecation.
-
-!!! warning "Fatal proxies reject use before touching the object"
-
-    With `as_exception=True`, the proxy raises `DeprecatedError` before invoking any of these operations:
-
-    - Subscripts and iteration are rejected before use.
-
-    - Unary and conversion operators are rejected before use.
-
-    - `next()` is rejected before use.
-
-    - `with` and `async with` entry are rejected before use.
-
-    - Async iteration and `await` are rejected before use.
-
-    - In-place operators such as `+=` are rejected before use.
-
-    - `attrs_mapping` attribute reads are rejected before use.
-
-    A missing key therefore raises `DeprecatedError` instead of `KeyError`. A `defaultdict` gains no entry.
+    - With `as_exception=True`, the proxy raises `DeprecatedError` before invoking any of these operations: subscripts and iteration, unary and conversion operators, `next()`, `with` and `async with` entry, async iteration and `await`, in-place operators such as `+=`, and `attrs_mapping` attribute reads. A missing key therefore raises `DeprecatedError` instead of `KeyError`, and a `defaultdict` gains no entry.
 
 ### Can a `deprecated_instance` of a function be used as a class attribute (method)?
 
@@ -1507,9 +1462,7 @@ Yes. A proxy over a plain function or `@deprecated` wrapper binds like a method 
 - `skip_if` and `as_exception` behave as on a direct call.
 - Class access through `Model.scale` returns the proxy itself, as with a plain function. `Model.scale(model, 2)` therefore also works.
 
-!!! note "Other wrapped objects do not bind"
-
-    Proxies over data, classes, and non-function descriptors are returned as stored. This includes `property`, `classmethod`, and `staticmethod` objects. Deprecate these by applying `@deprecated` to the underlying function instead.
+**Other wrapped objects do not bind.** Proxies over data, classes, and non-function descriptors are returned as stored. This includes `property`, `classmethod`, and `staticmethod` objects. Deprecate these by applying `@deprecated` to the underlying function instead.
 
 Releases without this binding called `legacy_scale(2)` and raised `TypeError: legacy_scale() missing 1 required positional argument`.
 
@@ -1845,9 +1798,7 @@ async def consume(gen):
 asyncio.run(consume(agen))  # warns: FutureWarning
 ```
 
-!!! note "Framework detection is preserved"
-
-    The wrapper remains an async generator function, so `inspect.isasyncgenfunction(old_stream)` returns `True`. Frameworks checking that flag, including pytest-asyncio fixtures, treat it like the undecorated function.
+**Framework detection is preserved.** The wrapper remains an async generator function, so `inspect.isasyncgenfunction(old_stream)` returns `True`. Frameworks checking that flag, including pytest-asyncio fixtures, treat it like the undecorated function.
 
 ### Concurrent async calls and warning counts
 
@@ -1859,9 +1810,7 @@ Each deprecated argument has its own `num_warns` budget. This value is therefore
 
 The budget controls warning attempts, rather than an exact number of visible records. Standard warning filters may suppress records.
 
-!!! note "Delivery failures differ for callable wrappers and proxies"
-
-    A custom stream may raise after a callable wrapper reserves its budget. Callable delivery does not restore that reservation. Proxy delivery has separate rollback behavior.
+**Delivery failures differ for callable wrappers and proxies.** A custom stream may raise after a callable wrapper reserves its budget. Callable delivery does not restore that reservation. Proxy delivery has separate rollback behavior.
 
 Use `num_warns=-1` only for unlimited warning attempts, rather than to avoid a concurrency race.
 
@@ -2061,9 +2010,7 @@ Yes. Redirect guards expire when the original lookup finishes, whether it return
 
 **Q:** A redirect target captures `contextvars.copy_context()` while resolving a missing attribute. Can later work in that context access the same deprecated attribute?
 
-!!! warning "Active redirect cycles still fail"
-
-    A cyclic redirect re-entering the same name during an active lookup on the same thread still raises `AttributeError`.
+**Active redirect cycles still fail.** A cyclic redirect re-entering the same name during an active lookup on the same thread still raises `AttributeError`.
 
 ### Does `from old_calculator import *` still trigger the deprecation warning?
 
@@ -2091,7 +2038,7 @@ For `deprecated_module()`, explicit `stream=None` historically meant `warnings.w
 
 The default is now a separate sentinel, displayed as `<warnings.warn>` by `help()`. Omitting `stream` preserves current behavior without that notice.
 
-!!! warning "Module defaults change in v1.0"
+!!! info "Changes in v1.0"
 
     In v1.0, `stream=None` silences module warnings and the `num_warns` default changes from `-1` to `1`.
 
@@ -2222,7 +2169,7 @@ A class alias remains a proxy at runtime: `isinstance(RetryConfig, DeprecationPr
 
 Read them using `get_deprecation_config(RetryConfig)` or `inspect.unwrap(RetryConfig)`. Alternatively, use `cast(DeprecationProxy[Any], RetryConfig)` at the site needing them. See [Classes → Type annotations and static analysis](usage/classes.md#type-annotations-and-static-analysis) for other checks against aliases.
 
-!!! warning "`issubclass` raises `TypeError`"
+!!! failure "`issubclass` raises `TypeError`"
 
     `DeprecationProxy` declares attributes (`__wrapped__`, `__deprecated__`), which makes it a *data* protocol. Python supports only `isinstance` for those: `isinstance(obj, DeprecationProxy)` works. `issubclass(SomeType, DeprecationProxy)` raises `TypeError: Protocols with non-method members don't support issubclass()`.
 
@@ -2245,12 +2192,7 @@ Common errors and fixes follow.
 
 - **`[assignment]` on `Old: DeprecationProxy[New] = deprecated_class(target=New, ...)(Cls)`.** The alias is `type[New]`, not a proxy type. Drop the annotation; the alias already has the replacement's type.
 - **`[attr-defined]` on `Old.__wrapped__` or `Old.__deprecation_config__`** — proxy-only attributes are invisible on the class type. Use `get_deprecation_config(Old)`, `inspect.unwrap(Old)`, or `cast(DeprecationProxy[Any], Old)`.
-- **`[call-arg]` or `[attr-defined]` on an old keyword or attribute name.** `args_mapping` and `attrs_mapping` can accept names absent from the alias's class type. This matches the decorator form's existing diagnostics. Keep old names in a legacy class body, or cast the alias as `cast(DeprecationProxy[New], deprecated_class(...)(New))`.
-
-!!! warning "Casting trades precision for compatibility"
-
-    That cast makes calls and attributes permissive. However, `isinstance` against the alias no longer type-checks.
-
+- **`[call-arg]` or `[attr-defined]` on an old keyword or attribute name.** `args_mapping` and `attrs_mapping` can accept names absent from the alias's class type. This matches the decorator form's existing diagnostics. Keep old names in a legacy class body, or cast the alias as `cast(DeprecationProxy[New], deprecated_class(...)(New))`. That cast makes calls and attributes permissive, but `isinstance` against the alias no longer type-checks.
 - **`[valid-type]` on `def f(x: Old)`, or `class Child(Old)` in mypy.** A call-form alias is a variable, which type checkers cannot accept as a type. Annotate or subclass the replacement class. In mypy, you can also use the decorator form, whose name is a class statement.
 
 See [Classes → Type annotations and static analysis](usage/classes.md#type-annotations-and-static-analysis).
@@ -2303,9 +2245,7 @@ RetryConfig
 
 If a tool still renders the proxy, point it at `__wrapped__` explicitly.
 
-!!! note "Some objects have no introspectable signature"
-
-    Examples include a plain `dict` passed to `deprecated_instance()` and C-level types. In these cases, `__signature__` is `None`, rather than absent. Wrapping never fails because the source cannot be introspected.
+**Some objects have no introspectable signature.** Examples include a plain `dict` passed to `deprecated_instance()` and C-level types. In these cases, `__signature__` is `None`, rather than absent. Wrapping never fails because the source cannot be introspected.
 
 ### Why don't mypy, pyright, or my IDE flag functions deprecated with pyDeprecate?
 
@@ -2334,13 +2274,9 @@ Copy operations are silent because the protocol methods rebuild the proxy direct
 !!! note "Pickling depends on the wrapped object"
 
     - `deprecated_instance` proxies over plain objects, including dicts, lists, and custom objects, are fully picklable.
-
     - A `deprecated_class` alias itself commonly raises `PicklingError` when its proxy replaces the original class's module-level name. Pickle cannot find the original class by reference.
-
     - Instances of a class deprecated in place pickle and load as instances of the original class. Neither step warns.
-
     - This includes exception and `OrderedDict` subclasses. An exception raised in a process-pool worker therefore still reaches the parent.
-
     - A class with its own `__reduce_ex__` keeps its own pickling. Members of an Enum deprecated in place therefore still raise `PicklingError`.
 
 ```python
@@ -2381,12 +2317,7 @@ The class's module-level name holds the proxy, so the payload cannot name the cl
 
 The helper is `deprecate.proxy._rebuild_class_instance`, `_rebuild_class_instance_ex`, or `_rebuild_class_call`.
 
-- **Upgrading pyDeprecate is safe.** The helper names belong to the pickle compatibility contract and stay unchanged across releases, allowing payloads to load in later releases.
-
-!!! warning "Older releases cannot load these payloads"
-
-    Before v0.15, pyDeprecate lacks these helpers and cannot load such payloads.
-
+- **Upgrading pyDeprecate is safe.** The helper names belong to the pickle compatibility contract and stay unchanged across releases, allowing payloads to load in later releases. Before v0.15, pyDeprecate lacks these helpers and cannot load such payloads.
 - **Removing the deprecation breaks loading.** The helpers rebuild only a class whose name a deprecation proxy holds. Once the deprecation is gone and the name points at the plain class again, loading raises `AttributeError: Cannot rebuild the pickled instance: ... is not a class deprecated in place`.
 
 To migrate stored instances:
@@ -2395,9 +2326,7 @@ To migrate stored instances:
 2. In the migrating process, set the module attribute back to the real class using `inspect.unwrap(OldClass)`.
 3. Pickle the loaded instances again.
 
-!!! warning "Preserve the class's import identity"
-
-    As with any Python pickle, do not rename or move the original class's module or qualified name without a compatibility alias.
+**Preserve the class's import identity.** As with any Python pickle, do not rename or move the original class's module or qualified name without a compatibility alias.
 
 `deprecated_instance` proxies over plain objects have no in-place-class requirement. They pickle the wrapped object itself.
 
@@ -2407,11 +2336,10 @@ Versions before [PR #212](https://github.com/Borda/pyDeprecate/pull/212) raised 
 
 **Q:** I get `TypeError: ... is wrapped in a deprecation proxy and cannot be pickled directly` when passing a `deprecated_instance` proxy to `pickle.dumps`, `multiprocessing`, or `joblib`.
 
-!!! warning "Pickling still has two caveats"
+Two caveats remain:
 
-    - The `stream` callable must be picklable by reference. Replace lambdas or closures with `stream=None` or `stream=warnings.warn`.
-
-    - A `deprecated_class` alias itself commonly raises `PicklingError` when its proxy replaces the decorated class name. Use `copy.deepcopy` for class aliases. Instances of classes deprecated in place pickle successfully.
+- The `stream` callable must be picklable by reference. Replace lambdas or closures with `stream=None` or `stream=warnings.warn`.
+- A `deprecated_class` alias itself commonly raises `PicklingError` when its proxy replaces the decorated class name. Use `copy.deepcopy` for class aliases. Instances of classes deprecated in place pickle successfully.
 
 ## Audit, CLI and GitHub Action
 
@@ -2468,9 +2396,7 @@ The opt-in makes `all` exit `1` on policy violations from that same scan. Withou
 - Deprecated-to-deprecated chains make `all` exit `1`.
 - Expired wrappers make `all` exit `1`.
 
-!!! warning "Policy configuration errors are never advisory"
-
-    An unreadable or unparsable nearest `pyproject.toml`, or malformed `[tool.pydeprecate.policy]` value, still exits `2` inside `all`. The message is `Cannot read <path>: <err>`. This failure is checked before the chains check runs.
+**Policy configuration errors are never advisory.** An unreadable or unparsable nearest `pyproject.toml`, or malformed `[tool.pydeprecate.policy]` value, still exits `2` inside `all`. The message is `Cannot read <path>: <err>`. This failure is checked before the chains check runs.
 
 Before v0.16, or to keep policy gating separate from `all`, give `pydeprecate policy` its own CI step.
 
@@ -2561,13 +2487,11 @@ Bare module names never trigger this search. Running from an unrelated checkout 
 
 Every run prints a `Policy:` header identifying each value's source: `flag`, `pyproject.toml`, or `built-in`.
 
-!!! warning "Configuration failures and unknown keys"
+Configuration failures and unknown keys:
 
-    - Malformed values, unreadable files, and unparsable `pyproject.toml` files exit `2` with `Cannot read <path>: <err>`.
-
-    - Unknown keys, such as `min_grace` with an underscore, are reported on stderr and ignored. They are never silently enforced.
-
-    - On Python 3.9–3.10, the parser is `tomli` from the `[audit]` extra. Without it, a reachable `pyproject.toml` triggers an advisory instead of being skipped silently.
+- Malformed values, unreadable files, and unparsable `pyproject.toml` files exit `2` with `Cannot read <path>: <err>`.
+- Unknown keys, such as `min_grace` with an underscore, are reported on stderr and ignored. They are never silently enforced.
+- On Python 3.9–3.10, the parser is `tomli` from the `[audit]` extra. Without it, a reachable `pyproject.toml` triggers an advisory instead of being skipped silently.
 
 `pydeprecate all` uses these resolved settings for its advisory policy pass. Configuration-read failures still propagate as exit `2`, checked before `chains`, even though violation counts are advisory.
 
@@ -2595,9 +2519,7 @@ You can also pass exclusions directly:
 
 A pattern matching a package excludes its whole subtree. The scan itself never imports excluded packages. A fixture raising at import time therefore neither slows the scan nor produces an `audit: skipped` warning.
 
-!!! warning "Imports elsewhere still run"
-
-    If other code in your package imports an excluded package, that import happens normally. Only the wrappers are filtered out.
+**Imports elsewhere still run.** If other code in your package imports an excluded package, that import happens normally. Only the wrappers are filtered out.
 
 The header `Exclude: my_package.tests (pyproject.toml)` identifies the exclusions and their source.
 
@@ -2633,13 +2555,14 @@ The scan imports your package. Submodules with missing dependencies are skipped 
 Choose a setup matching your audit needs:
 
 - Run a local hook (`repo: local`, `language: system`, `entry: pydeprecate check`) so the scan uses your development environment — the recommended setup for any package with runtime dependencies.
+
 - **Use the remote hook with dependencies.** List your package's dependencies in `additional_dependencies`. This replaces the hook's own list, so start with `"pyDeprecate[audit]"` and append yours.
+
+- For removal deadlines and policy rules only, use the import-free `pydeprecate-expiry-static` and `pydeprecate-policy-static` hooks, which need none of your dependencies (from `v0.16.0`).
 
 !!! warning "Retain the hook's extras"
 
     Pip resolves the `audit` extra to the hook's own checkout. Without `audit`, missing `packaging` causes `expiry` and `min-grace` checks to warn and skip instead of failing. Without `tomli` on Python 3.9–3.10, `[tool.pydeprecate]` settings are ignored.
-
-- For removal deadlines and policy rules only, use the import-free `pydeprecate-expiry-static` and `pydeprecate-policy-static` hooks, which need none of your dependencies (from `v0.16.0`).
 
 The [audit guide](audit/ci-integration.md#pre-commit-integration) contains the hook recipes.
 
@@ -2660,9 +2583,7 @@ Recognized wrappers can be checked when the required settings are statically res
     These forms are invisible and produce no gap:
 
     - Wrappers built in loops are invisible.
-
     - Wrappers built through `getattr`, `importlib`, or `exec` are invisible.
-
     - Wrappers imported from outside the scanned package are invisible.
 
 `check`, `chains`, `all`, and `status` need imported wrappers and have no static mode. See [Static mode](audit/cli.md#static-mode). For reusable Python rows, see the [Python static API](#how-do-i-audit-deprecations-without-importing-my-package).
@@ -2673,9 +2594,7 @@ Call `deprecate.audit.find_deprecation_wrappers_static(path)` (since v0.16) to r
 
 Pass its frozen `StaticScanResult` directly to `validate_deprecation_expiry`, `validate_deprecation_policy`, or `generate_deprecation_table`.
 
-!!! warning "Inspect gaps and avoid stand-in targets"
-
-    Always inspect `.gaps` for incomplete coverage, even when `.wrappers` is empty. Never call a row's stand-in target: it raises `TypeError`.
+**Inspect gaps and avoid stand-in targets.** Always inspect `.gaps` for incomplete coverage, even when `.wrappers` is empty. Never call a row's stand-in target: it raises `TypeError`.
 
 This suits missing dependencies, docs builds, and isolated audit scripts. Supply `current_version` to expiry when `.version` is `None`; otherwise expiry raises `ImportError`. The result shares the [CLI `--static` blind spots](audit/cli.md#static-mode): dynamic forms can remain invisible without a gap.
 
@@ -2724,9 +2643,7 @@ The audit did not run. Exit `3` represents a scan or internal error, rather than
 | Scan error     | The scanned package's `__init__` or named module raised during import, or its module-level code called `sys.exit()`. Install its runtime dependencies as for tests. |
 | Internal error | A pyDeprecate bug occurred. The message names the exception and issue tracker for reporting it.                                                                     |
 
-!!! note "A failed submodule is a gap"
-
-    A submodule import failure produces `pydeprecate gap: module not audited`. It preserves the exit code unless strict mode is enabled.
+**A failed submodule is a gap.** A submodule import failure produces `pydeprecate gap: module not audited`. It preserves the exit code unless strict mode is enabled.
 
 `--exit-zero` does not mask exit `3`, and no `--report-json` file is written. Before v0.15, both error types exited `1`, like findings.
 
@@ -2863,9 +2780,7 @@ The budget controls messages. If a fatal gate stopped after one call, a caller c
 
 Changing the stream affects presentation, so it cannot turn off a CI gate. `skip_if` does suppress fatal deprecations: while the wrapper is disabled, it is not a deprecation.
 
-!!! warning "Fatal modules stop attribute-walking tools"
-
-    A fatal `deprecated_module` raises on every public attribute access. This includes probes by pytest collection, Sphinx autodoc, `pickle`, and `copy`. These tools stop at the module instead of skipping it.
+**Fatal modules stop attribute-walking tools.** A fatal `deprecated_module` raises on every public attribute access. This includes probes by pytest collection, Sphinx autodoc, `pickle`, and `copy`. These tools stop at the module instead of skipping it.
 
 pyDeprecate's own audit remains unaffected. `find_deprecation_wrappers()` and the CLI read the module's `__dict__` directly. Fatal modules are therefore still discovered and reported normally.
 

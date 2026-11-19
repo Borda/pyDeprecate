@@ -56,7 +56,7 @@ The table is the **single source of truth**. The CLI step enforces it without te
 pydeprecate all --gate=policy src/mypackage
 ```
 
-!!! note "Policy gate defaults and older releases"
+!!! info "Policy gate defaults"
 
     Without `--gate=policy`, `pydeprecate all` prints policy violations as `[WARNING]` **without failing**. Set `gate = ["policy"]` in `[tool.pydeprecate]` to make policy enforcement the project default.
 
@@ -76,15 +76,11 @@ Pass every package to one command: `pydeprecate all --gate=policy packages/core/
 - Each package has a table under a `### <package>` heading.
 - One exit code covers all packages.
 
-!!! warning "Paths are checked before imports"
+**Paths are checked before imports.** A typo or broken `pyproject.toml` in any package fails the run with exit `2` *before* scanning. A missing submodule of an importable package, such as `pkg.nosuch`, is found only when its path is reached.
 
-    A typo or broken `pyproject.toml` in any package fails the run with exit `2` *before* scanning. A missing submodule of an importable package, such as `pkg.nosuch`, is found only when its path is reached.
+**Process and import isolation.** Packages sharing the same top-level import name need **separate runs**. Multiple paths remaining after deduplication use separate Python workers for import-mode scans. A shared import may initialize once in each worker.
 
-!!! note "Process and import isolation"
-
-    Packages sharing the same top-level import name need **separate runs**. Multiple paths remaining after deduplication use separate Python workers for import-mode scans. A shared import may initialize once in each worker.
-
-    One retained path runs in the calling process. `--static` reads source without importing packages or starting workers. See [Several paths in one run](cli.md#several-paths-in-one-run).
+One retained path runs in the calling process. `--static` reads source without importing packages or starting workers. See [Several paths in one run](cli.md#several-paths-in-one-run).
 
 ## Pre-commit Integration
 
@@ -132,7 +128,7 @@ repos:
 
 pre-commit installs the hook into an *isolated environment*. It contains pyDeprecate and CLI dependencies, but none of your package's runtime dependencies.
 
-!!! warning "Replacing hook dependencies"
+!!! note "Replacing hook dependencies"
 
     `additional_dependencies` *replaces* the hook's own dependency list. Start with `"pyDeprecate[audit]"`, then append your package's runtime dependencies. pip resolves that entry to the hook's own checkout, including its `audit` extra.
 
@@ -160,11 +156,9 @@ repos:
 
 `pydeprecate-expiry-static` and `pydeprecate-policy-static` read source with `ast` without importing your package. They need none of its runtime dependencies.
 
-<!-- TODO(v0.16.0): remove this "Release availability" warning once v0.16.0 is tagged; the hooks then exist in the released repo -->
+<!-- TODO(v0.16.0): remove this "Release availability" paragraph once v0.16.0 is tagged; the hooks then exist in the released repo -->
 
-!!! warning "Release availability"
-
-    These hooks ship with `v0.16.0`, the upcoming release, not yet tagged. The following recipe fails until that release is published.
+**Release availability.** These hooks ship with `v0.16.0`, the upcoming release, not yet tagged. The following recipe fails until that release is published.
 
 ```yaml
 # .pre-commit-config.yaml
@@ -178,15 +172,13 @@ repos:
 
 The static hooks check removal deadlines and policy rules for recognized wrappers with resolvable relevant settings.
 
-!!! warning "Static coverage is incomplete"
+**Static coverage is incomplete.** Recognized unresolved forms emit a `not statically resolvable` gap without failing the hook. Some forms remain invisible without a gap.
 
-    Recognized unresolved forms emit a `not statically resolvable` gap without failing the hook. Some forms remain invisible without a gap.
+Read output with `pre-commit run --verbose` when first enabling a hook. Use an import-mode audit for fuller coverage. See [Static mode](cli.md#static-mode).
 
-    Read output with `pre-commit run --verbose` when first enabling a hook. Use an import-mode audit for fuller coverage. See [Static mode](cli.md#static-mode).
+Configuration checks and chains require imported wrappers. Keep `pydeprecate check` in a local hook or CI.
 
-    Configuration checks and chains require imported wrappers. Keep `pydeprecate check` in a local hook or CI.
-
-!!! warning "Hook environments do not isolate trust"
+!!! danger "Hook trust boundary"
 
     Both local hooks and import-mode remote hooks import your package. Import-time code runs with your user's permissions.
 
@@ -364,30 +356,26 @@ With `v0.15.0`, which has no `--gate`, run the policy as a second step: `subcomm
 
 The step returns the CLI's exit code. Exit `3` also produces an error annotation identifying a scan or internal error.
 
-!!! note "Action-specific failures"
+**Action-specific failures.** These conditions behave as follows:
 
-    | Condition                                 | Exit behavior           |
-    | ----------------------------------------- | ----------------------- |
-    | A `path` starts with `-`.                 | Exit `2`.               |
-    | `pip install` fails with `install: true`. | Return pip's exit code. |
-    | The CLI process cannot start.             | Return `1`.             |
+| Condition                                 | Exit behavior           |
+| ----------------------------------------- | ----------------------- |
+| A `path` starts with `-`.                 | Exit `2`.               |
+| `pip install` fails with `install: true`. | Return pip's exit code. |
+| The CLI process cannot start.             | Return `1`.             |
 
-!!! note "Static and advisory runs"
+**Static and advisory runs.** The action has no static input. Pass `--static` through `args` with `subcommand: expiry` or `policy`. See [Static mode](cli.md#static-mode).
 
-    The action has no static input. Pass `--static` through `args` with `subcommand: expiry` or `policy`. See [Static mode](cli.md#static-mode).
+A failing run adds an error annotation to the pull request's checks. The CLI has no "fail on warning" mode. Advisory findings, such as identity mappings, *never* fail the step.
 
-    A failing run adds an error annotation to the pull request's checks. The CLI has no "fail on warning" mode. Advisory findings, such as identity mappings, *never* fail the step.
-
-    Set `exit-zero: true` to report hard errors without blocking while clearing a backlog. Set `fail-on-gap: true` to fail on incomplete audits. Every gap the run annotates then also fails it.
+Set `exit-zero: true` to report hard errors without blocking while clearing a backlog. Set `fail-on-gap: true` to fail on incomplete audits. Every gap the run annotates then also fails it.
 
 Findings become annotations on their wrapper's line:
 
 1. Annotate errors first, then warnings, up to 50 findings.
 2. Add one notice counting the remaining findings.
 
-!!! note "Annotation limits and accepted findings"
-
-    The log and report retain every finding. Findings accepted through `--ignore` or `--baseline` are never annotated. Gaps keep one warning per kind.
+**Annotation limits and accepted findings.** The log and report retain every finding. Findings accepted through `--ignore` or `--baseline` are never annotated. Gaps keep one warning per kind.
 
 The step publishes outputs for later steps; give it an `id` to read them:
 
@@ -403,7 +391,7 @@ The step publishes outputs for later steps; give it an `id` to read them:
 1. Set `sarif: true` on the audit action.
 2. Upload its findings with `upload-sarif`, even when the gate fails.
 
-!!! warning "Code scanning permissions"
+!!! failure "Code scanning permissions"
 
     Uploads fail with a read-only `GITHUB_TOKEN`. Give the job `security-events: write` and retain `contents: read` for checkout. Private repositories also need `actions: read`.
 
@@ -426,25 +414,21 @@ permissions:
     sarif_file: ${{ steps.pydeprecate.outputs.sarif-file }}
 ```
 
-!!! warning "The action ref pins the installed version"
+**The action ref pins the installed version.** With `install: true` (the default), the action installs pyDeprecate from its own commit. Thus, `@v0.15.0` audits with 0.15.0.
 
-    With `install: true` (the default), the action installs pyDeprecate from its own commit. Thus, `@v0.15.0` audits with 0.15.0.
+This **replaces** the job's existing pyDeprecate version for every later step. The action warns when it replaces a version.
 
-    This **replaces** the job's existing pyDeprecate version for every later step. The action warns when it replaces a version.
+Pin the action to your project's pyDeprecate release. Alternatively, install `pyDeprecate[audit]` yourself and set `install: false`.
 
-    Pin the action to your project's pyDeprecate release. Alternatively, install `pyDeprecate[audit]` yourself and set `install: false`.
+Also set `install: false` where pip is unavailable, such as a uv-managed virtual environment.
 
-    Also set `install: false` where pip is unavailable, such as a uv-managed virtual environment.
+**A green run can still have gaps.** A failed submodule import is skipped with `UserWarning: audit: skipped <module>`. `expiry`, including inside `all`, skips removal deadlines when the package version cannot be detected. Both cases can still pass.
 
-!!! warning "A green run can still have gaps"
+The action reads gaps from the CLI's `--report-json` report, even when the package silences warnings. It creates one warning annotation per gap kind. Check annotations whenever package installation changes.
 
-    A failed submodule import is skipped with `UserWarning: audit: skipped <module>`. `expiry`, including inside `all`, skips removal deadlines when the package version cannot be detected. Both cases can still pass.
+Pass `args: --version 2.0` when neither the installed package nor `pyproject.toml` provides a detectable version.
 
-    The action reads gaps from the CLI's `--report-json` report, even when the package silences warnings. It creates one warning annotation per gap kind. Check annotations whenever package installation changes.
-
-    Pass `args: --version 2.0` when neither the installed package nor `pyproject.toml` provides a detectable version.
-
-!!! warning "Import-time code runs with job permissions"
+!!! danger "Import-time code runs with job permissions"
 
     The action imports your package and executes its import-time code, exactly like the CLI. <u>Never</u> use `pull_request_target` with a checkout of the pull request's head. Untrusted code would receive the base repository's secrets and write token.
 

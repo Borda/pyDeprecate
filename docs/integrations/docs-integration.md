@@ -132,7 +132,7 @@ Griffe normally reads docstrings from the *source syntax tree*, which does not c
 3. Add the extension and enable `admonition` as shown above.
 4. Render the API with a mkdocstrings directive such as `::: deprecate.deprecated`.
 
-!!! warning "Runtime imports"
+!!! note "Runtime imports"
 
     The Griffe extension <u>executes module imports</u> during the build. It leaves docstrings unchanged when its import attempts fail with `ImportError`. Other import-time exceptions can fail the build.
 
@@ -145,8 +145,6 @@ See the repository's [MkDocs demo](https://github.com/Borda/pyDeprecate/blob/mai
 - With `TargetMode.ARGS_REMAP`, finding every deprecated argument suppresses the general notice because only arguments are deprecated.
 - Callable targets still receive a general notice after inline argument annotations. Missing argument entries also cause a general notice.
 
-!!! note "Existing text is required"
-
-    `update_docstring=True` leaves a missing or empty docstring **unchanged**. The Griffe extension also requires an existing static docstring and deprecation metadata. It does not create documentation for undocumented objects.
+**Existing text is required:** `update_docstring=True` leaves a missing or empty docstring **unchanged**. The Griffe extension also requires an existing static docstring and deprecation metadata. It does not create documentation for undocumented objects.
 
 See [Functions](../usage/functions.md) for argument migrations, [Classes](../usage/classes.md) for proxy behavior, and [Advanced](../usage/advanced.md#automatic-docstring-updates) for more docstring examples.

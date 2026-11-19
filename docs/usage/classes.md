@@ -164,7 +164,7 @@ The proxy carries only protocols supported by the wrapped object:
 
 Arithmetic, unary, and conversion operators forward to the wrapped object. Data-use operations emit deprecation warnings; ordering comparisons, `format()`, and context exit remain silent structural probes.
 
-!!! note "When operations consume warnings"
+??? note "When operations consume warnings"
 
     Synchronous operations warn *only after* success. A subscript miss (`KeyError`) or another failed operation emits nothing and preserves the `num_warns` budget.
 
@@ -172,29 +172,22 @@ Arithmetic, unary, and conversion operators forward to the wrapped object. Data-
 
     `__await__` and `__anext__` warn when obtaining the underlying awaitable, before it runs. Later rejection or async exhaustion still consumes the warning budget. Calls also warn before execution, like `@deprecated`.
 
-!!! warning "Fatal operations"
+**Fatal operations.** With `as_exception=True`, these operations raise `DeprecatedError` before touching the wrapped object:
 
-    With `as_exception=True`, these operations raise `DeprecatedError` before touching the wrapped object:
+- Subscripts, iteration, `next()`, context entry, async iteration, and `await` raise first.
+- Unary and conversion operators, `round()`, and in-place operators raise first.
 
-    - Subscripts, iteration, `next()`, context entry, async iteration, and `await` raise first.
-
-    - Unary and conversion operators, `round()`, and in-place operators raise first.
-
-    A missing key therefore raises `DeprecatedError` rather than `KeyError`, and a `defaultdict` gains no entry. Binary operators compute first and raise after a successful result.
+A missing key therefore raises `DeprecatedError` rather than `KeyError`, and a `defaultdict` gains no entry. Binary operators compute first and raise after a successful result.
 
 In-place operators (`+=`, `-=`, etc.) return the active object's result rather than a re-wrapped proxy.
 
-!!! warning "Right-hand operands"
+**Right-hand operands.** Python cannot fall back to the proxy when the left-operand type raises `TypeError` directly, as with `"prefix" + proxy_str` for `str`. **Put the proxy on the left** or wrap the value in a container. See [Troubleshooting](../troubleshooting.md#do-arithmetic-and-operator-protocol-methods-emit-deprecation-notices-on-deprecated_instance-proxies) for details.
 
-    Python cannot fall back to the proxy when the left-operand type raises `TypeError` directly, as with `"prefix" + proxy_str` for `str`. **Put the proxy on the left** or wrap the value in a container. See [Troubleshooting](../troubleshooting.md#do-arithmetic-and-operator-protocol-methods-emit-deprecation-notices-on-deprecated_instance-proxies) for details.
-
-!!! note "Context-entry cleanup"
-
-    A warning filter or custom stream can raise after synchronous or asynchronous context entry acquires a resource. The proxy invokes that context's exit method before propagating the error. Failed underlying entry does not invoke exit.
+A warning filter or custom stream can raise after synchronous or asynchronous context entry acquires a resource. The proxy invokes that context's exit method before propagating the error. Failed underlying entry does not invoke exit.
 
 `isinstance(DEFAULTS, dict)` returns `True`: the proxy reports the wrapped object's type through `__class__`.
 
-!!! note "Introspection limits"
+??? note "Introspection limits"
 
     `type(DEFAULTS)` still returns the wrapper class. Only `isinstance`, which honours `__class__`, is transparent; strict `type()` equality still sees the wrapper.
 
@@ -202,11 +195,7 @@ In-place operators (`+=`, `-=`, etc.) return the active object's result rather t
 
     `isinstance` checks, dunder reads, and failed `hasattr` probes stay silent. They do not consume the `num_warns` budget.
 
-!!! note "Writes and read-only aliases"
-
-    Writes never warn. Item writes and deletes (`DEFAULTS["lr"] = 0.01`, `del DEFAULTS["lr"]`) follow the attribute-write rule.
-
-    With `read_only=True`, writes raise `AttributeError` unless `skip_if` evaluates `True`. During a skip, every write goes directly to the wrapped object.
+Writes never warn. Item writes and deletes (`DEFAULTS["lr"] = 0.01`, `del DEFAULTS["lr"]`) follow the attribute-write rule. With `read_only=True`, writes raise `AttributeError` unless `skip_if` evaluates `True`. During a skip, every write goes directly to the wrapped object.
 
 A `deprecated_instance` over a plain function can act as a method in a class body: `class Model: scale = deprecated_instance(legacy_scale, ...)`.
 
@@ -218,15 +207,11 @@ A `deprecated_instance` over a plain function can act as a method in a class bod
 
 Deprecated proxies survive `copy.copy()` and `copy.deepcopy()` round-trips. Copies retain the warning behavior and receive independent counters snapshotted from the original.
 
-!!! note "Copying replacement data"
-
-    A shallow proxy copy also tries to copy its [replacement data object](#serving-a-replacement-object). After success, top-level writes such as `copy["key"] = value` do not affect the original replacement. If copying raises, the copy retains the shared replacement, so writes can reach it.
-
-    Nested mutable values remain shared after a shallow copy. `copy.deepcopy` can provide independence when the objects support it.
+A shallow proxy copy also tries to copy its [replacement data object](#serving-a-replacement-object). After success, top-level writes such as `copy["key"] = value` do not affect the original replacement. If copying raises, the copy retains the shared replacement, so writes can reach it. Nested mutable values remain shared after a shallow copy. `copy.deepcopy` can provide independence when the objects support it.
 
 Plain-object `deprecated_instance` proxies, including dicts, lists, and custom objects, are *fully* picklable.
 
-!!! warning "Pickling class aliases"
+!!! failure "Pickling class aliases"
 
     A `deprecated_class` alias raises `PicklingError` in the common pattern where the proxy replaces the decorated class name. Pickle cannot find the original class by reference. Use `copy.deepcopy` for class alias proxies instead.
 
@@ -270,11 +255,7 @@ Pass the replacement as `target=` when the old name should already return new va
 
 When `skip_if` evaluates true, operations use the wrapped source without warning or forwarding. Use `name=` so warnings name the alias callers use.
 
-!!! note "Naming data replacements"
-
-    Built-in warnings name callable replacements only. For a dict or settings object, provide a `message_template` naming the replacement. See [Customization](customization.md).
-
-    In generic warnings, `%(target_name)s` and `%(target_path)s` render empty for data replacements. Mapped-attribute warnings do fill them.
+Built-in warnings name callable replacements only. For a dict or settings object, provide a `message_template` naming the replacement. See [Customization](customization.md). In generic warnings, `%(target_name)s` and `%(target_path)s` render empty for data replacements. Mapped-attribute warnings do fill them.
 
 ```python
 from deprecate import deprecated_instance
@@ -349,9 +330,7 @@ On callable objects, `args_mapping` renames keyword arguments. Values renamed on
 - Without `target`, calls warn *only when* an old name is used.
 - With a callable `target`, **every call** warns because calling the old name is itself deprecated.
 
-!!! warning "Unused call options"
-
-    On objects that are never called, `args_mapping` and `args_extra` cannot apply. They emit `UserWarning`, becoming `TypeError` in v1.0.
+**Unused call options.** On objects that are never called, `args_mapping` and `args_extra` cannot apply. They emit `UserWarning`, becoming `TypeError` in v1.0.
 
 ## Enums and dataclasses
 
@@ -447,7 +426,7 @@ While the condition evaluates `True`, the proxy serves the **wrapped source unch
 
 Audits never evaluate the condition. Conditions needing a running application therefore do not break `find_deprecation_wrappers` or the CLI. Callable decorators behave similarly: skipped calls execute the source body unchanged.
 
-!!! warning "Keep skip conditions safe for introspection"
+!!! tip "Safe skip conditions"
 
     A proxy operation may consult the condition more than once. Keep the callable cheap and stable; non-`bool` results raise `TypeError` at access time.
 
@@ -497,9 +476,7 @@ At runtime, `deprecated_class()` returns a proxy. Type checkers model the class 
 
 The call form `deprecated_class(target=BrandColor, ...)(WidgetColor)` has type `type[BrandColor]` regardless of the wrapped class. The alias therefore checks against the replacement.
 
-!!! note "Class decorator differences"
-
-    Mypy ignores a class decorator's return type, leaving the name typed as the decorated class. Pyright applies it, so `@deprecated_class(target=BrandColor, ...)` produces `type[BrandColor]`:
+With the decorator form, mypy ignores a class decorator's return type, leaving the name typed as the decorated class. Pyright applies it, so `@deprecated_class(target=BrandColor, ...)` produces `type[BrandColor]`:
 
 ```python
 from enum import Enum
@@ -544,13 +521,9 @@ Type-checking behavior depends on how the alias is used:
 
 `DeprecationProxy[T]` remains the annotation for `deprecated_instance()` proxies, where `T` is the type calling the proxy produces.
 
-!!! warning "Functional aliases keep the source name"
+**Functional aliases keep the source name.** Warnings name the wrapped class, not the assigned variable. The example reports `` `BrandColor` ``. Wrap a source class with the name callers know, or provide `message_template`.
 
-    Warnings name the wrapped class, not the assigned variable. The example reports `` `BrandColor` ``. Wrap a source class with the name callers know, or provide `message_template`.
-
-!!! warning "`isinstance` only"
-
-    `DeprecationProxy` declares attributes as well as methods, making it a data protocol. `isinstance(obj, DeprecationProxy)` works. `issubclass(SomeType, DeprecationProxy)` raises `TypeError`, like every runtime-checkable protocol with non-method members.
+**`isinstance` only.** `DeprecationProxy` declares attributes as well as methods, making it a data protocol. `isinstance(obj, DeprecationProxy)` works. `issubclass(SomeType, DeprecationProxy)` raises `TypeError`, like every runtime-checkable protocol with non-method members.
 
 ### Breadcrumbs for documentation and IDE tools
 
@@ -599,9 +572,7 @@ RetryConfig
 
 </details>
 
-!!! note "Missing signatures"
-
-    Objects without introspectable signatures receive `__signature__ = None`, rather than raising. A plain `dict` wrapped by `deprecated_instance()` is one example. Failed source introspection never prevents wrapping.
+Objects without introspectable signatures receive `__signature__ = None`, rather than raising. A plain `dict` wrapped by `deprecated_instance()` is one example. Failed source introspection never prevents wrapping.
 
 ### PEP 702 static checkers
 
@@ -614,9 +585,7 @@ With a class `target`, the checkers infer different types:
 
 The PEP 702 message lives on the proxy, leaving the replacement class unmarked. It survives `copy.copy`, `copy.deepcopy`, and `pickle` round-trips of the alias.
 
-!!! note "Deleting PEP 702 metadata"
-
-    After `del alias.__deprecated__`, the attribute reads as missing. It does not fall through to the wrapped class.
+After `del alias.__deprecated__`, the attribute reads as missing. It does not fall through to the wrapped class.
 
 ```python
 import typing_extensions
@@ -666,11 +635,7 @@ Ordinary attribute writes and access outside an active `attrs_mapping` stay sile
 
 **Structural probes** remain silent: `isinstance`, `issubclass`, `repr`, `str`, equality, ordering, and `len` never warned.
 
-!!! note "Fatal attribute probes"
-
-    Without `attrs_mapping`, a missing attribute makes `hasattr` return `False` silently. Successful non-dunder lookups on warning-producing paths raise `DeprecatedError`, which `hasattr` does not swallow.
-
-    With `attrs_mapping`, listed names raise before lookup even when missing. Unlisted names stay silent whether present or missing.
+**Fatal attribute probes.** Without `attrs_mapping`, a missing attribute makes `hasattr` return `False` silently. Successful non-dunder lookups on warning-producing paths raise `DeprecatedError`, which `hasattr` does not swallow. With `attrs_mapping`, listed names raise before lookup even when missing. Unlisted names stay silent whether present or missing.
 
 !!! warning "Fatal deprecation is not an authorization boundary"
 

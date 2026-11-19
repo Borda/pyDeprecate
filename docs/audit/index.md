@@ -16,13 +16,11 @@ Audit tools catch four common problems before they reach users:
 | Misconfigured wrappers. | `find_deprecation_wrappers()`   | An `args_mapping` key has a typo and silently does nothing.                     |
 | Policy violations.      | `validate_deprecation_policy()` | Removal follows announcement by one patch, or the warning names no replacement. |
 
-!!! note "Renamed in v0.6"
+??? info "Version changes: v0.6, v0.8, v0.13"
 
-    `find_deprecated_callables` is now `find_deprecation_wrappers`, `validate_deprecated_callable` is now `validate_deprecation_wrapper`, and `DeprecatedCallableInfo` is now `DeprecationWrapperInfo`. The old names remain exported for backwards compatibility but will be removed in v1.0.
+    **Renamed in v0.6.** `find_deprecated_callables` is now `find_deprecation_wrappers`, `validate_deprecated_callable` is now `validate_deprecation_wrapper`, and `DeprecatedCallableInfo` is now `DeprecationWrapperInfo`. The old names remain exported for backwards compatibility but will be removed in v1.0.
 
-!!! warning "Breaking change in v0.8: `__deprecated__.target` type changed"
-
-    In v0.8, `DeprecationConfig.target` now always stores a `TargetMode` enum member or a `Callable` — never a raw boolean sentinel. Code inspecting this attribute must be updated:
+    **Breaking change in v0.8: `__deprecated__.target` type changed.** In v0.8, `DeprecationConfig.target` now always stores a `TargetMode` enum member or a `Callable` — never a raw boolean sentinel. Code inspecting this attribute must be updated:
 
     The direct metadata reads below apply only through v0.12; v0.13 code must use `get_deprecation_config(func)` as shown in the next section.
 
@@ -32,9 +30,7 @@ Audit tools catch four common problems before they reach users:
     | `func.__deprecated__.target is True`  | `func.__deprecated__.target is TargetMode.ARGS_REMAP` |
     | `func.__deprecated__.target is False` | `func.__deprecated__.misconfigured`                   |
 
-!!! warning "Breaking change in v0.13: `__deprecated__` is now a plain message string"
-
-    Since v0.13, `__deprecated__` holds a PEP 702-conformant message string instead of the `DeprecationConfig` object. PEP-702-aware tooling, including IDE hover, `pyright`, and `mypy`, can read this string correctly.
+    **Breaking change in v0.13: `__deprecated__` is now a plain message string.** Since v0.13, `__deprecated__` holds a PEP 702-conformant message string instead of the `DeprecationConfig` object. PEP-702-aware tooling, including IDE hover, `pyright`, and `mypy`, can read this string correctly.
 
     The config object moved to `__deprecation_config__`. Read it through the public **`get_deprecation_config(obj)`** helper rather than either attribute directly:
 
@@ -58,11 +54,9 @@ This helps when:
 
 Pass a package directory, a Python module file, a plain directory, or a top-level module name.
 
-!!! note "Discovery scope"
+Dotted module names are **refused** because locating them would import their parents. Package submodules are read recursively by default. Plain directories include only top-level Python files.
 
-    Dotted module names are **refused** because locating them would import their parents. Package submodules are read recursively by default. Plain directories include only top-level Python files.
-
-    Set `recursive`, `include_members`, and module-name `exclude` globs on the scan itself.
+Set `recursive`, `include_members`, and module-name `exclude` globs on the scan itself.
 
 The frozen `StaticScanResult` stores the scan results:
 
@@ -117,15 +111,13 @@ Policy violations: 9
 
 </details>
 
-!!! note "Consuming a completed scan"
+**Consuming a completed scan.** Install `pyDeprecate[audit]` for version comparisons. Expiry and table generation default to `scan.version`.
 
-    Install `pyDeprecate[audit]` for version comparisons. Expiry and table generation default to `scan.version`.
+Supply `current_version` explicitly when that version is unavailable. Otherwise, expiry raises `ImportError`, while the table shows unknown status.
 
-    Supply `current_version` explicitly when that version is unavailable. Otherwise, expiry raises `ImportError`, while the table shows unknown status.
+Policy checks only settings resolved for each rule. It *never* reads `pyproject.toml` policy settings.
 
-    Policy checks only settings resolved for each rule. It *never* reads `pyproject.toml` policy settings.
-
-    Leave consumer `recursive` and `include_members` at their defaults. Passing `False` with a completed result raises `ValueError`.
+Leave consumer `recursive` and `include_members` at their defaults. Passing `False` with a completed result raises `ValueError`.
 
 !!! warning "Source rows are approximations"
 
@@ -169,36 +161,30 @@ Both functions return `DeprecationWrapperInfo` dataclasses.
 | `pep702_message`             | `None` on pyDeprecate rows; the decorator's message string, possibly empty, on PEP 702-only rows.              |
 | `source_file`, `source_line` | Since v0.16, the absolute source file and definition line; see the exceptions below.                           |
 
-!!! note "Contradictory targets"
+**Contradictory targets.** `misconfigured_target` covers these cases:
 
-    `misconfigured_target` covers these cases:
+- `NOTIFY` has an `args_mapping`, `args_extra`, or `attrs_mapping`.
+- `ARGS_REMAP` has an empty `args_mapping`.
+- A served object is not callable but has an `args_mapping` or `args_extra`.
+- The target is the invalid `target=False`.
 
-    - `NOTIFY` has an `args_mapping`, `args_extra`, or `attrs_mapping`.
-    - `ARGS_REMAP` has an empty `args_mapping`.
-    - A served object is not callable but has an `args_mapping` or `args_extra`.
-    - The target is the invalid `target=False`.
+Read this audit field in CI rather than `DeprecationConfig.misconfigured`. They are not identical: legacy `target=True` skips callable-mode validation, leaving `DeprecationConfig.misconfigured=False`. The audit still flags an `ARGS_REMAP` wrapper with an empty mapping.
 
-    Read this audit field in CI rather than `DeprecationConfig.misconfigured`. They are not identical: legacy `target=True` skips callable-mode validation, leaving `DeprecationConfig.misconfigured=False`. The audit still flags an `ARGS_REMAP` wrapper with an empty mapping.
+**PEP 702 rows and representations.** `find_deprecation_wrappers(..., include_pep702=True)` also reports symbols deprecated only with `warnings.deprecated`. Their rows have no versions, so `empty_deprecated_in` is `True`. See [PEP 702-only deprecations](#pep-702-only-deprecations).
 
-!!! note "PEP 702 rows and representations"
+`api_type` is excluded from `repr()` to keep snapshot tests stable. `pep702_message` is also excluded from `repr()`.
 
-    `find_deprecation_wrappers(..., include_pep702=True)` also reports symbols deprecated only with `warnings.deprecated`. Their rows have no versions, so `empty_deprecated_in` is `True`. See [PEP 702-only deprecations](#pep-702-only-deprecations).
+**Source locations.** `source_line` points to the first, outermost decorator, including a `functools.lru_cache` above `@deprecated`. A class may point to its `class` line or its decorator. Functions point to their outermost `@` line.
 
-    `api_type` is excluded from `repr()` to keep snapshot tests stable. `pep702_message` is also excluded from `repr()`.
+Both source fields are `None` for these objects:
 
-!!! note "Source locations"
+- A `deprecated_instance` data object.
+- A runtime-built class, such as a functional `Enum` or a `type()` call.
+- A function compiled from a string.
 
-    `source_line` points to the first, outermost decorator, including a `functools.lru_cache` above `@deprecated`. A class may point to its `class` line or its decorator. Functions point to their outermost `@` line.
+On Python 3.13+, an `exec`-built class may be attributed to a real module's file when its namespace names that module. A deprecated module has its file but no line. Neither field participates in equality or `repr()`, preserving existing comparisons.
 
-    Both source fields are `None` for these objects:
-
-    - A `deprecated_instance` data object.
-    - A runtime-built class, such as a functional `Enum` or a `type()` call.
-    - A function compiled from a string.
-
-    On Python 3.13+, an `exec`-built class may be attributed to a real module's file when its namespace names that module. A deprecated module has its file but no line. Neither field participates in equality or `repr()`, preserving existing comparisons.
-
-!!! note "`DeprecationConfig` cache fields leave in v1.0"
+??? info "Cache fields leave in v1.0"
 
     `deprecated_info` is a `DeprecationConfig`. These audit metadata fields are stable:
 
@@ -299,11 +285,9 @@ The following scanning functions accept the same scope options:
 
 Their keyword-only `exclude` argument accepts glob patterns over full dotted module names, such as `exclude=["my_package.tests", "*._legacy*"]`.
 
-!!! note "Exclusion behavior"
+The scan *never* imports a matching package or descends into it. Another module may still import it, but its wrappers are filtered either way. No wrapper reported under a matching module is returned.
 
-    The scan *never* imports a matching package or descends into it. Another module may still import it, but its wrappers are filtered either way. No wrapper reported under a matching module is returned.
-
-    Use exclusions to omit test fixtures or a frozen legacy tree from every audit. The CLI reads the same list from `--exclude` or `[tool.pydeprecate]` in `pyproject.toml`. See [project configuration](cli.md#project-configuration-in-pyprojecttoml).
+Use exclusions to omit test fixtures or a frozen legacy tree from every audit. The CLI reads the same list from `--exclude` or `[tool.pydeprecate]` in `pyproject.toml`. See [project configuration](cli.md#project-configuration-in-pyprojecttoml).
 
 These six functions also accept `include_members`, which defaults to `True`.
 
@@ -453,11 +437,9 @@ Pass `include_pep702=True` to include these symbols:
 
 Use `row.pep702_message is not None` to identify these rows. Every pyDeprecate row has `pep702_message=None`.
 
-!!! note "Applying schedule filters"
+**Applying schedule filters.** Drop PEP 702-only rows before applying your own `empty_deprecated_in`, expiry, or report filters to an opt-in scan.
 
-    Drop PEP 702-only rows before applying your own `empty_deprecated_in`, expiry, or report filters to an opt-in scan.
-
-    A pyDeprecate wrapper with PEP 702 stacked on top remains a regular row with its full schedule. See the [static-checker pattern](../usage/functions.md#static-type-checkers-pep-702).
+A pyDeprecate wrapper with PEP 702 stacked on top remains a regular row with its full schedule. See the [static-checker pattern](../usage/functions.md#static-type-checkers-pep-702).
 
 ```python
 from deprecate import find_deprecation_wrappers
@@ -493,7 +475,7 @@ pep702_only_function [callable]: Use `pep702_target` instead.
 
 </details>
 
-!!! note "Ownership and duplicate rows"
+??? note "Ownership and duplicate rows"
 
     A subclass of a PEP 702-deprecated class is not listed. Neither is a ready-made callable instance of one. Both inherit `__deprecated__` through the class and are not themselves deprecated.
 
@@ -507,13 +489,9 @@ pep702_only_function [callable]: Use `pep702_target` instead.
 
     pyDeprecate rows remain unchanged for aliased classes. They still appear under each name.
 
-!!! note "Overloads are invisible at runtime"
+**Overloads are invisible at runtime.** The scan sees only runtime objects. An individual `@overload` decorated with PEP 702 is invisible because implementation functions replace overload stubs. Those stubs never become module or class members. Static checkers still flag calls matching that overload.
 
-    The scan sees only runtime objects. An individual `@overload` decorated with PEP 702 is invisible because implementation functions replace overload stubs. Those stubs never become module or class members.
-
-    Static checkers still flag calls matching that overload.
-
-!!! note "PEP 702 discovery uses Python"
+!!! tip "PEP 702 needs Python"
 
     The `pydeprecate` CLI has no `--include-pep702` flag. Its gates evaluate schedule metadata: `deprecated_in`, `remove_in`, and a replacement. PEP 702 rows lack this metadata, so list them with the Python API.
 
@@ -647,11 +625,7 @@ Use `recursive=False` to restrict scanning to the top-level module only, which c
 
     Construction uses the regular constructor. Required positional-only parameters, frozen dataclasses, and classes deriving state in `__post_init__` therefore work correctly.
 
-`validate_mapping_compatibility()` reports wrappers with a non-empty `args_mapping_positional_only` field.
-
-!!! note "Advisory finding"
-
-    This finding makes configurations visible for deliberate review. It does **not** indicate a failure.
+`validate_mapping_compatibility()` reports wrappers with a non-empty `args_mapping_positional_only` field. This advisory finding makes configurations visible for deliberate review. It does **not** indicate a failure.
 
 ### The problem: POSITIONAL_ONLY remap target
 
@@ -689,11 +663,9 @@ print(p.x, p.y)
 
 </details>
 
-!!! note "Supported constructors"
+**Supported constructors.** Positional forwarding works with required parameters and parameters that have defaults. Immutable classes without a permissive `__setattr__` also construct correctly. Constructors can derive state from these values.
 
-    Positional forwarding works with required parameters and parameters that have defaults. Immutable classes without a permissive `__setattr__` also construct correctly. Constructors can derive state from these values.
-
-    The decoration-time `UserWarning` most commonly appears through dataclass auto-expansion. An `attrs_mapping` generates `args_mapping` entries, and a target field name maps to a positional-only constructor parameter.
+The decoration-time `UserWarning` most commonly appears through dataclass auto-expansion. An `attrs_mapping` generates `args_mapping` entries, and a target field name maps to a positional-only constructor parameter.
 
 ### Scanning for incompatible wrappers
 
@@ -735,7 +707,7 @@ The function accepts the same `module`, `recursive`, and `include_members` argum
 | `recursive=False`       | Scan only the top-level module.                                                                 |
 | `include_members=False` | Skip proxies bound as class attributes, such as `PositionalOnlyProxyHolder.LegacyTarget` above. |
 
-!!! note "CI reporting"
+!!! tip "CI reporting"
 
     A positional-only mapping is **not a defect**: the wrapper forwards remapped values positionally and works correctly. Expiry and chain findings can indicate defects.
 
@@ -752,9 +724,7 @@ The function accepts the same `module`, `recursive`, and `include_members` argum
 | `"compact"` (default) | One row per symbol, with a **Current Status** column: `📢 Deprecation Active`, `💥 Past Removal Date`, `ℹ️ No Removal Target`, etc. |
 | `"matrix"`            | One column per release, with `D` (deprecated), `R` (remove), and `D/R` (both in the same release) markers.                          |
 
-!!! note "Equivalent release spellings"
-
-    Matrix columns combine spellings such as `1.0`, `v1.0`, and `1.0.0` under the shortest spelling when the `audit` extra is installed. Without `packaging`, only the `v` prefix is ignored.
+**Equivalent release spellings.** Matrix columns combine spellings such as `1.0`, `v1.0`, and `1.0.0` under the shortest spelling when the `audit` extra is installed. Without `packaging`, only the `v` prefix is ignored.
 
 **Compact style** — one row per symbol with a lifecycle status column:
 

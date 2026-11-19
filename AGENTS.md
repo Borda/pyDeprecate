@@ -127,7 +127,12 @@ Write a clear explanation linking to both sources, then let maintainers decide o
   - break a code fence or flowchart at logical steps, one step per line, and never hard-wrap a long step onto hanging-indent continuation lines; split a long note at its `;` into separate `Note:` lines instead;
   - leave tables unpadded (mdformat skips this file on purpose), use one blank line between sections and none inside a block, and indent only what the syntax needs;
   - never edit or commit `docs/llms-full.txt`: it is gitignored and generated from `docs/llms.txt` plus an API map by `make llms-full` (also run by `make docs-build` and the docs workflow)
-- **Admonitions are the exception, typed by meaning** — most text is plain prose; a block that appears on every item stops signalling anything, so never give each list item or limitation its own block, never stack two blocks, and keep to roughly one block per forty lines of prose. Use the full range the site supports (`admonition`, `pymdownx.details`, `pymdownx.tabbed`):
+- **Admonitions are the exception, typed by meaning** — most text is plain prose; a block that appears on every item stops signalling anything, so never give each list item or limitation its own block, never stack two blocks, and keep to a page budget:
+  - at most 4 blocks on a page under 250 lines and 8 on a longer one, collapsibles and blocks inside tabs included, with at most 2 `warning` and 1 `abstract` per page;
+  - `docs/troubleshooting.md` allows at most one block per `###` question, never before the first prose paragraph (the FAQPage JSON-LD is built from it);
+  - a `note` or `tip` that orients the reader at the start of a section, bridges from the old way of thinking to the new, or makes a step easier is welcome and is the last block to drop;
+  - a block holding a fenced code block that phmdoctest runs, and a block that mirrors library output such as `!!! warning "Deprecated in …"`, keep their form;
+  - use the full range the site supports (`admonition`, `pymdownx.details`, `pymdownx.tabbed`), typed by meaning:
   - `note` for a neutral aside, `info` for background or a version fact such as "Changed in v0.15", `tip` for a shortcut or a workaround, `example` for a worked scenario, `abstract` for one summary at the top of a long page, `success` for the outcome to expect, `question` for an FAQ entry, `quote` for an external source;
   - `warning` only for behaviour that silently gives a wrong result, two per page at most; `danger` only for data loss, security or an irreversible step; `failure` or `bug` for an error to expect or a known defect;
   - `??? type "Title"` makes long optional detail collapsible, and `=== "Title"` tabs hold parallel variants such as pip and uv, or Python and CLI;

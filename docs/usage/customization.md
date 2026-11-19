@@ -126,7 +126,7 @@ The stream runs **exactly once** per warning — a `TypeError` it raises is neve
 | It accepts a `stacklevel` keyword through a named parameter or `**kwargs`. | It receives `stream(msg, stacklevel=...)`. |
 | Any other signature applies.                                               | It receives `stream(msg)`.                 |
 
-!!! warning "Forwarding `stacklevel`"
+!!! failure "Forwarding `stacklevel`"
 
     A stream declaring `**kwargs` is handed `stacklevel=` and must accept or drop it. Forward it to a callable that takes it (`warnings.warn`, `logging.warning`). Never forward it to one that rejects it: `print(msg, **kwargs)` raises `TypeError`.
 
@@ -144,15 +144,13 @@ By default, `stream` is `functools.partial(warnings.warn, category=FutureWarning
 
 The location is measured when the warning fires, skipping every frame inside the `deprecate` package. Module-scoped warning filters and `-W error` tracebacks therefore name your code.
 
-!!! note "Custom stream frames"
-
-    A custom stream receives the same `stacklevel`. A Python stream forwarding it to `warnings.warn` adds its own frame and lands one frame short. See [Troubleshooting](../troubleshooting.md).
+A custom stream receives the same `stacklevel`. A Python stream forwarding it to `warnings.warn` adds its own frame and lands one frame short. See [Troubleshooting](../troubleshooting.md).
 
 ### Silencing deprecation output entirely
 
 Pass `stream=None` to disable all deprecation output for a specific function. Call forwarding still works — *only* the message is suppressed. This is useful for internal wrappers that exist solely for backwards compatibility without user-facing noise.
 
-!!! warning "Testing gotcha: `stream=None` suppresses `FutureWarning`"
+!!! tip "Testing with `stream=None`"
 
     When `stream=None` is set, <u>no `FutureWarning` is emitted</u>, so `pytest.warns(FutureWarning)` will fail. Test the call-forwarding result directly instead of asserting the warning. See [Testing Deprecated Code](../integrations/testing.md#testing-deprecated-code) for patterns.
 

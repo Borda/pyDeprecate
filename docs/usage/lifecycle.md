@@ -53,9 +53,7 @@ The default `FutureWarning` names the deprecated function, replacement, introduc
 
 For argument deprecations, the warning budget applies **per deprecated argument**.
 
-!!! note "Output routing"
-
-    Python's warning filters can further limit visible warnings. Set `stream` to a logger or another callable to redirect messages, or `None` to silence them. Forwarding still works with `stream=None`.
+Python's warning filters can further limit visible warnings. Set `stream` to a logger or another callable to redirect messages, or `None` to silence them. Forwarding still works with `stream=None`.
 
 See [Customization](customization.md) for message templates and stream signatures.
 

@@ -57,9 +57,7 @@ The `FutureWarning` fires on **attribute access** (`obj.timeout`), not on a call
     - With `num_warns=-1`, **each new object** warns once, on its first access.
     - The default `num_warns=1` budget is **shared by all objects**, so only the first object to read the property warns.
 
-!!! tip "Decorator order for getter-only properties"
-
-    Either `@property @deprecated` (inner) or `@deprecated @property` (outer) order works for getter-only properties. Inner order is conventional — the deprecated decorator is closer to the `def`. For properties with a setter or deleter, use outer order; see the next section.
+**Decorator order for getter-only properties.** Either `@property @deprecated` (inner) or `@deprecated @property` (outer) order works for getter-only properties. Inner order is conventional — the deprecated decorator is closer to the `def`. For properties with a setter or deleter, use outer order; see the next section.
 
 ### Deprecating a property with a setter or deleter
 
@@ -105,11 +103,9 @@ del cfg.timeout  # FutureWarning: delete
 
 `obj.timeout` fires `FutureWarning` on **read**, `obj.timeout = value` fires on **write**, and `del obj.timeout` fires on **delete**.
 
-!!! tip "Want only the getter to warn?"
+!!! tip "Per-accessor warnings"
 
-    If you want the setter or deleter to remain silent, apply `@deprecated` directly to `fget` using inner order (`@property @deprecated`) instead of wrapping the full `property` object.
-
-!!! tip "Testing each accessor independently"
+    To warn on the getter only, apply `@deprecated` directly to `fget` using inner order (`@property @deprecated`) instead of wrapping the full `property` object; the setter and deleter then remain silent.
 
     Each accessor (`fget`, `fset`, `fdel`) has its own warning counter — assert read, write, and delete warnings in separate `pytest.warns` blocks, or use `num_warns=-1` to disable per-accessor deduplication.
 
@@ -138,9 +134,7 @@ class Config:
     timeout = deprecated(deprecated_in="1.0", remove_in="2.0")(property(_timeout_fget, _timeout_fset, _timeout_fdel))
 ```
 
-!!! note "Audit discoverability with explicit construction"
-
-    `find_deprecation_wrappers` discovers explicit-construction properties via the accessor that carries `__deprecation_config__` metadata. For setter-only properties (`property(None, fset)`), it discovers via `fset`; if `fget` is plain (not deprecated), it falls through to `fset` or `fdel`.
+`find_deprecation_wrappers` discovers explicit-construction properties via the accessor that carries `__deprecation_config__` metadata. For setter-only properties (`property(None, fset)`), it discovers via `fset`; if `fget` is plain (not deprecated), it falls through to `fset` or `fdel`.
 
 ### Strict mode: `from deprecate import property`
 
@@ -273,9 +267,7 @@ print(cfg.timeout_ms)  # prints 10_000
 
 The same pattern works on regular (non-dataclass) classes — replace field access with `self._attr` lookups in the accessor body. `@deprecated` *only* adds the warning in either case.
 
-!!! note "`target=<callable>` not supported on properties"
-
-    `@deprecated` rejects `target=<callable>` on a `property` with `TypeError`. Properties have three independent accessors (`fget`, `fset`, `fdel`); there is no single callable to forward to. Delegate in each accessor body as shown above.
+`@deprecated` rejects `target=<callable>` on a `property` with `TypeError`. Properties have three independent accessors (`fget`, `fset`, `fdel`); there is no single callable to forward to. Delegate in each accessor body as shown above.
 
 ## See also
 

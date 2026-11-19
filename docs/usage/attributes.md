@@ -295,7 +295,7 @@ red
 
 </details>
 
-!!! warning "Decoration-time validation"
+!!! note "Decoration-time validation"
 
     These misconfigurations emit `UserWarning` at decoration time, planned to become `TypeError` in `v1.0`:
 
@@ -305,15 +305,9 @@ red
     | `attrs_mapping={}`                                      | An empty mapping has no effect. Remove it or add deprecated attribute names.                                                                                                                                   |
     | `target=TargetMode.NOTIFY` with `attrs_mapping`         | `NOTIFY` means warn-only without redirection. The proxy keeps `NOTIFY`; the mapping remains inert but preserved in audit metadata and flagged `misconfigured`. Omit `target` to auto-resolve to `ATTRS_REMAP`. |
 
-!!! note "Explicit modes stay explicit"
+**Explicit modes stay explicit.** Explicit configuration is *never* silently rewritten; auto-resolution fills in only an omitted `target`. For blanket per-access warnings plus selective attribute renaming, stack two `deprecated_class()` layers. See [Nested proxy wrappers](#nested-proxy-wrappers).
 
-    Explicit configuration is *never* silently rewritten; auto-resolution fills in only an omitted `target`. For blanket per-access warnings plus selective attribute renaming, stack two `deprecated_class()` layers. See [Nested proxy wrappers](#nested-proxy-wrappers).
-
-!!! warning "Proxy-only mode"
-
-    `TargetMode.ATTRS_REMAP` works **only with proxies**. `@deprecated(target=TargetMode.ATTRS_REMAP)` raises `TypeError` at decoration time for every source: functions, methods, properties, and classes.
-
-    The front door cannot expose `attrs_mapping`, so this mode could never redirect anything there. The error points to `deprecated_class(attrs_mapping=...)`, or `deprecated_instance(obj, attrs_mapping=...)` for objects.
+**Proxy-only mode.** `TargetMode.ATTRS_REMAP` works **only with proxies**. `@deprecated(target=TargetMode.ATTRS_REMAP)` raises `TypeError` at decoration time for every source: functions, methods, properties, and classes. The front door cannot expose `attrs_mapping`, so this mode could never redirect anything there. The error points to `deprecated_class(attrs_mapping=...)`, or `deprecated_instance(obj, attrs_mapping=...)` for objects.
 
 ### Callable target with attribute redirection
 
@@ -366,7 +360,7 @@ print(LegacyConfig.batch_size)  # silent — unlisted attribute
 
 Instantiation also forwards to `Config`: `LegacyConfig(lr=0.05)` returns a `Config` instance.
 
-!!! note "Returned instances"
+!!! warning "Returned instances"
 
     Here, `attrs_mapping` applies only to class-level attribute access on the proxy. It does not apply to <u>the returned instance</u>.
 
@@ -376,9 +370,7 @@ For dataclasses, `deprecated_class(attrs_mapping=...)` automatically covers two 
 
 The auto-expansion copies entries targeting dataclass fields from `attrs_mapping` into `args_mapping`. Pure field renames therefore need no separate `args_mapping`.
 
-!!! note "Explicit argument mappings win"
-
-    Auto-expansion *never* overwrites entries already supplied in an explicit `args_mapping`.
+Auto-expansion *never* overwrites entries already supplied in an explicit `args_mapping`.
 
 ```python
 from dataclasses import dataclass
@@ -539,11 +531,9 @@ False
 
 `"cuda": None` emits `FutureWarning` on every access in this example. It serves `LegacyModel.cuda` because `Model` does not define `cuda`. `"gpu": "device"` warns and redirects to `Model.device`.
 
-!!! note "Warn-only validation"
+At decoration time, every `None`-value key **must exist** on at least one class. Define `cuda` on `LegacyModel`, or on `Model` if retaining it in the new API.
 
-    At decoration time, every `None`-value key **must exist** on at least one class. Define `cuda` on `LegacyModel`, or on `Model` if retaining it in the new API.
-
-!!! note "Audit tip — mapping compatibility"
+!!! tip "Mapping compatibility audit"
 
     After combining mappings, run `validate_mapping_compatibility(module)` from the audit module in CI. It surfaces deprecated kwargs remapped to `POSITIONAL_ONLY` constructor parameters.
 
@@ -613,13 +603,7 @@ Stacking supports `isinstance()` and `issubclass()` through the proxy chain. Ins
 - `proxy.num_steps` warns once for `num_steps` and resolves to `max_steps`.
 - Audit reports the mapping structure as `ChainType.STACKED`.
 
-!!! warning "Cycles are invalid"
-
-    Cycles such as `{"a": "b", "b": "a"}` raise `ValueError` at decoration time.
-
-!!! note "Static redirect targets"
-
-    Every non-`None` redirect target in a chain must be a <u>static class attribute</u>. Below, `num_steps` must exist on the class because `num_iters` redirects to it:
+Cycles such as `{"a": "b", "b": "a"}` raise `ValueError` at decoration time. Every non-`None` redirect target in a chain must be a <u>static class attribute</u>. Below, `num_steps` must exist on the class because `num_iters` redirects to it:
 
 ```python
 from deprecate import deprecated_class

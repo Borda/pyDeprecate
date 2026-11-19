@@ -81,9 +81,7 @@ A method the type gains afterwards does not reach that proxy. Examples include a
 
 Finish setting up the object before you wrap it, or wrap it again after changing its type.
 
-!!! info "Changed in v0.15"
-
-    Before v0.15 every proxy forwarded every protocol.
+**Changed in v0.15:** before v0.15 every proxy forwarded every protocol.
 
 ### A class proxy cannot be pickled by reference when it replaces the class's own name
 
@@ -103,7 +101,7 @@ This covers the class object only. Instances of a class deprecated in place pick
 
 Their payload names one of pyDeprecate's rebuild helpers instead of the class, so the loading process needs pyDeprecate installed. Once the deprecation is removed, the helpers refuse the plain class with `AttributeError`.
 
-!!! warning "Migrate stored instances before you remove the deprecation"
+!!! tip "Migrate stored instances first"
 
     The helper names stay stable across releases, so upgrading pyDeprecate is safe. To migrate stored instances:
 
@@ -119,9 +117,7 @@ Their payload names one of pyDeprecate's rebuild helpers instead of the class, s
 
 Pickling the proxy itself is unaffected. To detect a proxy, check `isinstance(obj, DeprecationProxy)` rather than storing or pickling its class.
 
-!!! info "Changed in v0.15"
-
-    Before v0.15, pyDeprecate pickled the proxy class by reference.
+**Changed in v0.15:** before v0.15, pyDeprecate pickled the proxy class by reference.
 
 ### A replacement object changes type checks at once
 
@@ -207,11 +203,9 @@ See [scanning from Python without importing](audit/index.md#scanning-from-python
 
 ### The full audit imports the package it scans
 
-!!! warning "Module-level code runs"
+The full audit imports the package, so its <u>module-level code runs</u> and its runtime dependencies must be installed in the scanning environment. The import-mode remote pre-commit hooks therefore only suit packages without such dependencies; use a `repo: local` hook otherwise.
 
-    The full audit imports the package, so its module-level code runs and its runtime dependencies must be installed in the scanning environment. The import-mode remote pre-commit hooks therefore only suit packages without such dependencies; use a `repo: local` hook otherwise.
-
-    See [Audit Tools](audit/index.md) and [the CLI reference](audit/cli.md).
+See [Audit Tools](audit/index.md) and [the CLI reference](audit/cli.md).
 
 ### CLI `--static` covers `expiry` and `policy` only, and only what the source spells
 
