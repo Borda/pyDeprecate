@@ -122,6 +122,13 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - **New troubleshooting item**: add a `### question` section under the matching topic `##` heading of `docs/troubleshooting.md`, whose first prose paragraph is the answer — the FAQPage JSON-LD is generated from it at build time by `docs/mkdocs_hooks.py`, never edit it by hand
 - **`docs/overrides/main.html`** is Jinja2 (prettier-excluded); do not put content files there
 - **`docs/robots.txt`** — AI crawler access policy; add a `User-agent: <bot> / Allow: /` block when a new mainstream AI crawler is released. The comment referencing the `docs/llms.txt` URL must stay current.
+- **Honest and optimistic docs** — describe what the library really does, and cover every supported user scenario in the topic pages and the [use-cases](docs/guide/use-cases.md) map. Present a limitation as a small known edge with its workaround, never as a warning: use `!!! note`, not `!!! warning`, keep it short, and do not dwell on it. Where a limitation can block real work, invite the reader to [open an issue](https://github.com/Borda/pyDeprecate/issues) with their practical use case; we are happy to discuss it and integrate it when it fits
+- **Active emphasis in human-facing docs** — break up monotone prose with markup:
+  - **bold** marks the decision, rule or consequence the reader must not miss, typically the lead-in phrase of a key bullet;
+  - *italic* marks a term at its first use, or a contrast such as *when*, *only*, *before*;
+  - underline, written `<u>…</u>`, marks the single most critical caveat of a section, at most two per page;
+  - keep it to about one emphasised phrase per three sentences, never a whole sentence or list, and never inside code, headings or link text;
+  - use underline only in `docs/` pages, never in `README.md` (PyPI), `docs/llms*.txt` or `plugins/**`
 - **Tight lists in every `*.md`** — no blank line between list items or before a nested list; keep blank lines only when an item holds a block that needs them (code block, table, image, admonition); write a follow-on point as a nested bullet, not an indented second paragraph; never nest a single bullet, fold it into its parent item
 - See [Documentation Site](.github/CONTRIBUTING.md#-documentation-site) for the full consistency rules
 
