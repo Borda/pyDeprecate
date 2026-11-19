@@ -366,7 +366,7 @@ Instantiation also forwards to `Config`: `LegacyConfig()` returns a `Config` ins
 
 ### Dataclass field renames
 
-For dataclasses, `deprecated_class(attrs_mapping=...)` automatically covers two surfaces. Accessing mapped class attributes through the proxy and passing constructor kwargs (`DC(old_field=5)`) can emit `FutureWarning`. Returned instances are **not wrapped**, so their attribute reads are not remapped.
+For dataclasses, `deprecated_class(attrs_mapping=...)` automatically covers two surfaces. Accessing mapped class attributes through the proxy and passing constructor kwargs (`DC(old_field=5)`) can emit `FutureWarning` using separate budgets for attribute access and each old constructor keyword. A call with a canonical keyword uses the call-level budget. Returned instances are **not wrapped**, so their attribute reads are not remapped.
 
 The auto-expansion copies entries targeting dataclass fields from `attrs_mapping` into `args_mapping`. Pure field renames therefore need no separate `args_mapping`.
 
@@ -450,7 +450,7 @@ class LegacyTrainer:
     pass
 
 
-# Warning path 1 — args_mapping fires: old kwarg "learning_rate" remapped to "lr"
+# The replacement call warns and remaps the keyword to lr.
 trainer = LegacyTrainer(learning_rate=0.05)  # warns: FutureWarning
 print(trainer.lr)  # NewTrainer instance has lr=0.05
 
@@ -469,7 +469,7 @@ print(default_epochs)  # value from NewTrainer.epochs
 
 </details>
 
-Attribute and argument warning budgets are **independent**; exhausting one does not affect the other. Each deprecated name has its own counter. With `num_warns=1`, the default, every old name warns once before becoming silent.
+Each deprecated class attribute has its own warning budget. Calls forwarding to a replacement share a **call-level budget**, even when they use different deprecated keywords. With the default `num_warns=1`, the proxy emits one warning for calls and one for each deprecated attribute.
 
 #### Mixed redirect and warn-only entries
 

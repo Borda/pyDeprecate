@@ -152,10 +152,8 @@ class _ProxySpec:
         message_template: Optional custom warning message template that overrides the built-in templates.  When ``None``
             (default), the built-in template for the active scenario is used (callable-target, no-target, or
             per-argument).  See :func:`~deprecate.proxy.deprecated_class` for the available ``%``-style placeholders.
-        read_only: If ``True``, raise :class:`AttributeError` on any write attempt through the proxy.
-            Only the following standard collection mutator names are intercepted: ``append``, ``clear``,
-            ``discard``, ``extend``, ``insert``, ``pop``, ``remove``, ``setdefault``, ``update``, ``add``.
-            Custom method names (e.g. ``register()``, ``reload()``, ``set_value()``) are not blocked.
+        read_only: If ``True``, block attribute and item writes, in-place operators, and calls to methods whose
+            names are in ``_MUTATING_METHOD_NAMES``. The method-name guard also applies to custom objects.
         target: Optional replacement object.  When set, all attribute, item, and call access is forwarded to *target*
             instead of *obj*.
         args_mapping: Optional dict remapping keyword argument names when the proxy is called.  Keys are old argument
@@ -1001,10 +999,9 @@ class _DeprecatedProxy:
         Branching logic:
         - :attr:`~deprecate._types.TargetMode.ARGS_REMAP`: warn only when a deprecated kwarg name is present in the
           call; remap, merge ``args_extra``, and call ``obj``.
-        - Callable target with ``args_mapping``: warn per deprecated kwarg present; if none of the old names were
-          passed still warn at the callable level (class is deprecated); remap, merge ``args_extra``, and forward to
-          target.
-        - Callable target without ``args_mapping``: warn (global budget), merge ``args_extra``, and forward to target.
+        - Callable target: use the global warning budget, apply any ``args_mapping``, merge ``args_extra``, and
+          forward to the target. A dataclass self-target with auto-expanded field aliases uses a separate budget for
+          each deprecated keyword supplied. Calls without deprecated keywords still use the global budget.
         - :attr:`~deprecate._types.TargetMode.ATTRS_REMAP`: governs attribute access only; ``args_extra`` is
           intentionally not applied on ``__call__`` — :func:`~deprecate._validate._validate_proxy_mode`
           already warns about this misconfiguration at decoration time.
@@ -1029,8 +1026,7 @@ class _DeprecatedProxy:
         # validated as a misconfiguration at decoration time.
         if dep.target is TargetMode.ATTRS_REMAP:
             return cfg.obj(*args, **kwargs)
-        # take the per-argument path when only argument names are deprecated, or the class forwards to a callable
-        # replacement and renames some arguments on the way
+        # Only mapped calls need to bind and rewrite arguments before forwarding.
         if dep.target is TargetMode.ARGS_REMAP or (callable(dep.target) and dep.args_mapping):
             return _proxy_call_mapped(self, dep, args, kwargs)
         return _proxy_call_global(self, dep, args, kwargs)
@@ -1765,27 +1761,28 @@ def _proxy_call_mapped(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> Any:  # noqa: ANN401
-    """Warn for mapped keywords, remap the call and forward to the source or replacement.
+    """Apply the warning budget, remap keywords and forward to the active callable.
 
-    In ``ARGS_REMAP`` mode, a call with no deprecated keyword and no extras is forwarded verbatim: a positional-only
-    name passed as a keyword stays in the source's ``**kwargs``. Callable replacements instead always use the binding
-    pipeline, since their signature may differ, and warn globally when no deprecated keyword was passed.
+    In ``ARGS_REMAP`` mode, a call with no deprecated keyword and no extras is forwarded verbatim so a positional-only
+    name passed as a keyword stays in the source's ``**kwargs``. Forwarding to a callable target uses the binding
+    pipeline and the global warning budget. Dataclass auto-expansion can select the wrapped class as its own target. In
+    that case, calls with a deprecated keyword use its per-keyword budget, and other calls use the global budget.
 
     """
     cfg = proxy._cfg
     mapping = dep.args_mapping or {}
     remap_only = dep.target is TargetMode.ARGS_REMAP
     active = cfg.obj if remap_only else dep.target
-    if remap_only:
-        # the proxy serves its own object: each renamed keyword the caller passed warns under its own budget
+    # Dataclass field aliases share the wrapped constructor and keep their own warning budgets.
+    per_argument = remap_only or (active is cfg.obj and bool(dep.args_mapping_auto_expanded))
+    if per_argument and not mapping.keys().isdisjoint(kwargs):
         for old_key in mapping:
             if old_key in kwargs:
                 proxy._warn(arg_name=old_key)
-        if mapping.keys().isdisjoint(kwargs) and not cfg.args_extra:
-            return active(*args, **kwargs)
-    else:
-        # a replacement serves every call, so one call-level "in favor of" warning, as ``@deprecated`` emits
+    elif not remap_only:
         proxy._warn()
+    elif not cfg.args_extra:
+        return active(*args, **kwargs)
     # A rewritten call holds such keywords out of the split, as the ``@deprecated`` dispatcher does, so the called
     # object still binds them to its ``**kwargs``.
     kwargs, keyword_overflow = _take_keyword_overflow(cfg.facts.source_keyword_overflow, mapping, kwargs)

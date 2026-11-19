@@ -1412,11 +1412,11 @@ print(OLD_THRESHOLD["value"])
 
 ### My object mutated despite `read_only=True`
 
-`read_only=True` blocks attribute and item writes, in-place operators and sixteen standard collection mutator names: `add`, `append`, `clear`, `difference_update`, `discard`, `extend`, `insert`, `intersection_update`, `pop`, `popitem`, `remove`, `reverse`, `setdefault`, `sort`, `symmetric_difference_update`, `update`. A custom method of your own object is not blocked.
+`read_only=True` blocks attribute and item writes, in-place operators and sixteen standard collection mutator names: `add`, `append`, `clear`, `difference_update`, `discard`, `extend`, `insert`, `intersection_update`, `pop`, `popitem`, `remove`, `reverse`, `setdefault`, `sort`, `symmetric_difference_update`, `update`. The guard matches these names on custom objects too.
 
 **Q:** I passed `read_only=True` to `deprecated_instance()` but a method on my object still mutated its state. Why?
 
-Those built-in mutators and custom method names — for example `register()`, `reload()`, or `set_value()` — are not in this list and call through to the underlying object without any guard.
+A method whose name is outside the guarded set, such as `register()`, `reload()`, or `set_value()`, can still call through and mutate the underlying object.
 
 !!! warning "An active skip disables mutation guards"
 

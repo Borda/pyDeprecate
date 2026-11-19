@@ -1564,7 +1564,6 @@ def _caught_by(error: BaseException, target: Any) -> bool:  # noqa: ANN401
         raise error
     except target:
         return True
-    return False  # pragma: no cover - the exception propagates when no clause matches
 
 
 class TestClassProxyIsNotAType:
@@ -1582,11 +1581,11 @@ class TestClassProxyIsNotAType:
     @pytest.mark.parametrize(
         "clause",
         [
-            pytest.param(lambda alias: (alias,), id="single"),
+            pytest.param(lambda alias: alias, id="single"),
             pytest.param(lambda alias: (alias, KeyError), id="tuple"),
         ],
     )
-    def test_except_clause_raises_type_error(self, alias: Any, clause: Callable[[Any], tuple]) -> None:  # noqa: ANN401
+    def test_except_clause_raises_type_error(self, alias: Any, clause: Callable[[Any], Any]) -> None:  # noqa: ANN401
         """``except Old:`` fails with ``TypeError`` when an exception reaches it, hiding the original exception.
 
         A caller who catches the renamed exception by its old name gets a ``TypeError`` instead of the handler. The

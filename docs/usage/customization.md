@@ -53,8 +53,8 @@ An empty `deprecated_in` emits a `UserWarning` at decoration time, except when `
 
 Proxy warnings pick their template by warning kind, as `@deprecated` does:
 
-- a call through `deprecated_class` or `deprecated_instance` uses `TEMPLATE_WARNING_CALLABLE` when a replacement target is set, once per call even when the caller passes old `args_mapping` names;
-- a call that passes an old `args_mapping` name to a proxy without a replacement (`TargetMode.ARGS_REMAP`) uses `TEMPLATE_WARNING_ARGUMENTS`, with `target_name` set to the new argument name;
+- a call through `deprecated_class` or `deprecated_instance` uses the shared call-level `TEMPLATE_WARNING_CALLABLE` budget when a replacement target is set, including calls with old `args_mapping` names. The default `num_warns=1` emits one warning per proxy and `num_warns=-1` emits one per call.
+- a call with an old keyword in `TargetMode.ARGS_REMAP` or an automatically expanded dataclass field mapping to the wrapped class uses the keyword's own `TEMPLATE_WARNING_ARGUMENTS` budget. The new argument name fills `target_name`.
 - an `attrs_mapping` access sets `source_name` to the old attribute and `target_name` to the new attribute name, and `target_path` to `Owner.attr`.
 
 ### Custom template example
