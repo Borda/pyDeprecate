@@ -30,7 +30,7 @@ from deprecate.audit import (
     validate_deprecation_wrapper,
 )
 from deprecate.audit._scan import _SKIPPED_MODULES, _collect_skipped_modules, _member_has_deprecation_meta, _scan_class
-from deprecate.proxy import _DeprecatedProxy, _ProxySpec, deprecated_class
+from deprecate.proxy import _DeprecatedProxy, _ProxySpec, deprecated_class, deprecated_instance
 
 
 class _SideEffectScanModule:
@@ -416,13 +416,17 @@ class TestFindDeprecationWrappersReexport:
         assert len([r for r in results if r.function in ("canonical", "alias")]) == 1
 
     @pytest.mark.parametrize(
-        ("symbol", "no_effect"),
+        ("symbol", "also_bound_to_class_name", "no_effect"),
         [
-            pytest.param("Color", False, id="rename-alias"),
-            pytest.param("ThemeColor", True, id="in-place-self-reference"),
+            pytest.param("Color", False, False, id="rename-alias"),
+            pytest.param("ThemeColor", False, True, id="in-place-self-reference"),
+            pytest.param("Color", True, True, id="alias-before-original"),
+            pytest.param("ZColor", True, True, id="alias-after-original"),
         ],
     )
-    def test_self_target_class_proxy_is_no_effect_only_without_a_rename(self, symbol: str, no_effect: bool) -> None:
+    def test_self_target_class_proxy_is_no_effect_only_without_a_rename(
+        self, symbol: str, also_bound_to_class_name: bool, no_effect: bool
+    ) -> None:
         """A class proxy that targets its own wrapped class is a rename alias unless it keeps the class's own name.
 
         A maintainer renames ``ThemeColor`` and keeps the old name working as ``Color = deprecated_class(target=
@@ -436,11 +440,67 @@ class TestFindDeprecationWrappersReexport:
 
         ThemeColor.__module__ = "alias_rename_mod"
         mod = types.ModuleType("alias_rename_mod")
-        setattr(mod, symbol, deprecated_class(target=ThemeColor, deprecated_in="1.0", remove_in="2.0")(ThemeColor))
+        proxy = deprecated_class(target=ThemeColor, deprecated_in="1.0", remove_in="2.0")(ThemeColor)
+        bindings = dict.fromkeys(("ThemeColor", symbol) if also_bound_to_class_name else (symbol,), proxy)
+        vars(mod).update(bindings)
 
         (info,) = find_deprecation_wrappers(mod)
 
-        assert (info.function, info.self_reference, info.no_effect) == (symbol, no_effect, no_effect)
+        assert (info.function, info.self_reference, info.no_effect) == (min(bindings), no_effect, no_effect)
+
+    def test_self_target_instance_never_reads_wrapped_name(self) -> None:
+        """An application object's dynamic name lookup is outside audit discovery.
+
+        A self-targeting instance still has no effect, and its raising ``__name__`` property must never run
+        during the check for a renamed class alias.
+        """
+
+        class Payload:
+            """Track accidental name reads by raising."""
+
+            @property
+            def __name__(self) -> str:
+                """Fail whenever a caller treats this instance as a named class."""
+                raise RuntimeError("name was accessed")
+
+        payload = Payload()
+        module = types.ModuleType("legacy")
+        vars(module)["alias"] = deprecated_instance(
+            payload, name="alias", target=payload, deprecated_in="1.0", remove_in="2.0"
+        )
+
+        (info,) = find_deprecation_wrappers(module)
+
+        assert (info.function, info.self_reference, info.no_effect) == ("alias", True, True)
+
+    def test_class_rename_does_not_use_metaclass_name_hook(self) -> None:
+        """A renamed class can customize attribute access without affecting scan classification.
+
+        Enable the application hook after constructing the proxy so this tests only the auditor's name lookup.
+        The stored type name remains available without invoking the hook.
+        """
+
+        class NameGuard(type):
+            """Reject name access once the proxy has been built."""
+
+            guard_name = False
+
+            def __getattribute__(cls, name: str) -> object:
+                """Forbid dynamic reads of the class name after setup."""
+                if name == "__name__" and cls.guard_name:
+                    raise RuntimeError("metaclass name hook was called")
+                return super().__getattribute__(name)
+
+        class ThemeColor(metaclass=NameGuard):
+            """Stand in for a renamed framework class."""
+
+        module = types.ModuleType("legacy")
+        vars(module)["Color"] = deprecated_class(target=ThemeColor, deprecated_in="1.0", remove_in="2.0")(ThemeColor)
+        ThemeColor.guard_name = True
+
+        (info,) = find_deprecation_wrappers(module)
+
+        assert (info.function, info.self_reference, info.no_effect) == ("Color", False, False)
 
     @pytest.mark.parametrize(
         "aliases",

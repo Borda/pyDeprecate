@@ -1,12 +1,18 @@
 """Unit tests for :mod:`deprecate.audit._findings`: the finding records the CLI gates on."""
 
+from types import ModuleType
+from typing import Any
+
 import pytest
 
 from deprecate._types import DeprecationConfig, TargetMode
-from deprecate.audit import ChainType, DeprecationWrapperInfo, PolicyRule
+from deprecate.audit import ChainType, DeprecationWrapperInfo, PolicyRule, find_deprecation_wrappers
 from deprecate.audit._findings import _Check, _Rule, _wrapper_findings
 from deprecate.audit._lifecycle import _check_expiry_for_callables, _expiry_findings
 from deprecate.audit._policy import _build_policy_spec, _check_policy_for_callables, _policy_findings
+from deprecate.proxy import deprecated_class
+
+_DEPRS_CASE_DIAGNOSTIC_ARGS: dict[str, Any] = {"deprecated_in": "1.0", "remove_in": "2.0"}
 
 _EXPIRED_WRAPPER = DeprecationWrapperInfo(
     module="pkg", function="old_fn", deprecated_info=DeprecationConfig(deprecated_in="1.0", remove_in="1.0")
@@ -98,7 +104,7 @@ class TestWrapperFindings:
             ),
             pytest.param(
                 DeprecationConfig(target=TargetMode.ARGS_REMAP, args_mapping={"x": "y"}, attrs_mapping={"a": "b"}),
-                "`TargetMode.ARGS_REMAP` with an ignored `attrs_mapping`",
+                "`TargetMode.ARGS_REMAP` with both mappings (attribute redirects remain active)",
                 id="args-remap-with-attrs-mapping",
             ),
             pytest.param(
@@ -137,6 +143,79 @@ class TestWrapperFindings:
         (finding,) = _wrapper_findings(info)
         assert (finding.rule, finding.details) == (_Rule.MISCONFIGURED_TARGET, (case,))
         assert case in finding.message
+
+    def test_legacy_class_target_remap_yields_a_finding(self) -> None:
+        """A legacy invalid target still yields a finding after normalization.
+
+        Older libraries may use the false target sentinel together with an attribute alias. The factory records the
+        invalid sentinel before picking the effective remap mode, leaving no call-time options for the audit to name.
+        """
+        module = ModuleType("legacy")
+        with pytest.warns(UserWarning, match="target=False"):
+            proxy = deprecated_class(target=False, attrs_mapping={"clone": "copy"}, **_DEPRS_CASE_DIAGNOSTIC_ARGS)(dict)
+        vars(module)["OldDict"] = proxy
+
+        (wrapper,) = find_deprecation_wrappers(module)
+        (finding,) = _wrapper_findings(wrapper)
+
+        assert finding.rule is _Rule.MISCONFIGURED_TARGET
+        assert "target=False" in finding.details[0]
+
+    def test_cleared_call_options_still_yield_a_finding(self) -> None:
+        """An audit retains the misconfiguration when the original extras dict is emptied.
+
+        A callable class uses attribute remapping with an ignored constructor override. If the caller clears its
+        extras dict after decoration, older metadata can retain only the misconfiguration flag.
+        """
+        extras = {"default": 1}
+        with pytest.warns(UserWarning, match="ignores `args_extra`"):
+            proxy = deprecated_class(
+                target=TargetMode.ATTRS_REMAP,
+                attrs_mapping={"clone": "copy"},
+                args_extra=extras,
+                **_DEPRS_CASE_DIAGNOSTIC_ARGS,
+            )(dict)
+        extras.clear()
+        module = ModuleType("legacy")
+        vars(module)["OldDict"] = proxy
+
+        (wrapper,) = find_deprecation_wrappers(module)
+        (finding,) = _wrapper_findings(wrapper)
+
+        assert finding.rule is _Rule.MISCONFIGURED_TARGET
+        assert "ATTRS_REMAP" in finding.details[0]
+
+    def test_call_remap_diagnostic_keeps_attribute_redirects(self) -> None:
+        """A flag for mixed remapping should not imply the supported attribute reads can be removed.
+
+        The mode describes call-time remapping, but a deprecated attribute name on the same proxy still
+        redirects. Verify the decoration warning and audit wording alongside the actual attribute read.
+        """
+
+        class Options:
+            """Expose the replacement attribute and receive remapped constructor arguments."""
+
+            active = 3
+
+            def __init__(self, flag: bool = False) -> None:
+                """Store the renamed keyword."""
+                self.flag = flag
+
+        with pytest.warns(UserWarning, match=r"attribute reads still use `attrs_mapping`"):
+            proxy = deprecated_class(
+                target=TargetMode.ARGS_REMAP,
+                args_mapping={"old_flag": "flag"},
+                attrs_mapping={"old_active": "active"},
+                **_DEPRS_CASE_DIAGNOSTIC_ARGS,
+            )(Options)
+        module = ModuleType("legacy")
+        vars(module)["Options"] = proxy
+
+        with pytest.warns(FutureWarning, match="old_active"):
+            assert proxy.old_active == 3  # type: ignore[attr-defined]
+        (wrapper,) = find_deprecation_wrappers(module)
+        (finding,) = _wrapper_findings(wrapper)
+        assert "attribute redirects remain active" in finding.details[0]
 
     def test_getter_only_inner_order_property_is_a_finding(self) -> None:
         """An inner-order property is a finding even when it has no setter or deleter yet.

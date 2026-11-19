@@ -66,6 +66,22 @@ def _getmembers_static_compat(obj: Any) -> list[tuple[str, Any]]:  # noqa: ANN40
         _STATIC_TYPE_VIEW.reset(token)
 
 
+def _is_renamed_class_proxy(
+    obj: object,
+    name: str,
+    bindings: Optional[dict[str, Any]],
+) -> bool:
+    """Identify a class proxy published only under a different name in this scope."""
+    if not isinstance(obj, _DeprecatedProxy):
+        return False
+    wrapped = obj.wrapped
+    if not issubclass(type(wrapped), type):
+        return False
+    # Use the built-in descriptor to avoid a custom metaclass name hook.
+    class_name = type.__dict__["__name__"].__get__(wrapped)
+    return name != class_name and (bindings is None or bindings.get(class_name) is not obj)
+
+
 def _scan_callable(
     obj: Any,  # noqa: ANN401
     module_name: str,
@@ -73,18 +89,14 @@ def _scan_callable(
     *,
     member_name: Optional[str] = None,
     descriptor_kind: Optional[str] = None,
+    bindings: Optional[dict[str, Any]] = None,
 ) -> Optional[DeprecationWrapperInfo]:
     """Emit a result if ``obj`` carries ``__deprecation_config__`` metadata."""
     if _has_deprecation_meta(obj):
         info = validate_deprecation_wrapper(obj)
         api_type = _classify_wrapper_api_type(obj, info, member_name=member_name, descriptor_kind=descriptor_kind)
-        # a class proxy that serves its own wrapped class under another name is a rename alias (``Color`` for
-        # ``ThemeColor``): its callers get the warning, so only a proxy bound back to the class's own name is a no-op
-        if (
-            info.self_reference
-            and isinstance(obj, _DeprecatedProxy)
-            and qualified_name.rpartition(".")[2] != getattr(obj.wrapped, "__name__", None)
-        ):
+        # A rename still has an effect. An alias of an in-place proxy keeps the self-reference finding.
+        if info.self_reference and _is_renamed_class_proxy(obj, qualified_name.rpartition(".")[2], bindings):
             info = replace(info, self_reference=False, no_effect=False)
         return replace(info, module=module_name, function=qualified_name, api_type=api_type)
     return None
@@ -565,6 +577,7 @@ def _scan_module_member(
     include_pep702: bool = False,
     canonical_classes: frozenset[int] = frozenset(),
     canonical_wrappers: frozenset[int] = frozenset(),
+    bindings: Optional[dict[str, Any]] = None,
 ) -> list[DeprecationWrapperInfo]:
     """Scan one module member for deprecated wrappers or nested class members."""
     if name.startswith("_") or inspect.ismodule(obj):
@@ -576,7 +589,7 @@ def _scan_module_member(
             return []
         if not _claim_wrapper(obj, mod_name, attribute_to_defining_module, seen):
             return []
-        result = _scan_callable(obj, mod_name, name)
+        result = _scan_callable(obj, mod_name, name, bindings=bindings)
         return [result] if result is not None else []
     results: list[DeprecationWrapperInfo] = []
     pep702_message = _descriptor_pep702_message(obj) if include_pep702 else None
@@ -638,6 +651,7 @@ def _scan_module(
         id(obj) for name, obj in members if not name.startswith("_") and inspect.isclass(obj) and name == obj.__name__
     )
     canonical_wrappers = _canonical_wrapper_ids(members)
+    bindings = dict(members)
     for name, obj in members:
         results.extend(
             _scan_module_member(
@@ -650,6 +664,7 @@ def _scan_module(
                 include_pep702=include_pep702,
                 canonical_classes=canonical_classes,
                 canonical_wrappers=canonical_wrappers,
+                bindings=bindings,
             )
         )
     return results

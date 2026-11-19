@@ -348,14 +348,13 @@ def _validate_proxy_mode(
             "`attrs_mapping`. Omit `target` to auto-resolve to `TargetMode.ATTRS_REMAP`, or pass "
             f"`TargetMode.ATTRS_REMAP` explicitly. This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
         )
-    # both mappings were given with ARGS_REMAP, which ignores attrs_mapping
+    # ARGS_REMAP describes the call-time mode even though attribute reads use their own mapping.
     if mode is TargetMode.ARGS_REMAP and args_mapping and attrs_mapping:
         messages.append(
             f"`{factory}` on `{source_name}` has both `args_mapping` and `attrs_mapping` "
             "configured with `target=TargetMode.ARGS_REMAP`. `ARGS_REMAP` governs call-time argument "
-            "renames only; `attrs_mapping` is inactive in this mode. "
-            "`DeprecationConfig.target` no longer reflects that `attrs_mapping` is also active. "
-            "Pass an explicit callable `target=<class>` to activate both mappings on the same proxy. "
+            "renames; attribute reads still use `attrs_mapping`. "
+            "Pass an explicit callable `target=<class>` to configure both mappings with an explicit target. "
             f"This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
         )
     if mode is TargetMode.ATTRS_REMAP and not attrs_mapping:
