@@ -78,6 +78,14 @@ def _scan_callable(
     if _has_deprecation_meta(obj):
         info = validate_deprecation_wrapper(obj)
         api_type = _classify_wrapper_api_type(obj, info, member_name=member_name, descriptor_kind=descriptor_kind)
+        # a class proxy that serves its own wrapped class under another name is a rename alias (``Color`` for
+        # ``ThemeColor``): its callers get the warning, so only a proxy bound back to the class's own name is a no-op
+        if (
+            info.self_reference
+            and isinstance(obj, _DeprecatedProxy)
+            and qualified_name.rpartition(".")[2] != getattr(obj.wrapped, "__name__", None)
+        ):
+            info = replace(info, self_reference=False, no_effect=False)
         return replace(info, module=module_name, function=qualified_name, api_type=api_type)
     return None
 

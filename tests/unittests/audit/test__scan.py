@@ -5,6 +5,7 @@ import importlib
 import pkgutil
 import types
 from collections.abc import Callable
+from enum import Enum
 from functools import cached_property
 from pathlib import Path
 from unittest.mock import patch
@@ -413,6 +414,33 @@ class TestFindDeprecationWrappersReexport:
         results = find_deprecation_wrappers(mod)
 
         assert len([r for r in results if r.function in ("canonical", "alias")]) == 1
+
+    @pytest.mark.parametrize(
+        ("symbol", "no_effect"),
+        [
+            pytest.param("Color", False, id="rename-alias"),
+            pytest.param("ThemeColor", True, id="in-place-self-reference"),
+        ],
+    )
+    def test_self_target_class_proxy_is_no_effect_only_without_a_rename(self, symbol: str, no_effect: bool) -> None:
+        """A class proxy that targets its own wrapped class is a rename alias unless it keeps the class's own name.
+
+        A maintainer renames ``ThemeColor`` and keeps the old name working as ``Color = deprecated_class(target=
+        ThemeColor, ...)(ThemeColor)``: callers of ``Color`` get the warning, so the audit must not call it a no-op.
+        Binding the proxy back to ``ThemeColor`` itself warns callers to use the very name they already use, which is
+        the real self-reference.
+        """
+
+        class ThemeColor(Enum):
+            RED = "red"
+
+        ThemeColor.__module__ = "alias_rename_mod"
+        mod = types.ModuleType("alias_rename_mod")
+        setattr(mod, symbol, deprecated_class(target=ThemeColor, deprecated_in="1.0", remove_in="2.0")(ThemeColor))
+
+        (info,) = find_deprecation_wrappers(mod)
+
+        assert (info.function, info.self_reference, info.no_effect) == (symbol, no_effect, no_effect)
 
     @pytest.mark.parametrize(
         "aliases",
