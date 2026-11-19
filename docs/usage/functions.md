@@ -613,7 +613,7 @@ Each adjacent pair is `ARGS_REMAP + ARGS_REMAP` (supported) and `ARGS_REMAP + NO
 
     A single unsupported adjacent pair anywhere in the stack emits `UserWarning` at decoration time for that pair. Chains with `NOTIFY + ARGS_REMAP` adjacent remain unsupported — the wrong-order warning still fires.
 
-Use [`validate_deprecation_chains()`](audit/index.md#detecting-deprecation-chains) in CI to catch accidental deprecated-to-deprecated chains automatically.
+Use [`validate_deprecation_chains()`](../audit/index.md#detecting-deprecation-chains) in CI to catch accidental deprecated-to-deprecated chains automatically.
 
 ## Conditional skip
 
@@ -817,7 +817,7 @@ The `legacy_digest` was deprecated since v1.0. It will be removed in v2.0.
 
 </details>
 
-Below `ERROR_IN` the same code only warns. As the release-time backstop, run [`pydeprecate expiry`](audit/cli.md) in CI. It exits `1` when any wrapper is past its `remove_in` deadline, so a deprecation that was never deleted cannot ship by accident.
+Below `ERROR_IN` the same code only warns. As the release-time backstop, run [`pydeprecate expiry`](../audit/cli.md) in CI. It exits `1` when any wrapper is past its `remove_in` deadline, so a deprecation that was never deleted cannot ship by accident.
 
 ### When to prefer `-W error` instead
 
@@ -954,7 +954,7 @@ reportDeprecated = "error"
 
 Since `v0.14`, `@deprecated` and `deprecated_callable()` keep the decorated callable's own type, and the package ships a `py.typed` marker. Type checkers therefore see the real signature and name the symbol correctly in the diagnostic.
 
-For class aliases see [Classes → Type annotations and static analysis](classes.md#type-annotations-and-static-analysis). To list symbols deprecated with the PEP 702 decorator alone, see [`include_pep702`](audit/index.md#pep-702-only-deprecations).
+For class aliases see [Classes → Type annotations and static analysis](classes.md#type-annotations-and-static-analysis). To list symbols deprecated with the PEP 702 decorator alone, see [`include_pep702`](../audit/index.md#pep-702-only-deprecations).
 
 !!! warning "Static types do not preserve callable objects at runtime"
 
@@ -968,14 +968,14 @@ For class aliases see [Classes → Type annotations and static analysis](classes
 
 | Page                                     | Topic                                                                                           |
 | ---------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| [Use Cases overview](use-cases.md)       | Start here for a guided tour of all deprecation patterns.                                       |
+| [Use Cases overview](index.md)           | Start here for a guided tour of all deprecation patterns.                                       |
 | [Classes](classes.md)                    | Learn about class, Enum, dataclass, and instance deprecation.                                   |
 | [Properties](properties.md)              | Deprecate `@property` and `@cached_property`.                                                   |
 | [Async](async.md)                        | Deprecate async functions and async generators.                                                 |
 | [Advanced](advanced.md)                  | Explore docstring updates, `args_extra`, testing helpers, class/static methods, and generators. |
 | [Customization](customization.md)        | Customize message templates and output streams.                                                 |
 | [void() Helper](void-helper.md)          | Learn when and why to use `void()` in the function body.                                        |
-| [Audit Tools](audit/index.md)            | Enforce removal deadlines and detect deprecation chains in CI.                                  |
+| [Audit Tools](../audit/index.md)         | Enforce removal deadlines and detect deprecation chains in CI.                                  |
 | [Troubleshooting](../troubleshooting.md) | Find common errors and fixes.                                                                   |
 
 ______________________________________________________________________

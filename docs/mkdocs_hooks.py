@@ -268,6 +268,20 @@ def _pydeprecate_copy_markdown_mirrors(docs_dir: str, site_dir: str) -> None:
         _pydeprecate_shutil.copyfile(src, dest)
 
 
+def _pydeprecate_copy_redirect_mirrors(config: MkDocsConfig) -> None:
+    # A static host cannot redirect ``.html.md``, so a moved page's old mirror address serves the new page's source.
+    plugin = config["plugins"].get("redirects")
+    if plugin is None:
+        return
+    site = _PyDeprecatePath(config["site_dir"])
+    for old, new in plugin.config["redirect_maps"].items():
+        source = site / _pydeprecate_mirror_target(new.split("#")[0])
+        dest = site / _pydeprecate_mirror_target(old)
+        if source.is_file() and not dest.exists():
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            _pydeprecate_shutil.copyfile(source, dest)
+
+
 def _pydeprecate_rewrite_sitemap(site_dir: str) -> None:
     sitemap = _PyDeprecatePath(site_dir) / "sitemap.xml"
     if not sitemap.exists():
@@ -284,6 +298,7 @@ def _pydeprecate_rewrite_sitemap(site_dir: str) -> None:
 def on_post_build(config: MkDocsConfig) -> None:
     """Copy markdown mirrors and rewrite sitemap after build completes."""
     _pydeprecate_copy_markdown_mirrors(config["docs_dir"], config["site_dir"])
+    _pydeprecate_copy_redirect_mirrors(config)
     _pydeprecate_rewrite_sitemap(config["site_dir"])
     for path in _PyDeprecatePath(config["site_dir"]).rglob("*.html"):
         path.write_text(_pydeprecate_fix_accessibility(path.read_text(encoding="utf-8")), encoding="utf-8")

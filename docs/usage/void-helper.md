@@ -262,7 +262,7 @@ In practice, neither workaround is usually needed — modern versions of mypy ha
 
 ## void(...) vs assert_no_warnings
 
-These two utilities solve *completely different* problems. Their names might suggest a connection, but they operate in different contexts. `assert_no_warnings` is a test-time tool covered in [Testing Deprecated Code](testing.md#testing-deprecated-code).
+These two utilities solve *completely different* problems. Their names might suggest a connection, but they operate in different contexts. `assert_no_warnings` is a test-time tool covered in [Testing Deprecated Code](../integrations/testing.md#testing-deprecated-code).
 
 |                    | `void(...)`                                                | `assert_no_warnings()`                                                  |
 | ------------------ | ---------------------------------------------------------- | ----------------------------------------------------------------------- |
@@ -305,9 +305,9 @@ print(result)
 
 ## See also
 
-- [Use Cases](use-cases.md) covers worked examples of deprecation patterns, including those that use `void()`.
+- [Use Cases](index.md) covers worked examples of deprecation patterns, including those that use `void()`.
 - [Troubleshooting](../troubleshooting.md) explains why `deprecated_instance` does not emit warnings on arithmetic or comparison operators (same CPython dunder limitation).
 
 ______________________________________________________________________
 
-Next: [Audit Tools](audit/index.md) — validate decorator configuration, enforce removal deadlines, and detect deprecation chains in CI.
+Next: [Audit Tools](../audit/index.md) — validate decorator configuration, enforce removal deadlines, and detect deprecation chains in CI.

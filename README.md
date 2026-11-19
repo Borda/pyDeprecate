@@ -45,7 +45,7 @@ Read [Mastering API Deprecation in Python](https://medium.com/codex/mastering-ap
 - Keep old class, Enum, dataclass, and object names available through proxies.
 - Deprecate an entire module or selected attributes.
 
-See the [use-case decision table](https://borda.github.io/pyDeprecate/stable/guide/use-cases.html#quick-decision-table) to choose a pattern.
+See the [use-case decision table](https://borda.github.io/pyDeprecate/stable/usage/index.html#quick-decision-table) to choose a pattern.
 
 ### 🧩 Callable support
 
@@ -54,7 +54,7 @@ See the [use-case decision table](https://borda.github.io/pyDeprecate/stable/gui
 - Deprecate property getters, setters, and deleters, plus `cached_property` getters.
 - Keep the base library free of runtime dependencies.
 
-See [async functions](https://borda.github.io/pyDeprecate/stable/guide/async.html) and [properties](https://borda.github.io/pyDeprecate/stable/guide/properties.html) for timing and accessor rules.
+See [async functions](https://borda.github.io/pyDeprecate/stable/usage/async.html) and [properties](https://borda.github.io/pyDeprecate/stable/usage/properties.html) for timing and accessor rules.
 
 ### 🎛 Migration controls
 
@@ -63,7 +63,7 @@ See [async functions](https://borda.github.io/pyDeprecate/stable/guide/async.htm
 - Configure message templates and conditional `skip_if` behavior.
 - Raise `DeprecatedError` when a deprecation must become fatal.
 
-See [customization](https://borda.github.io/pyDeprecate/stable/guide/customization.html) and [fatal deprecations](https://borda.github.io/pyDeprecate/stable/guide/functions.html#fatal-deprecations) for controls and limits.
+See [customization](https://borda.github.io/pyDeprecate/stable/usage/customization.html) and [fatal deprecations](https://borda.github.io/pyDeprecate/stable/usage/functions.html#fatal-deprecations) for controls and limits.
 
 ### 🛠 Maintenance tools
 
@@ -72,7 +72,7 @@ See [customization](https://borda.github.io/pyDeprecate/stable/guide/customizati
 - Generate deprecation status tables for release planning.
 - Test warning behavior with `assert_no_warnings`.
 
-See the [audit guide](https://borda.github.io/pyDeprecate/stable/guide/audit/index.html) for Python and CI workflows.
+See the [audit guide](https://borda.github.io/pyDeprecate/stable/audit/index.html) for Python and CI workflows.
 
 ## 💾 Installation
 
@@ -133,7 +133,7 @@ FutureWarning: The `addition` was deprecated since v1.0 in favor of `__main__.co
 
 > **Warning — forwarding skips the old body.** With a callable `target`, the deprecated function body does not run. If `skip_if` evaluates to `True`, the source body runs instead, so keep a working fallback when combining these options.
 
-See [simple function forwarding](https://borda.github.io/pyDeprecate/stable/guide/functions.html#simple-function-forwarding) for argument handling and callable-target limits.
+See [simple function forwarding](https://borda.github.io/pyDeprecate/stable/usage/functions.html#simple-function-forwarding) for argument handling and callable-target limits.
 
 ## 📊 Comparison with Other Tools
 
@@ -148,11 +148,11 @@ A hand-written `warnings.warn` shim covers the **first row only**. pyDeprecate c
 | Warn once instead of on every call          | Track call state yourself                  | `num_warns` budget per wrapper       |
 | Fail CI once the removal version is reached | Not available                              | `pydeprecate expiry`                 |
 
-Use `warnings.deprecated` (PEP 702, Python 3.13+) or `typing_extensions.deprecated` when you *only* need a type-checker signal; stack it above `@deprecated` with `category=None`, so callers get the type-checker signal and only one runtime warning. See the [Python deprecation tools comparison](https://borda.github.io/pyDeprecate/stable/guide/compare-python-deprecation-tools.html) for `deprecation`, `Deprecated` and other libraries.
+Use `warnings.deprecated` (PEP 702, Python 3.13+) or `typing_extensions.deprecated` when you *only* need a type-checker signal; stack it above `@deprecated` with `category=None`, so callers get the type-checker signal and only one runtime warning. See the [Python deprecation tools comparison](https://borda.github.io/pyDeprecate/stable/adoption/compare-python-deprecation-tools.html) for `deprecation`, `Deprecated` and other libraries.
 
 ## 📚 Use-cases and Applications
 
-Each example below is a complete basic setup you can paste and run. The [use-case guide](https://borda.github.io/pyDeprecate/stable/guide/use-cases.html#quick-decision-table) helps you choose a pattern for other cases.
+Each example below is a complete basic setup you can paste and run. The [use-case guide](https://borda.github.io/pyDeprecate/stable/usage/index.html#quick-decision-table) helps you choose a pattern for other cases.
 
 ### 🔄 Rename an argument
 
@@ -303,7 +303,7 @@ FutureWarning: The `gross` was deprecated since v1.1. It will be removed in v2.0
 FutureWarning: The `value` was deprecated since v1.1. It will be removed in v2.0.
 ```
 
-A property with a setter or deleter needs `@deprecated` **above** `@property` so that every accessor warns. See [properties](https://borda.github.io/pyDeprecate/stable/guide/properties.html) and [class and static methods](https://borda.github.io/pyDeprecate/stable/guide/advanced.html#class-methods-and-static-methods).
+A property with a setter or deleter needs `@deprecated` **above** `@property` so that every accessor warns. See [properties](https://borda.github.io/pyDeprecate/stable/usage/properties.html) and [class and static methods](https://borda.github.io/pyDeprecate/stable/usage/advanced.html#class-methods-and-static-methods).
 
 ### ⏳ Deprecate an async function
 
@@ -338,7 +338,7 @@ invoice-7
 
 </details>
 
-Generators and async generators work the same way: keep `yield` in the deprecated stub, and the warning fires on the first iteration. See [async functions](https://borda.github.io/pyDeprecate/stable/guide/async.html#async-functions) and [generators](https://borda.github.io/pyDeprecate/stable/guide/advanced.html#deprecating-generator-functions).
+Generators and async generators work the same way: keep `yield` in the deprecated stub, and the warning fires on the first iteration. See [async functions](https://borda.github.io/pyDeprecate/stable/usage/async.html#async-functions) and [generators](https://borda.github.io/pyDeprecate/stable/usage/advanced.html#deprecating-generator-functions).
 
 ### 🏗 Rename a class
 
@@ -412,7 +412,7 @@ red
 FutureWarning: The `color` was deprecated since v2.0 in favor of `Palette.colour`. It will be removed in v3.0.
 ```
 
-Reads, writes and deletes all redirect. Map a name to `None` to warn without renaming. See [selective attributes](https://borda.github.io/pyDeprecate/stable/guide/attributes.html#selective-attribute-deprecation) for Enum members and dataclass fields.
+Reads, writes and deletes all redirect. Map a name to `None` to warn without renaming. See [selective attributes](https://borda.github.io/pyDeprecate/stable/usage/attributes.html#selective-attribute-deprecation) for Enum members and dataclass fields.
 
 ### 📦 Rename a constant
 
@@ -457,18 +457,18 @@ from deprecate import deprecated_module
 deprecated_module(__name__, target=new_calculator, deprecated_in="2.0", remove_in="3.0")
 ```
 
-Names missing from `old_calculator` are forwarded to `new_calculator`, so `old_calculator.add(1, 2)` keeps working with a `FutureWarning`. Leave out `target` to keep the module in place and only warn. See [module deprecation](https://borda.github.io/pyDeprecate/stable/guide/modules.html) for attribute renames during the redirect.
+Names missing from `old_calculator` are forwarded to `new_calculator`, so `old_calculator.add(1, 2)` keeps working with a `FutureWarning`. Leave out `target` to keep the module in place and only warn. See [module deprecation](https://borda.github.io/pyDeprecate/stable/usage/modules.html) for attribute renames during the redirect.
 
 ### ➕ More patterns
 
-- **Stacked decorators** — rename arguments across several releases ([guide](https://borda.github.io/pyDeprecate/stable/guide/functions.html#stacked-deprecation-decorators)).
-- **Fatal deprecations** — raise `DeprecatedError` instead of warning, with `as_exception=True` on one wrapper, `with deprecate.as_exceptions():` for one block, or `DEPRECATE_AS_EXCEPTIONS=1` for the whole process ([guide](https://borda.github.io/pyDeprecate/stable/guide/functions.html#fatal-deprecations)).
-- **Strict callable-only deprecation** — reject class sources with `deprecated_callable` ([guide](https://borda.github.io/pyDeprecate/stable/guide/functions.html#strict-callable-only-deprecation)).
-- **Enums and dataclasses** — forward class access and construction ([guide](https://borda.github.io/pyDeprecate/stable/guide/classes.html#enums-and-dataclasses)).
-- **New required arguments** — inject fixed forwarded kwargs ([guide](https://borda.github.io/pyDeprecate/stable/guide/advanced.html#injecting-new-required-arguments)).
-- **The `void()` helper** — write deprecated stubs ([guide](https://borda.github.io/pyDeprecate/stable/guide/void-helper.html#basic-usage)).
+- **Stacked decorators** — rename arguments across several releases ([guide](https://borda.github.io/pyDeprecate/stable/usage/functions.html#stacked-deprecation-decorators)).
+- **Fatal deprecations** — raise `DeprecatedError` instead of warning, with `as_exception=True` on one wrapper, `with deprecate.as_exceptions():` for one block, or `DEPRECATE_AS_EXCEPTIONS=1` for the whole process ([guide](https://borda.github.io/pyDeprecate/stable/usage/functions.html#fatal-deprecations)).
+- **Strict callable-only deprecation** — reject class sources with `deprecated_callable` ([guide](https://borda.github.io/pyDeprecate/stable/usage/functions.html#strict-callable-only-deprecation)).
+- **Enums and dataclasses** — forward class access and construction ([guide](https://borda.github.io/pyDeprecate/stable/usage/classes.html#enums-and-dataclasses)).
+- **New required arguments** — inject fixed forwarded kwargs ([guide](https://borda.github.io/pyDeprecate/stable/usage/advanced.html#injecting-new-required-arguments)).
+- **The `void()` helper** — write deprecated stubs ([guide](https://borda.github.io/pyDeprecate/stable/usage/void-helper.html#basic-usage)).
 
-For existing installations, read the [migration guide](https://borda.github.io/pyDeprecate/stable/guide/migration.html) before upgrading.
+For existing installations, read the [migration guide](https://borda.github.io/pyDeprecate/stable/migration/index.html) before upgrading.
 
 ## 🎛 Control the Warnings
 
@@ -525,7 +525,7 @@ WARNING:root:`clean` is deprecated, call `normalize` instead.
 - `num_warns` defaults to `1`, so each wrapper warns once per process. A positive number sets the budget and `-1` warns on every call.
 - `message_template` always accepts `%(source_name)s`, `%(deprecated_in)s` and `%(remove_in)s`. With a callable `target` it also accepts `%(target_name)s` and `%(target_path)s`.
 
-See [customization](https://borda.github.io/pyDeprecate/stable/guide/customization.html) for every placeholder and stream recipe.
+See [customization](https://borda.github.io/pyDeprecate/stable/usage/customization.html) for every placeholder and stream recipe.
 
 ### 🔀 Apply a deprecation conditionally
 
@@ -558,7 +558,7 @@ print(export_csv([1, 2]))  # warns: FutureWarning
 
 </details>
 
-See [conditional skip](https://borda.github.io/pyDeprecate/stable/guide/functions.html#conditional-skip) for the callback rules.
+See [conditional skip](https://borda.github.io/pyDeprecate/stable/usage/functions.html#conditional-skip) for the callback rules.
 
 ## 🗺 API at a Glance
 
@@ -568,9 +568,9 @@ Choose an entry point for the object you are deprecating:
 | --------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | `deprecated`          | Deprecate functions, methods, and properties. | [Decorator API](https://borda.github.io/pyDeprecate/stable/api-reference.html#decorator)                |
 | `deprecated_callable` | Deprecate callables and reject class sources. | [Decorator API](https://borda.github.io/pyDeprecate/stable/api-reference.html#decorator)                |
-| `deprecated_class`    | Deprecate classes, Enums, and dataclasses.    | [Class guide](https://borda.github.io/pyDeprecate/stable/guide/classes.html)                            |
-| `deprecated_instance` | Deprecate objects and constants.              | [Instance guide](https://borda.github.io/pyDeprecate/stable/guide/classes.html#constants-and-instances) |
-| `deprecated_module`   | Deprecate a module in place or redirect it.   | [Module guide](https://borda.github.io/pyDeprecate/stable/guide/modules.html)                           |
+| `deprecated_class`    | Deprecate classes, Enums, and dataclasses.    | [Class guide](https://borda.github.io/pyDeprecate/stable/usage/classes.html)                            |
+| `deprecated_instance` | Deprecate objects and constants.              | [Instance guide](https://borda.github.io/pyDeprecate/stable/usage/classes.html#constants-and-instances) |
+| `deprecated_module`   | Deprecate a module in place or redirect it.   | [Module guide](https://borda.github.io/pyDeprecate/stable/usage/modules.html)                           |
 
 ![An old call reaches the deprecated wrapper, which warns and forwards to the new API](docs/assets/images/pydeprecate-flow.svg)
 
@@ -587,7 +587,7 @@ Choose the behavior explicitly when configuring a wrapper:
 | `TargetMode.ARGS_REMAP`  | Rename arguments within the same function.                                                  |
 | `TargetMode.ATTRS_REMAP` | Warn on selected attribute aliases (`deprecated_class`; `deprecated_instance` since v0.16). |
 
-The default `TargetMode.AUTO` infers the mode at decoration time. See [mode differences](https://borda.github.io/pyDeprecate/stable/guide/functions.html#behaviour-comparison) for warning triggers and mapping rules.
+The default `TargetMode.AUTO` infers the mode at decoration time. See [mode differences](https://borda.github.io/pyDeprecate/stable/usage/functions.html#behaviour-comparison) for warning triggers and mapping rules.
 
 ## 🔍 Audit
 
@@ -603,7 +603,7 @@ pydeprecate status path/to/your/package                   # deprecation status t
 pydeprecate all path/to/your/package --version 2.0.0      # every check in one scan, plus the table
 ```
 
-`check` exits `1` on configuration errors and *only reports* advisory findings such as identity mappings. `expiry` exits `1` on any expired wrapper, and `status` *only reports*. See [CLI exit codes](https://borda.github.io/pyDeprecate/stable/guide/audit/cli.html#exit-codes) before making one a required CI gate.
+`check` exits `1` on configuration errors and *only reports* advisory findings such as identity mappings. `expiry` exits `1` on any expired wrapper, and `status` *only reports*. See [CLI exit codes](https://borda.github.io/pyDeprecate/stable/audit/cli.html#exit-codes) before making one a required CI gate.
 
 ### 🪝 Run on every commit
 
@@ -617,7 +617,7 @@ repos:
       - id: pydeprecate-check
 ```
 
-The hook **imports the scanned package**, so its imports must resolve without your project's runtime dependencies. The `pydeprecate-expiry`, `pydeprecate-policy`, `pydeprecate-chains` and `pydeprecate-all` hooks run the other checks. See [pre-commit integration](https://borda.github.io/pyDeprecate/stable/guide/audit/ci-integration.html#pre-commit-integration) for options.
+The hook **imports the scanned package**, so its imports must resolve without your project's runtime dependencies. The `pydeprecate-expiry`, `pydeprecate-policy`, `pydeprecate-chains` and `pydeprecate-all` hooks run the other checks. See [pre-commit integration](https://borda.github.io/pyDeprecate/stable/audit/ci-integration.html#pre-commit-integration) for options.
 
 ### ⚙ Run in GitHub Actions
 
@@ -630,7 +630,7 @@ Add a step after checking out the repository and installing your package:
     path: src/mypackage
 ```
 
-The step returns the CLI exit code. See the [GitHub Action recipe](https://borda.github.io/pyDeprecate/stable/guide/audit/ci-integration.html#github-action) for every input.
+The step returns the CLI exit code. See the [GitHub Action recipe](https://borda.github.io/pyDeprecate/stable/audit/ci-integration.html#github-action) for every input.
 
 ### 🐍 Check from Python
 
@@ -650,7 +650,7 @@ def test_no_expired_deprecations():
 
 `find_deprecation_wrappers(my_package)` lists every wrapper and its configuration, and `generate_deprecation_table(my_package)` renders the release-planning table.
 
-The [audit guide](https://borda.github.io/pyDeprecate/stable/guide/audit/index.html) covers the Python API, deprecation tables, [policy checks](https://borda.github.io/pyDeprecate/stable/guide/audit/policy.html#enforcing-a-deprecation-policy) and [chain detection](https://borda.github.io/pyDeprecate/stable/guide/audit/index.html#detecting-deprecation-chains).
+The [audit guide](https://borda.github.io/pyDeprecate/stable/audit/index.html) covers the Python API, deprecation tables, [policy checks](https://borda.github.io/pyDeprecate/stable/audit/policy.html#enforcing-a-deprecation-policy) and [chain detection](https://borda.github.io/pyDeprecate/stable/audit/index.html#detecting-deprecation-chains).
 
 ## 🧪 Testing
 
@@ -688,7 +688,7 @@ test_deprecated_function_shows_warning()
 test_new_function_no_warning()
 ```
 
-A wrapper warns once by default (`num_warns=1`). A `pytest.warns` check must therefore be the **first call** of that deprecated function in the test process, or the wrapper needs `num_warns=-1`. See [testing deprecated code](https://borda.github.io/pyDeprecate/stable/guide/testing.html) for more patterns.
+A wrapper warns once by default (`num_warns=1`). A `pytest.warns` check must therefore be the **first call** of that deprecated function in the test process, or the wrapper needs `num_warns=-1`. See [testing deprecated code](https://borda.github.io/pyDeprecate/stable/integrations/testing.html) for more patterns.
 
 ## 📝 Documentation tools
 
@@ -729,7 +729,7 @@ The notice is RST/Sphinx or MkDocs/Markdown. Set `docstring_style` to pick one; 
 - **Sphinx** — add `"deprecate.docstring.sphinx_ext"` to `extensions` in `conf.py`.
 - **MkDocs** — add `deprecate.docstring.griffe_ext:RuntimeDocstrings` to the mkdocstrings Python handler's `options.extensions`.
 
-See [automatic docstring updates](https://borda.github.io/pyDeprecate/stable/guide/advanced.html#automatic-docstring-updates) for configuration and extension setup.
+See [automatic docstring updates](https://borda.github.io/pyDeprecate/stable/usage/advanced.html#automatic-docstring-updates) for configuration and extension setup.
 
 ### 📘 MkDocs preview
 
@@ -789,7 +789,7 @@ claude plugin install pydeprecate@pydeprecate
 
 For local development or unpublished changes, run these commands from the repository root with `.` instead of `Borda/pyDeprecate` in the marketplace-add command. The plugin-install command stays the same.
 
-Use `$pydeprecate:sunset` / `$pydeprecate:prune` in Codex, or `/pydeprecate:sunset` / `/pydeprecate:prune` in Claude Code, to implement or retire a deprecation — see the [coding-agent recipes](https://borda.github.io/pyDeprecate/stable/guide/agent-recipes.html) for invocation examples, host commands, and workflow boundaries.
+Use `$pydeprecate:sunset` / `$pydeprecate:prune` in Codex, or `/pydeprecate:sunset` / `/pydeprecate:prune` in Claude Code, to implement or retire a deprecation — see the [coding-agent recipes](https://borda.github.io/pyDeprecate/stable/adoption/agent-recipes.html) for invocation examples, host commands, and workflow boundaries.
 
 <!-- end skipping PyPI description -->
 

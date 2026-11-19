@@ -75,10 +75,10 @@ The advanced guide covers these patterns:
 These pages cover what happens before and after you write the wrapper:
 
 - [Lifecycle](lifecycle.md) follows one deprecation from the first wrapper through tests, CI audits, removal and release notes.
-- [Testing](testing.md) tests warnings, warning budgets and fixtures.
-- [Audit Tools](audit/index.md), [Audit Policy](audit/policy.md) and [CLI](audit/cli.md) list deprecations, enforce removal deadlines and lint them against a policy.
-- [CI Integration](audit/ci-integration.md) wires those checks into pytest, pre-commit and a GitHub Action.
-- [Docs Integration](docs-integration.md) shows runtime notices in Sphinx and MkDocs API pages.
+- [Testing](../integrations/testing.md) tests warnings, warning budgets and fixtures.
+- [Audit Tools](../audit/index.md), [Audit Policy](../audit/policy.md) and [CLI](../audit/cli.md) list deprecations, enforce removal deadlines and lint them against a policy.
+- [CI Integration](../audit/ci-integration.md) wires those checks into pytest, pre-commit and a GitHub Action.
+- [Docs Integration](../integrations/docs-integration.md) shows runtime notices in Sphinx and MkDocs API pages.
 
 ## Quick decision table
 
@@ -106,22 +106,22 @@ To include symbols deprecated *only* with `warnings.deprecated` or `typing_exten
 | Deprecate a generator function                 | [Advanced → Generators](advanced.md#deprecating-generator-functions)                                  |
 | Deprecate an entire module                     | [Modules](modules.md)                                                                                 |
 | Static-checker warnings alongside runtime      | [Functions → Static type checkers (PEP 702)](functions.md#static-type-checkers-pep-702)               |
-| Audit PEP 702-only symbols                     | [Audit → PEP 702-only deprecations](audit/index.md#pep-702-only-deprecations)                         |
+| Audit PEP 702-only symbols                     | [Audit → PEP 702-only deprecations](../audit/index.md#pep-702-only-deprecations)                      |
 | Follow one deprecation from start to removal   | [Lifecycle](lifecycle.md)                                                                             |
-| Fail CI when a removal deadline passes         | [Audit Policy → Removal deadlines](audit/policy.md#enforcing-removal-deadlines)                       |
-| Lint deprecations against a team policy        | [Audit Policy → Deprecation policy](audit/policy.md#enforcing-a-deprecation-policy)                   |
-| Detect deprecation chains                      | [Audit → Chains](audit/index.md#detecting-deprecation-chains)                                         |
-| Run the checks in pre-commit or GitHub Actions | [CI Integration](audit/ci-integration.md)                                                             |
-| Test that a deprecation warns and forwards     | [Testing](testing.md)                                                                                 |
-| Show notices in Sphinx or MkDocs API pages     | [Docs Integration](docs-integration.md)                                                               |
-| Generate a release-planning table              | [Audit → Deprecation tables](audit/index.md#generating-deprecation-tables)                            |
-| Upgrade pyDeprecate itself                     | [Migration Guide](migration.md#pick-your-upgrade-path)                                                |
+| Fail CI when a removal deadline passes         | [Audit Policy → Removal deadlines](../audit/policy.md#enforcing-removal-deadlines)                    |
+| Lint deprecations against a team policy        | [Audit Policy → Deprecation policy](../audit/policy.md#enforcing-a-deprecation-policy)                |
+| Detect deprecation chains                      | [Audit → Chains](../audit/index.md#detecting-deprecation-chains)                                      |
+| Run the checks in pre-commit or GitHub Actions | [CI Integration](../audit/ci-integration.md)                                                          |
+| Test that a deprecation warns and forwards     | [Testing](../integrations/testing.md)                                                                 |
+| Show notices in Sphinx or MkDocs API pages     | [Docs Integration](../integrations/docs-integration.md)                                               |
+| Generate a release-planning table              | [Audit → Deprecation tables](../audit/index.md#generating-deprecation-tables)                         |
+| Upgrade pyDeprecate itself                     | [Migration Guide](../migration/index.md#pick-your-upgrade-path)                                       |
 
 ## See also
 
 - Use [Customization](customization.md) to redirect deprecation output to a logger or use a custom message template.
 - [void() Helper](void-helper.md) explains when and why the deprecated function body should call `void()`.
-- Use [Audit Tools](audit/index.md) to enforce removal deadlines and detect deprecation chains in CI.
+- Use [Audit Tools](../audit/index.md) to enforce removal deadlines and detect deprecation chains in CI.
 - [Troubleshooting](../troubleshooting.md) covers common errors and fixes for `@deprecated` configuration.
-- [Compare Python Deprecation Tools](compare-python-deprecation-tools.md) explains how pyDeprecate compares to `warnings.warn`, `deprecation`, `wrapt`, and `warnings.deprecated`.
-- [Agent Recipes](agent-recipes.md) covers copy-paste patterns for AI coding assistants generating deprecation code.
+- [Compare Python Deprecation Tools](../adoption/compare-python-deprecation-tools.md) explains how pyDeprecate compares to `warnings.warn`, `deprecation`, `wrapt`, and `warnings.deprecated`.
+- [Agent Recipes](../adoption/agent-recipes.md) covers copy-paste patterns for AI coding assistants generating deprecation code.

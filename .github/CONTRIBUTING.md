@@ -136,7 +136,7 @@ Complete this checklist before opening a pull request to ensure quality and smoo
 - [ ] Followed existing code style (pre-commit hooks enforce this automatically)
 - [ ] Added tests for new functionality (happy path, failure path, edge cases)
 - [ ] Ran tests locally and they pass (`pytest .`)
-- [ ] Updated documentation if needed (README, docs/guide pages, docstrings, inline comments)
+- [ ] Updated documentation if needed (README, docs topic pages, docstrings, inline comments)
 - [ ] Updated `CHANGELOG.md` under `[UnReleased]`. Write the entry **at PR-creation time**, once the PR number is known and content is stable.
   - Re-assess against the final diff, not individual commits.
   - Include `(#N)` PR link.
@@ -438,10 +438,11 @@ pyDeprecate/
 │   ├── assets/
 │   │   ├── brand/              # Curated brand subset (logos, icons, PNG touch icon, banners, social card) used by the site and README; full kit lives in the wiki
 │   │   └── images/             # README and docs screenshots, path illustration, animated flow, lifecycle and per-case SVG diagrams
-│   └── guide/                  # Topic pages: functions, classes, properties, async, modules, ...
-│       ├── audit/              # Audit group: index.md (audit tools), policy.md, ci-integration.md, cli.md
-│       ├── migration.md        # Source-version upgrade paths assembled from compatibility deltas
-│       ├── agent-recipes.md     # Coding-agent recipes and local plugin installation
+│   ├── usage/                  # How to deprecate: index.md (use-case map), lifecycle, functions, classes, attributes, modules, properties, async, advanced, customization, void-helper
+│   ├── audit/                  # Enforce and automate: index.md (audit tools), policy, ci-integration, cli
+│   ├── integrations/           # testing, docs-integration (Sphinx and MkDocs)
+│   ├── adoption/               # compare-python-deprecation-tools, agent-recipes
+│   └── migration/              # index.md (source-version upgrade paths assembled from compatibility deltas)
 │       └── _deltas/
 │           ├── breaking/       # Required rewrites in v0.N-to-v0.M.md snippets
 │           └── behavior/       # Observable changes in v0.N-to-v0.M.md snippets
@@ -593,9 +594,9 @@ The integration suite also keeps characterization for positional and keyword for
 
 > [!NOTE]
 >
-> **Several docs examples import a `tests/collections/` module and print hardcoded counts from it** (currently: `README.md`, `docs/guide/audit/index.md`, `docs/troubleshooting.md`). When you add or remove entries from a collection module:
+> **Several docs examples import a `tests/collections/` module and print hardcoded counts from it** (currently: `README.md`, `docs/audit/index.md`, `docs/troubleshooting.md`). When you add or remove entries from a collection module:
 >
-> - Update every doc example's expected-count code block that scans the changed module — check `README.md`, every `docs/guide/*.md` page, and `docs/troubleshooting.md`, not just one of them.
+> - Update every doc example's expected-count code block that scans the changed module — check `README.md`, every docs topic page, and `docs/troubleshooting.md`, not just one of them.
 > - Regenerate the affected test files: `make docs-tests`
 >
 > Failing to do this causes the corresponding generated test file(s) under `tests/docs/` or `tests/integration/test_readme.py` to fail in CI. Enumerating specific files here goes stale as soon as a new doc example is added — grep for the fixture module's import if in doubt.
@@ -882,7 +883,7 @@ class TestMyFeature:
 
 ### Coding-Agent Plugin (`plugins/pydeprecate/`)
 
-- **Three-way sync**: `src/deprecate/` (code) ↔ `README.md`/`docs/llms.txt`/`docs/guide/*.md` (docs) ↔ `plugins/pydeprecate/skills/*/SKILL.md` (plugin). A public API change updates all three; a `SKILL.md` referencing an identifier not in the installed API is a bug (guarded by `test_skill_docs_reference_real_api` in `tests/integration/test_agent_plugin.py`).
+- **Three-way sync**: `src/deprecate/` (code) ↔ `README.md`/`docs/llms.txt`/`docs/{usage,audit,integrations,adoption,migration}/*.md` (docs) ↔ `plugins/pydeprecate/skills/*/SKILL.md` (plugin). A public API change updates all three; a `SKILL.md` referencing an identifier not in the installed API is a bug (guarded by `test_skill_docs_reference_real_api` in `tests/integration/test_agent_plugin.py`).
 - **Docs and `AGENTS.md` outrank plugin guidance** — `docs/llms.txt` and `AGENTS.md` are the authoritative contract; `plugins/pydeprecate/skills/*/SKILL.md` is a cached, separately-installed copy that can lag the actual installed package version. On any conflict, trust docs/`AGENTS.md` and fix the `SKILL.md`, never the reverse.
 - **No extra blank-line spacing in `plugins/**/*.md`** — single blank line between blocks, no blank line between list items in a tight list (see existing `SKILL.md` files for the pattern).
 - **Version policy**: plugin `version` (in both `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`) bumps on its own cadence — skill content changed. It is independent of the package's `__version__`.
@@ -967,11 +968,11 @@ The project ships two separate documentation surfaces:
 | PyPI cover page    | `README.md`                 | Install instructions, full API reference — do **not** prune           |
 | Docs site home     | `docs/index.md`             | Curated overview — links to topic pages; **not** a README copy        |
 | Getting started    | `docs/getting-started.md`   | Install + quick-start                                                 |
-| Use cases          | `docs/guide/use-cases.md`   | Patterns extracted from real usage                                    |
-| Migration guide    | `docs/guide/migration.md`   | Source-version upgrade paths to the current API                       |
-| Migration deltas   | `docs/guide/_deltas/`       | Heading-free interval snippets split into `breaking/` and `behavior/` |
-| void() helper      | `docs/guide/void-helper.md` | void() stub helper reference                                          |
-| Audit tools        | `docs/guide/audit/index.md` | validate\_\* and find_deprecation_wrappers()                          |
+| Use cases          | `docs/usage/index.md`       | Patterns extracted from real usage                                    |
+| Migration guide    | `docs/migration/index.md`   | Source-version upgrade paths to the current API                       |
+| Migration deltas   | `docs/migration/_deltas/`   | Heading-free interval snippets split into `breaking/` and `behavior/` |
+| void() helper      | `docs/usage/void-helper.md` | void() stub helper reference                                          |
+| Audit tools        | `docs/audit/index.md`       | validate\_\* and find_deprecation_wrappers()                          |
 | Troubleshooting    | `docs/troubleshooting.md`   | Q&A; also drives FAQPage JSON-LD                                      |
 | Theme override     | `docs/overrides/main.html`  | Jinja2 template — OG tags + JSON-LD per page; **prettier-excluded**   |
 | AI discoverability | `docs/llms.txt`             | Spec-compliant link directory for AI crawlers                         |
@@ -1000,8 +1001,8 @@ make docs-tests   # regenerate tests/integration/test_readme.py and tests/docs/t
 
 When making changes, keep all surfaces in sync:
 
-1. **New or renamed public API symbol** — update `README.md` (API reference) **and** the relevant `docs/guide/` page.
-2. **New use-case pattern** — add an entry to `docs/guide/use-cases.md`.
+1. **New or renamed public API symbol** — update `README.md` (API reference) **and** the relevant `docs/` topic page.
+2. **New use-case pattern** — add an entry to `docs/usage/index.md`.
 3. **New troubleshooting item** — add a Q&A block to `docs/troubleshooting.md`; the `FAQPage` JSON-LD in `docs/overrides/main.html` is generated by `docs/mkdocs_hooks.py` from each `###` question under a topic `##` heading and its first prose paragraph.
 4. **README stays authoritative for install and full API** — `docs/index.md` is a curated overview that links out, never a verbatim copy.
 5. **Never copy README → docs in CI** — the build workflow (`build-docs.yml`) does not copy `README.md`; tracked `docs/index.md` is used directly.
@@ -1027,11 +1028,11 @@ Older releases keep their own versioned copy of the site, so this protects the `
 
 Two audiences read the docs examples — name accordingly.
 
-**Human-facing docs** (`docs/guide/*.md`, `README.md`, `docs/index.md`) — domain-realistic, story-telling names (e.g. `score` → `score_predictions`, `detect` → `detect_objects`).
+**Human-facing docs** (`docs/{usage,audit,integrations,adoption,migration}/*.md`, `README.md`, `docs/index.md`) — domain-realistic, story-telling names (e.g. `score` → `score_predictions`, `detect` → `detect_objects`).
 
 Readers understand *why* the rename happened. Never use generic placeholders like `old_func` / `new_func`.
 
-**AI-facing docs only** (`docs/llms.txt`, `docs/llms-full.txt`, `plugins/pydeprecate/skills/*/SKILL.md`) — generic placeholder names (`old_func`/`new_func`, `old_arg`/`new_arg`). Must not appear in `docs/guide/`, `README.md`, or `docs/index.md`. `SKILL.md` prose task examples (e.g. "Deprecate `old_func` in `package.module`, deprecated_in=1.4, remove_in=2.0.") are fine as-is — the generic-name rule applies to code identifiers, not to natural-language request examples.
+**AI-facing docs only** (`docs/llms.txt`, `docs/llms-full.txt`, `plugins/pydeprecate/skills/*/SKILL.md`) — generic placeholder names (`old_func`/`new_func`, `old_arg`/`new_arg`). Must not appear in the human-facing docs pages, `README.md`, or `docs/index.md`. `SKILL.md` prose task examples (e.g. "Deprecate `old_func` in `package.module`, deprecated_in=1.4, remove_in=2.0.") are fine as-is — the generic-name rule applies to code identifiers, not to natural-language request examples.
 
 **Orientation comments** — every paired example (new API + deprecated wrapper) opens with:
 
@@ -1057,15 +1058,15 @@ Python and third-party versions never take the prefix ("Python 3.9"), and neithe
 
 **What `docs/llms.txt` contains:** package facts, links to human-facing docs, and Agent Notes (critical mental model, anti-patterns with WRONG/CORRECT pairs, decision flowchart for choosing the right API).
 
-**The comprehensive sync rule:** these five surfaces must always agree: public-API module docstrings (`routine.py`, `audit/__init__.py`, `proxy/__init__.py`, `utils.py`) ↔ inline comments in changed `src/` files ↔ `README.md` ↔ `docs/guide/use-cases.md` ↔ `docs/llms.txt`. Additionally update `docs/robots.txt` when AI crawler policy changes.
+**The comprehensive sync rule:** these five surfaces must always agree: public-API module docstrings (`routine.py`, `audit/__init__.py`, `proxy/__init__.py`, `utils.py`) ↔ inline comments in changed `src/` files ↔ `README.md` ↔ `docs/usage/index.md` ↔ `docs/llms.txt`. Additionally update `docs/robots.txt` when AI crawler policy changes.
 
-| When you change...                                                          | Also update...                                                                                                                                                                                                                  |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Public API behavior (parameter meaning, forwarding semantics, default mode) | affected module docstrings (`routine.py`, `audit/__init__.py`, `proxy/__init__.py`, `utils.py`) · inline comments in changed `src/` files · `README.md` Quick Start · `docs/guide/use-cases.md` · `docs/llms.txt` § Agent Notes |
-| A new supported deprecation pattern                                         | `docs/guide/use-cases.md` (new section) · `docs/llms.txt` Decision Flowchart                                                                                                                                                    |
-| A newly discovered anti-pattern                                             | `docs/llms.txt` § Anti-Patterns · `docs/guide/use-cases.md` (danger admonition)                                                                                                                                                 |
-| A `TargetMode` value (added, renamed, removed)                              | `docs/llms.txt` Critical Mental Model and Decision Flowchart · `docs/guide/use-cases.md` · `README.md`                                                                                                                          |
-| A new mainstream AI crawler is released                                     | `docs/robots.txt` (new `User-agent: <bot> / Allow: /` block)                                                                                                                                                                    |
+| When you change...                                                          | Also update...                                                                                                                                                                                                              |
+| --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Public API behavior (parameter meaning, forwarding semantics, default mode) | affected module docstrings (`routine.py`, `audit/__init__.py`, `proxy/__init__.py`, `utils.py`) · inline comments in changed `src/` files · `README.md` Quick Start · `docs/usage/index.md` · `docs/llms.txt` § Agent Notes |
+| A new supported deprecation pattern                                         | `docs/usage/index.md` (new section) · `docs/llms.txt` Decision Flowchart                                                                                                                                                    |
+| A newly discovered anti-pattern                                             | `docs/llms.txt` § Anti-Patterns · `docs/usage/index.md` (danger admonition)                                                                                                                                                 |
+| A `TargetMode` value (added, renamed, removed)                              | `docs/llms.txt` Critical Mental Model and Decision Flowchart · `docs/usage/index.md` · `README.md`                                                                                                                          |
+| A new mainstream AI crawler is released                                     | `docs/robots.txt` (new `User-agent: <bot> / Allow: /` block)                                                                                                                                                                |
 
 > [!IMPORTANT]
 >

@@ -259,7 +259,7 @@ print(addition(1, 2))  # warns: FutureWarning
 
     Rename `removed_in` to `remove_in`. pyDeprecate defaults to `FutureWarning`. It does **not** use `current_version` to switch warning classes.
 
-    Use [fatal mode](#turning-the-warning-into-an-error-at-a-chosen-version) or [CI expiry checks](audit/policy.md#enforcing-removal-deadlines) for enforcement. Enable `update_docstring=True` if you need injected notices.
+    Use [fatal mode](#turning-the-warning-into-an-error-at-a-chosen-version) or [CI expiry checks](../audit/policy.md#enforcing-removal-deadlines) for enforcement. Enable `update_docstring=True` if you need injected notices.
 
 ## Migrating from `Deprecated`
 
@@ -357,7 +357,7 @@ The `increment_value` was deprecated since v1.0. It will be removed in v2.0.
 
 With plain `warnings.warn`, add an explicit `raise` or configure warning filters to escalate it. pyDeprecate's `as_exception=True` raises `DeprecatedError` *before* executing the source or target.
 
-As a release-time backstop, `pydeprecate expiry` in CI exits `1` when a wrapper is past its `remove_in` deadline. See [Fatal deprecations](functions.md#fatal-deprecations) for the full behaviour.
+As a release-time backstop, `pydeprecate expiry` in CI exits `1` when a wrapper is past its `remove_in` deadline. See [Fatal deprecations](../usage/functions.md#fatal-deprecations) for the full behaviour.
 
 ## Helping callers migrate
 
@@ -439,6 +439,6 @@ print(result)
 
 ## Related pages
 
-- [Use Cases](use-cases.md)
-- [Audit Tools](audit/index.md)
+- [Use Cases](../usage/index.md)
+- [Audit Tools](../audit/index.md)
 - [Troubleshooting](../troubleshooting.md)

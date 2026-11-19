@@ -149,4 +149,4 @@ See the repository's [MkDocs demo](https://github.com/Borda/pyDeprecate/blob/mai
 
     `update_docstring=True` leaves a missing or empty docstring **unchanged**. The Griffe extension also requires an existing static docstring and deprecation metadata. It does not create documentation for undocumented objects.
 
-See [Functions](functions.md) for argument migrations, [Classes](classes.md) for proxy behavior, and [Advanced](advanced.md#automatic-docstring-updates) for more docstring examples.
+See [Functions](../usage/functions.md) for argument migrations, [Classes](../usage/classes.md) for proxy behavior, and [Advanced](../usage/advanced.md#automatic-docstring-updates) for more docstring examples.

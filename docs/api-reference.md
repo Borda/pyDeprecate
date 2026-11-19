@@ -1,8 +1,8 @@
 # API Reference
 
-This reference is auto-generated from source docstrings. For usage examples, see the [Use Cases](guide/use-cases.md) guide. For installation and a first deprecation, see [Getting Started](getting-started.md).
+This reference is auto-generated from source docstrings. For usage examples, see the [Use Cases](usage/index.md) guide. For installation and a first deprecation, see [Getting Started](getting-started.md).
 
-The `pydeprecate` command-line tool is documented in the [CLI Reference](guide/audit/cli.md).
+The `pydeprecate` command-line tool is documented in the [CLI Reference](audit/cli.md).
 
 ## Decorator
 
@@ -22,7 +22,7 @@ The `pydeprecate` command-line tool is documented in the [CLI Reference](guide/a
 
 ## Fatal deprecations
 
-`deprecate.AS_EXCEPTIONS` is a plain `bool` module attribute: the process-wide switch that turns every deprecation into a `DeprecatedError`. It is seeded at import from the `DEPRECATE_AS_EXCEPTIONS` environment variable and re-read on every emission. See [Fatal deprecations](guide/functions.md#fatal-deprecations).
+`deprecate.AS_EXCEPTIONS` is a plain `bool` module attribute: the process-wide switch that turns every deprecation into a `DeprecatedError`. It is seeded at import from the `DEPRECATE_AS_EXCEPTIONS` environment variable and re-read on every emission. See [Fatal deprecations](usage/functions.md#fatal-deprecations).
 
 ::: deprecate.as_exceptions
 
@@ -90,4 +90,4 @@ These aliases are deprecated since v0.6 and removed in v1.0. Use the replacement
 
 ## Command line
 
-The `pydeprecate` command wraps the audit functions above for CI and pre-commit use. Its subcommands, flags and exit codes are listed in the [CLI Reference](guide/audit/cli.md).
+The `pydeprecate` command wraps the audit functions above for CI and pre-commit use. Its subcommands, flags and exit codes are listed in the [CLI Reference](audit/cli.md).

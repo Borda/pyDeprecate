@@ -3,6 +3,7 @@
 import sys
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -97,6 +98,7 @@ _HOOKS = module_from_spec(_HOOKS_SPEC)
 _HOOKS_SPEC.loader.exec_module(_HOOKS)
 _pydeprecate_faq_entries = _HOOKS._pydeprecate_faq_entries
 _pydeprecate_plain_text = _HOOKS._pydeprecate_plain_text
+_pydeprecate_copy_redirect_mirrors = _HOOKS._pydeprecate_copy_redirect_mirrors
 
 
 def _first_question_answers(markdown: str) -> list[str]:
@@ -155,7 +157,7 @@ This introduction is not an answer.
 print("not an answer")
 ```
 
-**A:** Use [the replacement](guide/functions.md) and **migrate** `render`.
+**A:** Use [the replacement](usage/functions.md) and **migrate** `render`.
 
 This later paragraph must not be selected.
 
@@ -638,3 +640,46 @@ Returns:
 !!! warning "Deprecated in 1.8"
     Will be removed in 1.9."""
         assert mkdocs_no_target_with_args_mapping.__doc__ == expected
+
+
+class TestRedirectMirrors:
+    """Markdown mirrors of moved pages stay reachable at their released addresses."""
+
+    @staticmethod
+    def _config(site: Path, redirect_maps: dict[str, str] | None) -> dict:
+        plugins = (
+            {} if redirect_maps is None else {"redirects": SimpleNamespace(config={"redirect_maps": redirect_maps})}
+        )
+        return {"site_dir": str(site), "plugins": plugins}
+
+    def test_old_mirror_serves_the_new_page(self, tmp_path: Path) -> None:
+        """Serve the new page's markdown at the old mirror address after a page moves.
+
+        An agent holds a link such as ``guide/audit.html.md`` from the previous release.
+        The built site must answer there with the moved page, because a static host cannot redirect it.
+        """
+        (tmp_path / "audit").mkdir()
+        (tmp_path / "audit" / "index.html.md").write_text("# Audit\n", encoding="utf-8")
+        _pydeprecate_copy_redirect_mirrors(self._config(tmp_path, {"guide/audit.md": "audit/index.md"}))
+        assert (tmp_path / "guide" / "audit.html.md").read_text(encoding="utf-8") == "# Audit\n"
+
+    def test_existing_old_mirror_is_kept(self, tmp_path: Path) -> None:
+        """Leave an old mirror that the build already wrote untouched.
+
+        A redirect entry names a path that still has its own page, so the mirror there is real content.
+        The hook must not overwrite it with the target page.
+        """
+        (tmp_path / "audit").mkdir()
+        (tmp_path / "audit" / "index.html.md").write_text("new\n", encoding="utf-8")
+        (tmp_path / "old.html.md").write_text("own\n", encoding="utf-8")
+        _pydeprecate_copy_redirect_mirrors(self._config(tmp_path, {"old.md": "audit/index.md"}))
+        assert (tmp_path / "old.html.md").read_text(encoding="utf-8") == "own\n"
+
+    def test_no_redirects_plugin_is_a_no_op(self, tmp_path: Path) -> None:
+        """Do nothing when the site is built without the redirects plugin.
+
+        A contributor builds the docs with a trimmed plugin list.
+        The hook must return without error and write nothing.
+        """
+        _pydeprecate_copy_redirect_mirrors(self._config(tmp_path, None))
+        assert list(tmp_path.iterdir()) == []

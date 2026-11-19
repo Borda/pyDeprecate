@@ -19,7 +19,7 @@ For deprecating individual functions see [Functions](functions.md); for classes 
 
 Reach for `deprecated_module()` when a module is being replaced or renamed. **Every attribute access** on the old name invokes the configured warning path automatically.
 
-Place the call **at the bottom** of the file being deprecated. It reassigns the module's `__class__` to an intercepting wrapper and attaches `__deprecation_config__` metadata. This lets [`find_deprecation_wrappers()`](audit/index.md) discover it.
+Place the call **at the bottom** of the file being deprecated. It reassigns the module's `__class__` to an intercepting wrapper and attaches `__deprecation_config__` metadata. This lets [`find_deprecation_wrappers()`](../audit/index.md) discover it.
 
 ## Mode 1 — in-place warn
 
@@ -200,10 +200,10 @@ pyDeprecate's own audit is **unaffected**. `find_deprecation_wrappers()` and the
 
 ## See also
 
-- Start with [Use Cases overview](use-cases.md) for a guided tour of all deprecation patterns.
+- Start with [Use Cases overview](index.md) for a guided tour of all deprecation patterns.
 - [Functions](functions.md) covers deprecating individual functions and methods.
 - [Classes](classes.md) covers class, Enum, dataclass, and instance deprecation.
-- Use [Audit Tools](audit/index.md) to enforce removal deadlines and detect deprecation chains in CI.
+- Use [Audit Tools](../audit/index.md) to enforce removal deadlines and detect deprecation chains in CI.
 - [Troubleshooting](../troubleshooting.md) covers common errors and fixes.
 
 ______________________________________________________________________

@@ -62,6 +62,6 @@ jobs:
             --exclude '^file[:]///(elsewhere|other|D[:]/other)/pkg\.py$'
             --exclude '^https[:]//borda[/]$'
             --exclude 'https://borda\.github\.io/pyDeprecate/stable/limitations\.html'
-            --exclude 'https://borda\.github\.io/pyDeprecate/stable/guide/(audit-policy|ci-integration|testing|attributes|lifecycle|docs-integration)\.html'
+            --exclude 'https://borda\.github\.io/pyDeprecate/stable/(usage|audit|integrations|adoption|migration)/'
             --exclude '^[hH]ttps://github\.com/\$(\.git)?$'
           fail: true

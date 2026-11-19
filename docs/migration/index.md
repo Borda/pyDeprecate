@@ -254,427 +254,427 @@ Releases with no migration work are skipped. Where a later release superseded an
 
 === "Breaking changes"
 
-    --8<-- "guide/_deltas/breaking/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
 === "Behavior changes"
 
-    --8<-- "guide/_deltas/behavior/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
 
 ### Coming from v0.13.x
 
 === "Breaking changes"
 
-    --8<-- "guide/_deltas/breaking/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
 === "Behavior changes"
 
-    --8<-- "guide/_deltas/behavior/v0.13-to-v0.14.md"
+    --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
-    --8<-- "guide/_deltas/behavior/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
 
 ### Coming from v0.12.x
 
 === "Breaking changes"
 
-    --8<-- "guide/_deltas/breaking/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/breaking/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/breaking/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
 === "Behavior changes"
 
-    --8<-- "guide/_deltas/behavior/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/behavior/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/behavior/v0.13-to-v0.14.md"
+    --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
-    --8<-- "guide/_deltas/behavior/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
 
 ### Coming from v0.11.x
 
 === "Breaking changes"
 
-    --8<-- "guide/_deltas/breaking/v0.11-to-v0.12.md"
+    --8<-- "migration/_deltas/breaking/v0.11-to-v0.12.md"
 
-    --8<-- "guide/_deltas/breaking/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/breaking/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/breaking/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
 === "Behavior changes"
 
-    --8<-- "guide/_deltas/behavior/v0.11-to-v0.12.md"
+    --8<-- "migration/_deltas/behavior/v0.11-to-v0.12.md"
 
-    --8<-- "guide/_deltas/behavior/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/behavior/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/behavior/v0.13-to-v0.14.md"
+    --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
-    --8<-- "guide/_deltas/behavior/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
 
 ### Coming from v0.10.x
 
 === "Breaking changes"
 
-    --8<-- "guide/_deltas/breaking/v0.10-to-v0.11.md"
+    --8<-- "migration/_deltas/breaking/v0.10-to-v0.11.md"
 
-    --8<-- "guide/_deltas/breaking/v0.11-to-v0.12.md"
+    --8<-- "migration/_deltas/breaking/v0.11-to-v0.12.md"
 
-    --8<-- "guide/_deltas/breaking/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/breaking/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/breaking/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
 === "Behavior changes"
 
-    --8<-- "guide/_deltas/behavior/v0.10-to-v0.11.md"
+    --8<-- "migration/_deltas/behavior/v0.10-to-v0.11.md"
 
-    --8<-- "guide/_deltas/behavior/v0.11-to-v0.12.md"
+    --8<-- "migration/_deltas/behavior/v0.11-to-v0.12.md"
 
-    --8<-- "guide/_deltas/behavior/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/behavior/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/behavior/v0.13-to-v0.14.md"
+    --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
-    --8<-- "guide/_deltas/behavior/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
 
 ### Coming from v0.9.x
 
 === "Breaking changes"
 
-    --8<-- "guide/_deltas/breaking/v0.9-to-v0.10.md"
+    --8<-- "migration/_deltas/breaking/v0.9-to-v0.10.md"
 
-    --8<-- "guide/_deltas/breaking/v0.10-to-v0.11.md"
+    --8<-- "migration/_deltas/breaking/v0.10-to-v0.11.md"
 
-    --8<-- "guide/_deltas/breaking/v0.11-to-v0.12.md"
+    --8<-- "migration/_deltas/breaking/v0.11-to-v0.12.md"
 
-    --8<-- "guide/_deltas/breaking/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/breaking/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/breaking/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
 === "Behavior changes"
 
-    --8<-- "guide/_deltas/behavior/v0.9-to-v0.10.md"
+    --8<-- "migration/_deltas/behavior/v0.9-to-v0.10.md"
 
-    --8<-- "guide/_deltas/behavior/v0.10-to-v0.11.md"
+    --8<-- "migration/_deltas/behavior/v0.10-to-v0.11.md"
 
-    --8<-- "guide/_deltas/behavior/v0.11-to-v0.12.md"
+    --8<-- "migration/_deltas/behavior/v0.11-to-v0.12.md"
 
-    --8<-- "guide/_deltas/behavior/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/behavior/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/behavior/v0.13-to-v0.14.md"
+    --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
-    --8<-- "guide/_deltas/behavior/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
 
 ### Coming from v0.8.x
 
 === "Breaking changes"
 
-    --8<-- "guide/_deltas/breaking/v0.8-to-v0.9.md"
+    --8<-- "migration/_deltas/breaking/v0.8-to-v0.9.md"
 
-    --8<-- "guide/_deltas/breaking/v0.9-to-v0.10.md"
+    --8<-- "migration/_deltas/breaking/v0.9-to-v0.10.md"
 
-    --8<-- "guide/_deltas/breaking/v0.10-to-v0.11.md"
+    --8<-- "migration/_deltas/breaking/v0.10-to-v0.11.md"
 
-    --8<-- "guide/_deltas/breaking/v0.11-to-v0.12.md"
+    --8<-- "migration/_deltas/breaking/v0.11-to-v0.12.md"
 
-    --8<-- "guide/_deltas/breaking/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/breaking/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/breaking/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
 === "Behavior changes"
 
-    --8<-- "guide/_deltas/behavior/v0.8-to-v0.9.md"
+    --8<-- "migration/_deltas/behavior/v0.8-to-v0.9.md"
 
-    --8<-- "guide/_deltas/behavior/v0.9-to-v0.10.md"
+    --8<-- "migration/_deltas/behavior/v0.9-to-v0.10.md"
 
-    --8<-- "guide/_deltas/behavior/v0.10-to-v0.11.md"
+    --8<-- "migration/_deltas/behavior/v0.10-to-v0.11.md"
 
-    --8<-- "guide/_deltas/behavior/v0.11-to-v0.12.md"
+    --8<-- "migration/_deltas/behavior/v0.11-to-v0.12.md"
 
-    --8<-- "guide/_deltas/behavior/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/behavior/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/behavior/v0.13-to-v0.14.md"
+    --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
-    --8<-- "guide/_deltas/behavior/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
 
 ### Coming from v0.7.x
 
 === "Breaking changes"
 
-    --8<-- "guide/_deltas/breaking/v0.7-to-v0.8.md"
+    --8<-- "migration/_deltas/breaking/v0.7-to-v0.8.md"
 
-    --8<-- "guide/_deltas/breaking/v0.8-to-v0.9.md"
+    --8<-- "migration/_deltas/breaking/v0.8-to-v0.9.md"
 
-    --8<-- "guide/_deltas/breaking/v0.9-to-v0.10.md"
+    --8<-- "migration/_deltas/breaking/v0.9-to-v0.10.md"
 
-    --8<-- "guide/_deltas/breaking/v0.10-to-v0.11.md"
+    --8<-- "migration/_deltas/breaking/v0.10-to-v0.11.md"
 
-    --8<-- "guide/_deltas/breaking/v0.11-to-v0.12.md"
+    --8<-- "migration/_deltas/breaking/v0.11-to-v0.12.md"
 
-    --8<-- "guide/_deltas/breaking/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/breaking/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/breaking/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
 === "Behavior changes"
 
-    --8<-- "guide/_deltas/behavior/v0.7-to-v0.8.md"
+    --8<-- "migration/_deltas/behavior/v0.7-to-v0.8.md"
 
-    --8<-- "guide/_deltas/behavior/v0.8-to-v0.9.md"
+    --8<-- "migration/_deltas/behavior/v0.8-to-v0.9.md"
 
-    --8<-- "guide/_deltas/behavior/v0.9-to-v0.10.md"
+    --8<-- "migration/_deltas/behavior/v0.9-to-v0.10.md"
 
-    --8<-- "guide/_deltas/behavior/v0.10-to-v0.11.md"
+    --8<-- "migration/_deltas/behavior/v0.10-to-v0.11.md"
 
-    --8<-- "guide/_deltas/behavior/v0.11-to-v0.12.md"
+    --8<-- "migration/_deltas/behavior/v0.11-to-v0.12.md"
 
-    --8<-- "guide/_deltas/behavior/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/behavior/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/behavior/v0.13-to-v0.14.md"
+    --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
-    --8<-- "guide/_deltas/behavior/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
 
 ### Coming from v0.6.x
 
 === "Breaking changes"
 
-    --8<-- "guide/_deltas/breaking/v0.7-to-v0.8.md"
+    --8<-- "migration/_deltas/breaking/v0.7-to-v0.8.md"
 
-    --8<-- "guide/_deltas/breaking/v0.8-to-v0.9.md"
+    --8<-- "migration/_deltas/breaking/v0.8-to-v0.9.md"
 
-    --8<-- "guide/_deltas/breaking/v0.9-to-v0.10.md"
+    --8<-- "migration/_deltas/breaking/v0.9-to-v0.10.md"
 
-    --8<-- "guide/_deltas/breaking/v0.10-to-v0.11.md"
+    --8<-- "migration/_deltas/breaking/v0.10-to-v0.11.md"
 
-    --8<-- "guide/_deltas/breaking/v0.11-to-v0.12.md"
+    --8<-- "migration/_deltas/breaking/v0.11-to-v0.12.md"
 
-    --8<-- "guide/_deltas/breaking/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/breaking/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/breaking/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
 === "Behavior changes"
 
-    --8<-- "guide/_deltas/behavior/v0.7-to-v0.8.md"
+    --8<-- "migration/_deltas/behavior/v0.7-to-v0.8.md"
 
-    --8<-- "guide/_deltas/behavior/v0.8-to-v0.9.md"
+    --8<-- "migration/_deltas/behavior/v0.8-to-v0.9.md"
 
-    --8<-- "guide/_deltas/behavior/v0.9-to-v0.10.md"
+    --8<-- "migration/_deltas/behavior/v0.9-to-v0.10.md"
 
-    --8<-- "guide/_deltas/behavior/v0.10-to-v0.11.md"
+    --8<-- "migration/_deltas/behavior/v0.10-to-v0.11.md"
 
-    --8<-- "guide/_deltas/behavior/v0.11-to-v0.12.md"
+    --8<-- "migration/_deltas/behavior/v0.11-to-v0.12.md"
 
-    --8<-- "guide/_deltas/behavior/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/behavior/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/behavior/v0.13-to-v0.14.md"
+    --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
-    --8<-- "guide/_deltas/behavior/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
 
 ### Coming from v0.5.x
 
 === "Breaking changes"
 
-    --8<-- "guide/_deltas/breaking/v0.5-to-v0.6.md"
+    --8<-- "migration/_deltas/breaking/v0.5-to-v0.6.md"
 
-    --8<-- "guide/_deltas/breaking/v0.7-to-v0.8.md"
+    --8<-- "migration/_deltas/breaking/v0.7-to-v0.8.md"
 
-    --8<-- "guide/_deltas/breaking/v0.8-to-v0.9.md"
+    --8<-- "migration/_deltas/breaking/v0.8-to-v0.9.md"
 
-    --8<-- "guide/_deltas/breaking/v0.9-to-v0.10.md"
+    --8<-- "migration/_deltas/breaking/v0.9-to-v0.10.md"
 
-    --8<-- "guide/_deltas/breaking/v0.10-to-v0.11.md"
+    --8<-- "migration/_deltas/breaking/v0.10-to-v0.11.md"
 
-    --8<-- "guide/_deltas/breaking/v0.11-to-v0.12.md"
+    --8<-- "migration/_deltas/breaking/v0.11-to-v0.12.md"
 
-    --8<-- "guide/_deltas/breaking/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/breaking/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/breaking/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
 === "Behavior changes"
 
-    --8<-- "guide/_deltas/behavior/v0.5-to-v0.6.md"
+    --8<-- "migration/_deltas/behavior/v0.5-to-v0.6.md"
 
-    --8<-- "guide/_deltas/behavior/v0.7-to-v0.8.md"
+    --8<-- "migration/_deltas/behavior/v0.7-to-v0.8.md"
 
-    --8<-- "guide/_deltas/behavior/v0.8-to-v0.9.md"
+    --8<-- "migration/_deltas/behavior/v0.8-to-v0.9.md"
 
-    --8<-- "guide/_deltas/behavior/v0.9-to-v0.10.md"
+    --8<-- "migration/_deltas/behavior/v0.9-to-v0.10.md"
 
-    --8<-- "guide/_deltas/behavior/v0.10-to-v0.11.md"
+    --8<-- "migration/_deltas/behavior/v0.10-to-v0.11.md"
 
-    --8<-- "guide/_deltas/behavior/v0.11-to-v0.12.md"
+    --8<-- "migration/_deltas/behavior/v0.11-to-v0.12.md"
 
-    --8<-- "guide/_deltas/behavior/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/behavior/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/behavior/v0.13-to-v0.14.md"
+    --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
-    --8<-- "guide/_deltas/behavior/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
 
 ### Coming from v0.4.x
 
 === "Breaking changes"
 
-    --8<-- "guide/_deltas/breaking/v0.5-to-v0.6.md"
+    --8<-- "migration/_deltas/breaking/v0.5-to-v0.6.md"
 
-    --8<-- "guide/_deltas/breaking/v0.7-to-v0.8.md"
+    --8<-- "migration/_deltas/breaking/v0.7-to-v0.8.md"
 
-    --8<-- "guide/_deltas/breaking/v0.8-to-v0.9.md"
+    --8<-- "migration/_deltas/breaking/v0.8-to-v0.9.md"
 
-    --8<-- "guide/_deltas/breaking/v0.9-to-v0.10.md"
+    --8<-- "migration/_deltas/breaking/v0.9-to-v0.10.md"
 
-    --8<-- "guide/_deltas/breaking/v0.10-to-v0.11.md"
+    --8<-- "migration/_deltas/breaking/v0.10-to-v0.11.md"
 
-    --8<-- "guide/_deltas/breaking/v0.11-to-v0.12.md"
+    --8<-- "migration/_deltas/breaking/v0.11-to-v0.12.md"
 
-    --8<-- "guide/_deltas/breaking/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/breaking/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/breaking/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
 === "Behavior changes"
 
-    --8<-- "guide/_deltas/behavior/v0.5-to-v0.6.md"
+    --8<-- "migration/_deltas/behavior/v0.5-to-v0.6.md"
 
-    --8<-- "guide/_deltas/behavior/v0.7-to-v0.8.md"
+    --8<-- "migration/_deltas/behavior/v0.7-to-v0.8.md"
 
-    --8<-- "guide/_deltas/behavior/v0.8-to-v0.9.md"
+    --8<-- "migration/_deltas/behavior/v0.8-to-v0.9.md"
 
-    --8<-- "guide/_deltas/behavior/v0.9-to-v0.10.md"
+    --8<-- "migration/_deltas/behavior/v0.9-to-v0.10.md"
 
-    --8<-- "guide/_deltas/behavior/v0.10-to-v0.11.md"
+    --8<-- "migration/_deltas/behavior/v0.10-to-v0.11.md"
 
-    --8<-- "guide/_deltas/behavior/v0.11-to-v0.12.md"
+    --8<-- "migration/_deltas/behavior/v0.11-to-v0.12.md"
 
-    --8<-- "guide/_deltas/behavior/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/behavior/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/behavior/v0.13-to-v0.14.md"
+    --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
-    --8<-- "guide/_deltas/behavior/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
 
 ### Coming from v0.3.x
 
 === "Breaking changes"
 
-    --8<-- "guide/_deltas/breaking/v0.3-to-v0.4.md"
+    --8<-- "migration/_deltas/breaking/v0.3-to-v0.4.md"
 
-    --8<-- "guide/_deltas/breaking/v0.5-to-v0.6.md"
+    --8<-- "migration/_deltas/breaking/v0.5-to-v0.6.md"
 
-    --8<-- "guide/_deltas/breaking/v0.7-to-v0.8.md"
+    --8<-- "migration/_deltas/breaking/v0.7-to-v0.8.md"
 
-    --8<-- "guide/_deltas/breaking/v0.8-to-v0.9.md"
+    --8<-- "migration/_deltas/breaking/v0.8-to-v0.9.md"
 
-    --8<-- "guide/_deltas/breaking/v0.9-to-v0.10.md"
+    --8<-- "migration/_deltas/breaking/v0.9-to-v0.10.md"
 
-    --8<-- "guide/_deltas/breaking/v0.10-to-v0.11.md"
+    --8<-- "migration/_deltas/breaking/v0.10-to-v0.11.md"
 
-    --8<-- "guide/_deltas/breaking/v0.11-to-v0.12.md"
+    --8<-- "migration/_deltas/breaking/v0.11-to-v0.12.md"
 
-    --8<-- "guide/_deltas/breaking/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/breaking/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/breaking/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
 === "Behavior changes"
 
-    --8<-- "guide/_deltas/behavior/v0.3-to-v0.4.md"
+    --8<-- "migration/_deltas/behavior/v0.3-to-v0.4.md"
 
-    --8<-- "guide/_deltas/behavior/v0.5-to-v0.6.md"
+    --8<-- "migration/_deltas/behavior/v0.5-to-v0.6.md"
 
-    --8<-- "guide/_deltas/behavior/v0.7-to-v0.8.md"
+    --8<-- "migration/_deltas/behavior/v0.7-to-v0.8.md"
 
-    --8<-- "guide/_deltas/behavior/v0.8-to-v0.9.md"
+    --8<-- "migration/_deltas/behavior/v0.8-to-v0.9.md"
 
-    --8<-- "guide/_deltas/behavior/v0.9-to-v0.10.md"
+    --8<-- "migration/_deltas/behavior/v0.9-to-v0.10.md"
 
-    --8<-- "guide/_deltas/behavior/v0.10-to-v0.11.md"
+    --8<-- "migration/_deltas/behavior/v0.10-to-v0.11.md"
 
-    --8<-- "guide/_deltas/behavior/v0.11-to-v0.12.md"
+    --8<-- "migration/_deltas/behavior/v0.11-to-v0.12.md"
 
-    --8<-- "guide/_deltas/behavior/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/behavior/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/behavior/v0.13-to-v0.14.md"
+    --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
-    --8<-- "guide/_deltas/behavior/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
 
 ### Coming from v0.2.x
 
 === "Breaking changes"
 
-    --8<-- "guide/_deltas/breaking/v0.3-to-v0.4.md"
+    --8<-- "migration/_deltas/breaking/v0.3-to-v0.4.md"
 
-    --8<-- "guide/_deltas/breaking/v0.5-to-v0.6.md"
+    --8<-- "migration/_deltas/breaking/v0.5-to-v0.6.md"
 
-    --8<-- "guide/_deltas/breaking/v0.7-to-v0.8.md"
+    --8<-- "migration/_deltas/breaking/v0.7-to-v0.8.md"
 
-    --8<-- "guide/_deltas/breaking/v0.8-to-v0.9.md"
+    --8<-- "migration/_deltas/breaking/v0.8-to-v0.9.md"
 
-    --8<-- "guide/_deltas/breaking/v0.9-to-v0.10.md"
+    --8<-- "migration/_deltas/breaking/v0.9-to-v0.10.md"
 
-    --8<-- "guide/_deltas/breaking/v0.10-to-v0.11.md"
+    --8<-- "migration/_deltas/breaking/v0.10-to-v0.11.md"
 
-    --8<-- "guide/_deltas/breaking/v0.11-to-v0.12.md"
+    --8<-- "migration/_deltas/breaking/v0.11-to-v0.12.md"
 
-    --8<-- "guide/_deltas/breaking/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/breaking/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/breaking/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
 === "Behavior changes"
 
-    --8<-- "guide/_deltas/behavior/v0.3-to-v0.4.md"
+    --8<-- "migration/_deltas/behavior/v0.3-to-v0.4.md"
 
-    --8<-- "guide/_deltas/behavior/v0.5-to-v0.6.md"
+    --8<-- "migration/_deltas/behavior/v0.5-to-v0.6.md"
 
-    --8<-- "guide/_deltas/behavior/v0.7-to-v0.8.md"
+    --8<-- "migration/_deltas/behavior/v0.7-to-v0.8.md"
 
-    --8<-- "guide/_deltas/behavior/v0.8-to-v0.9.md"
+    --8<-- "migration/_deltas/behavior/v0.8-to-v0.9.md"
 
-    --8<-- "guide/_deltas/behavior/v0.9-to-v0.10.md"
+    --8<-- "migration/_deltas/behavior/v0.9-to-v0.10.md"
 
-    --8<-- "guide/_deltas/behavior/v0.10-to-v0.11.md"
+    --8<-- "migration/_deltas/behavior/v0.10-to-v0.11.md"
 
-    --8<-- "guide/_deltas/behavior/v0.11-to-v0.12.md"
+    --8<-- "migration/_deltas/behavior/v0.11-to-v0.12.md"
 
-    --8<-- "guide/_deltas/behavior/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/behavior/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/behavior/v0.13-to-v0.14.md"
+    --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
-    --8<-- "guide/_deltas/behavior/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
 
 ### Coming from v0.1.x
 
 === "Breaking changes"
 
-    --8<-- "guide/_deltas/breaking/v0.3-to-v0.4.md"
+    --8<-- "migration/_deltas/breaking/v0.3-to-v0.4.md"
 
-    --8<-- "guide/_deltas/breaking/v0.5-to-v0.6.md"
+    --8<-- "migration/_deltas/breaking/v0.5-to-v0.6.md"
 
-    --8<-- "guide/_deltas/breaking/v0.7-to-v0.8.md"
+    --8<-- "migration/_deltas/breaking/v0.7-to-v0.8.md"
 
-    --8<-- "guide/_deltas/breaking/v0.8-to-v0.9.md"
+    --8<-- "migration/_deltas/breaking/v0.8-to-v0.9.md"
 
-    --8<-- "guide/_deltas/breaking/v0.9-to-v0.10.md"
+    --8<-- "migration/_deltas/breaking/v0.9-to-v0.10.md"
 
-    --8<-- "guide/_deltas/breaking/v0.10-to-v0.11.md"
+    --8<-- "migration/_deltas/breaking/v0.10-to-v0.11.md"
 
-    --8<-- "guide/_deltas/breaking/v0.11-to-v0.12.md"
+    --8<-- "migration/_deltas/breaking/v0.11-to-v0.12.md"
 
-    --8<-- "guide/_deltas/breaking/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/breaking/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/breaking/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
 === "Behavior changes"
 
-    --8<-- "guide/_deltas/behavior/v0.3-to-v0.4.md"
+    --8<-- "migration/_deltas/behavior/v0.3-to-v0.4.md"
 
-    --8<-- "guide/_deltas/behavior/v0.5-to-v0.6.md"
+    --8<-- "migration/_deltas/behavior/v0.5-to-v0.6.md"
 
-    --8<-- "guide/_deltas/behavior/v0.7-to-v0.8.md"
+    --8<-- "migration/_deltas/behavior/v0.7-to-v0.8.md"
 
-    --8<-- "guide/_deltas/behavior/v0.8-to-v0.9.md"
+    --8<-- "migration/_deltas/behavior/v0.8-to-v0.9.md"
 
-    --8<-- "guide/_deltas/behavior/v0.9-to-v0.10.md"
+    --8<-- "migration/_deltas/behavior/v0.9-to-v0.10.md"
 
-    --8<-- "guide/_deltas/behavior/v0.10-to-v0.11.md"
+    --8<-- "migration/_deltas/behavior/v0.10-to-v0.11.md"
 
-    --8<-- "guide/_deltas/behavior/v0.11-to-v0.12.md"
+    --8<-- "migration/_deltas/behavior/v0.11-to-v0.12.md"
 
-    --8<-- "guide/_deltas/behavior/v0.12-to-v0.13.md"
+    --8<-- "migration/_deltas/behavior/v0.12-to-v0.13.md"
 
-    --8<-- "guide/_deltas/behavior/v0.13-to-v0.14.md"
+    --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
-    --8<-- "guide/_deltas/behavior/v0.14-to-v0.15.md"
+    --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
 
 ______________________________________________________________________
 

@@ -683,13 +683,13 @@ Next: [Properties](properties.md) — learn how to deprecate `@property` and `@c
 ## See also
 
 - [Attributes](attributes.md) covers selective attribute deprecation and multi-version stacking.
-- [Use Cases overview](use-cases.md) provides a guided tour of deprecation patterns.
+- [Use Cases overview](index.md) provides a guided tour of deprecation patterns.
 - [Functions](functions.md) covers function and method deprecation.
 - [Properties](properties.md) covers `@property` and `@cached_property` deprecation.
 - [Async](async.md) covers async functions and generators.
 - [Advanced](advanced.md) covers docstring updates, `args_extra`, testing helpers, and class/static methods.
-- [Audit Tools](audit/index.md) covers Python scanning, validation, and chain detection.
-- [Audit Policy](audit/policy.md) covers removal deadlines and policy enforcement.
-- [CI Integration](audit/ci-integration.md) covers CI gates, pre-commit, and GitHub Actions.
-- [Testing](testing.md) covers testing deprecated code and warning behavior.
+- [Audit Tools](../audit/index.md) covers Python scanning, validation, and chain detection.
+- [Audit Policy](../audit/policy.md) covers removal deadlines and policy enforcement.
+- [CI Integration](../audit/ci-integration.md) covers CI gates, pre-commit, and GitHub Actions.
+- [Testing](../integrations/testing.md) covers testing deprecated code and warning behavior.
 - [Troubleshooting](../troubleshooting.md) explains common `deprecated_class` configuration errors and fixes.

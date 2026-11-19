@@ -470,9 +470,9 @@ Reading `pyproject.toml` needs a TOML parser: built in on Python 3.11+, the `tom
     - Expiry defaults to `result.version` and raises `ImportError` if it is `None`. The table defaults to that version but shows unknown status if unavailable.
     - Each policy rule checks only resolved settings and never reads `pyproject.toml` policy settings.
     - Set `recursive` and `include_members` during discovery. Consumers reject `False` for either on a completed result.
-    - Always inspect `.gaps`. The [CLI static blind spots](https://borda.github.io/pyDeprecate/dev/guide/audit/cli.html#static-mode) also apply, including dynamic forms invisible without a gap.
+    - Always inspect `.gaps`. The [CLI static blind spots](https://borda.github.io/pyDeprecate/dev/audit/cli.html#static-mode) also apply, including dynamic forms invisible without a gap.
     - Synthetic targets raise `TypeError` if called.
-    - See the [Python static guide](https://borda.github.io/pyDeprecate/dev/guide/audit/index.html#scanning-from-python-without-importing).
+    - See the [Python static guide](https://borda.github.io/pyDeprecate/dev/audit/index.html#scanning-from-python-without-importing).
 - For a classmethod target, caller keywords passed through `**kwargs` that match its receiver name raise `TypeError` before warning unless `args_mapping` renames or drops them. An empty-string mapping keeps the name unchanged, so it still raises without spending the warning budget.
 - Callable targets whose signatures cannot be inspected still decorate successfully. Forwarding that requires the target signature raises the original introspection error at call time, including keyword validation without `args_mapping`. An empty call requiring no signature validation can still succeed.
 - `deprecated_class(update_docstring=True)` injects notices only into existing class documentation. A source class whose `__doc__` is `None` keeps `None` through its proxy, without leaking internal proxy documentation. The source class docstring is unchanged.
@@ -1004,37 +1004,37 @@ Use `warnings.warn` for a one-off internal warning that does not need API compat
 ## Important Docs
 
 - [Getting Started](https://borda.github.io/pyDeprecate/stable/getting-started.html)
-- [Use Cases](https://borda.github.io/pyDeprecate/stable/guide/use-cases.html)
+- [Use Cases](https://borda.github.io/pyDeprecate/stable/usage/index.html)
 - [Python deprecation decorator](https://borda.github.io/pyDeprecate/stable/getting-started.html)
-- [Replace warnings.warn](https://borda.github.io/pyDeprecate/stable/guide/migration.html)
-- [Deprecate arguments](https://borda.github.io/pyDeprecate/stable/guide/functions.html)
-- [API migration CI](https://borda.github.io/pyDeprecate/stable/guide/audit/index.html)
-- [Agent recipes](https://borda.github.io/pyDeprecate/stable/guide/agent-recipes.html)
-- [Class and object deprecation](https://borda.github.io/pyDeprecate/stable/guide/classes.html)
-- [Compare Python deprecation tools](https://borda.github.io/pyDeprecate/stable/guide/compare-python-deprecation-tools.html)
-- [Audit tools](https://borda.github.io/pyDeprecate/stable/guide/audit/index.html)
-- [CLI](https://borda.github.io/pyDeprecate/stable/guide/audit/cli.html)
+- [Replace warnings.warn](https://borda.github.io/pyDeprecate/stable/migration/index.html)
+- [Deprecate arguments](https://borda.github.io/pyDeprecate/stable/usage/functions.html)
+- [API migration CI](https://borda.github.io/pyDeprecate/stable/audit/index.html)
+- [Agent recipes](https://borda.github.io/pyDeprecate/stable/adoption/agent-recipes.html)
+- [Class and object deprecation](https://borda.github.io/pyDeprecate/stable/usage/classes.html)
+- [Compare Python deprecation tools](https://borda.github.io/pyDeprecate/stable/adoption/compare-python-deprecation-tools.html)
+- [Audit tools](https://borda.github.io/pyDeprecate/stable/audit/index.html)
+- [CLI](https://borda.github.io/pyDeprecate/stable/audit/cli.html)
 - [Troubleshooting](https://borda.github.io/pyDeprecate/stable/troubleshooting.html)
 - [Limitations and non-goals](https://borda.github.io/pyDeprecate/stable/limitations.html)
 
 ## Markdown Mirrors
 
 - [Getting Started Markdown](https://borda.github.io/pyDeprecate/stable/getting-started.html.md)
-- [Use Cases Markdown](https://borda.github.io/pyDeprecate/stable/guide/use-cases.html.md)
-- [Functions Markdown](https://borda.github.io/pyDeprecate/stable/guide/functions.html.md)
-- [Classes Markdown](https://borda.github.io/pyDeprecate/stable/guide/classes.html.md)
-- [Properties Markdown](https://borda.github.io/pyDeprecate/stable/guide/properties.html.md)
-- [Async Markdown](https://borda.github.io/pyDeprecate/stable/guide/async.html.md)
-- [Advanced Markdown](https://borda.github.io/pyDeprecate/stable/guide/advanced.html.md)
-- [Audit Markdown](https://borda.github.io/pyDeprecate/stable/guide/audit/index.html.md)
-- [CLI Markdown](https://borda.github.io/pyDeprecate/stable/guide/audit/cli.html.md)
-- [Migration Markdown](https://borda.github.io/pyDeprecate/stable/guide/migration.html.md)
+- [Use Cases Markdown](https://borda.github.io/pyDeprecate/stable/usage/index.html.md)
+- [Functions Markdown](https://borda.github.io/pyDeprecate/stable/usage/functions.html.md)
+- [Classes Markdown](https://borda.github.io/pyDeprecate/stable/usage/classes.html.md)
+- [Properties Markdown](https://borda.github.io/pyDeprecate/stable/usage/properties.html.md)
+- [Async Markdown](https://borda.github.io/pyDeprecate/stable/usage/async.html.md)
+- [Advanced Markdown](https://borda.github.io/pyDeprecate/stable/usage/advanced.html.md)
+- [Audit Markdown](https://borda.github.io/pyDeprecate/stable/audit/index.html.md)
+- [CLI Markdown](https://borda.github.io/pyDeprecate/stable/audit/cli.html.md)
+- [Migration Markdown](https://borda.github.io/pyDeprecate/stable/migration/index.html.md)
 - [Home Markdown](https://borda.github.io/pyDeprecate/stable/index.html.md)
-- [Modules Markdown](https://borda.github.io/pyDeprecate/stable/guide/modules.html.md)
-- [void() Helper Markdown](https://borda.github.io/pyDeprecate/stable/guide/void-helper.html.md)
-- [Customization Markdown](https://borda.github.io/pyDeprecate/stable/guide/customization.html.md)
-- [Compare Python Deprecation Tools Markdown](https://borda.github.io/pyDeprecate/stable/guide/compare-python-deprecation-tools.html.md)
-- [Agent Recipes Markdown](https://borda.github.io/pyDeprecate/stable/guide/agent-recipes.html.md)
+- [Modules Markdown](https://borda.github.io/pyDeprecate/stable/usage/modules.html.md)
+- [void() Helper Markdown](https://borda.github.io/pyDeprecate/stable/usage/void-helper.html.md)
+- [Customization Markdown](https://borda.github.io/pyDeprecate/stable/usage/customization.html.md)
+- [Compare Python Deprecation Tools Markdown](https://borda.github.io/pyDeprecate/stable/adoption/compare-python-deprecation-tools.html.md)
+- [Agent Recipes Markdown](https://borda.github.io/pyDeprecate/stable/adoption/agent-recipes.html.md)
 - [API Reference Markdown](https://borda.github.io/pyDeprecate/stable/api-reference.html.md)
 - [Troubleshooting Markdown](https://borda.github.io/pyDeprecate/stable/troubleshooting.html.md)
 - [Limitations Markdown](https://borda.github.io/pyDeprecate/stable/limitations.html.md)

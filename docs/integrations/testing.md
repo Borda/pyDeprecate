@@ -197,11 +197,11 @@ print(clean_session)
 
 ## See also
 
-- [Python audit API](audit/index.md)
-- [Deprecation policy](audit/policy.md)
-- [CI integration](audit/ci-integration.md)
-- [Classes](classes.md)
-- [Selective attribute deprecation](attributes.md)
-- [Use Cases](use-cases.md) — Deprecation patterns and scenarios.
+- [Python audit API](../audit/index.md)
+- [Deprecation policy](../audit/policy.md)
+- [CI integration](../audit/ci-integration.md)
+- [Classes](../usage/classes.md)
+- [Selective attribute deprecation](../usage/attributes.md)
+- [Use Cases](../usage/index.md) — Deprecation patterns and scenarios.
 - [Getting Started](../getting-started.md) — The decorator parameters.
 - [Troubleshooting](../troubleshooting.md) — Common configuration errors and fixes.

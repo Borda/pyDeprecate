@@ -102,7 +102,7 @@ True True
 
 </details>
 
-If you are writing tests and need to verify that a warning fires, use `pytest.warns(FutureWarning)` on the first call and `assert_no_warnings(FutureWarning)` on subsequent calls. See [Testing Deprecated Code](guide/testing.md#testing-deprecated-code) for full examples.
+If you are writing tests and need to verify that a warning fires, use `pytest.warns(FutureWarning)` on the first call and `assert_no_warnings(FutureWarning)` on subsequent calls. See [Testing Deprecated Code](integrations/testing.md#testing-deprecated-code) for full examples.
 
 ### Why did the deprecation warning stop appearing in my long-running service?
 
@@ -127,7 +127,7 @@ Pass a logging method as `stream`. It receives the formatted deprecation message
 
 **Q:** I want deprecation messages to go through Python's `logging` module instead of the default `warnings.warn` mechanism. How?
 
-See [Deprecation Output Sink](guide/customization.md#deprecation-output-sink-stream) for silencing, custom callables, `print`, and other `stream` options.
+See [Deprecation Output Sink](usage/customization.md#deprecation-output-sink-stream) for silencing, custom callables, `print`, and other `stream` options.
 
 ```python
 import logging
@@ -519,7 +519,7 @@ print(my_func(3))
 
 !!! danger "This misconfiguration will become a TypeError in v1.0"
 
-    Migrate now to avoid a hard break on upgrade. Use the [audit tools](guide/audit/index.md) to detect this combination across your codebase automatically — `find_deprecation_wrappers()` reports it via the `misconfigured_target` flag on `DeprecationWrapperInfo`.
+    Migrate now to avoid a hard break on upgrade. Use the [audit tools](audit/index.md) to detect this combination across your codebase automatically — `find_deprecation_wrappers()` reports it via the `misconfigured_target` flag on `DeprecationWrapperInfo`.
 
 ### TypeError at decoration time: cross-class method target
 
@@ -631,7 +631,7 @@ Common supported combinations include:
 - `ARGS_REMAP` above `NOTIFY` supports a lifecycle pattern: rename arguments first, then deprecate the whole function. The top layer is outermost.
 - `NOTIFY` above a callable deprecates that target directly without an inner `@deprecated` wrapper. The top layer is outermost.
 
-See [Supported stacking combinations](guide/functions.md#supported-stacking-combinations) for the full table. The warning message identifies which combination fired and includes a corrective hint.
+See [Supported stacking combinations](usage/functions.md#supported-stacking-combinations) for the full table. The warning message identifies which combination fired and includes a corrective hint.
 
 **Most common case — wrong order (NOTIFY over ARGS_REMAP):**
 
@@ -1262,7 +1262,7 @@ No single proxy both warns on every instantiation and actively remaps arguments.
 1. Use an inner layer with `args_mapping` only (`ARGS_REMAP`) for the rename.
 2. Use an outer layer without mapping (`NOTIFY`) for the blanket notice.
 
-See [Nested proxy wrappers](guide/attributes.md#nested-proxy-wrappers) for the pattern.
+See [Nested proxy wrappers](usage/attributes.md#nested-proxy-wrappers) for the pattern.
 
 ### `attrs_mapping` auto-expand skips some fields on a dataclass with a custom `__init__`
 
@@ -2019,7 +2019,7 @@ Three modes are available.
 - **Mode 2** (`target=new_module`) also forwards every missing-attribute lookup to the replacement module, optionally with `attrs_mapping` for per-name redirects. Use it when callers must be redirected to the new name transparently.
 - **Mode 3** uses `deprecated_instance()` in the parent package `__init__.py` to expose the old module name as a deprecated attribute; no extra API is needed.
 
-`num_warns=-1` is the default and delivers on every access; `0` delivers none and a positive `N` delivers exactly `N`. See the [module deprecation guide](guide/modules.md) for each mode with runnable examples.
+`num_warns=-1` is the default and delivers on every access; `0` delivers none and a positive `N` delivers exactly `N`. See the [module deprecation guide](usage/modules.md) for each mode with runnable examples.
 
 ### Does `deprecated_module()` warn when accessing real attributes (functions, classes, constants) on the deprecated module?
 
@@ -2165,7 +2165,7 @@ True
 
 </details>
 
-Affects every wrapper kind — functions, methods, class proxies (`deprecated_class`), instance proxies (`deprecated_instance`), and modules (`deprecated_module`). See the [v0.12-to-v0.13 migration guide](guide/migration.md) for the full list of affected reads.
+Affects every wrapper kind — functions, methods, class proxies (`deprecated_class`), instance proxies (`deprecated_instance`), and modules (`deprecated_module`). See the [v0.12-to-v0.13 migration guide](migration/index.md) for the full list of affected reads.
 
 ### How do I type-annotate the object returned by `deprecated_class` / `deprecated_instance`?
 
@@ -2220,7 +2220,7 @@ True
 
 A class alias remains a proxy at runtime: `isinstance(RetryConfig, DeprecationProxy)` is `True`. Its proxy-only attributes, `__wrapped__` and `__deprecation_config__`, are invisible on `type[RetryPolicy]`.
 
-Read them using `get_deprecation_config(RetryConfig)` or `inspect.unwrap(RetryConfig)`. Alternatively, use `cast(DeprecationProxy[Any], RetryConfig)` at the site needing them. See [Classes → Type annotations and static analysis](guide/classes.md#type-annotations-and-static-analysis) for other checks against aliases.
+Read them using `get_deprecation_config(RetryConfig)` or `inspect.unwrap(RetryConfig)`. Alternatively, use `cast(DeprecationProxy[Any], RetryConfig)` at the site needing them. See [Classes → Type annotations and static analysis](usage/classes.md#type-annotations-and-static-analysis) for other checks against aliases.
 
 !!! warning "`issubclass` raises `TypeError`"
 
@@ -2253,7 +2253,7 @@ Common errors and fixes follow.
 
 - **`[valid-type]` on `def f(x: Old)`, or `class Child(Old)` in mypy.** A call-form alias is a variable, which type checkers cannot accept as a type. Annotate or subclass the replacement class. In mypy, you can also use the decorator form, whose name is a class statement.
 
-See [Classes → Type annotations and static analysis](guide/classes.md#type-annotations-and-static-analysis).
+See [Classes → Type annotations and static analysis](usage/classes.md#type-annotations-and-static-analysis).
 
 ### Sphinx / my IDE shows `(*args, **kwargs)` instead of my deprecated class's real signature
 
@@ -2319,7 +2319,7 @@ Type checkers recognize deprecation only from a literal `warnings.deprecated` (P
 4. Import the module instead of the name to avoid shadowing pyDeprecate's `deprecated`.
 5. Enable `enable_error_code = ["deprecated"]` in mypy or `reportDeprecated = "error"` for pyright in CI.
 
-Over `@deprecated_class(...)`, both mypy and pyright flag the old class name. See [Functions → Static type checkers](guide/functions.md#static-type-checkers-pep-702).
+Over `@deprecated_class(...)`, both mypy and pyright flag the old class name. See [Functions → Static type checkers](usage/functions.md#static-type-checkers-pep-702).
 
 ## Pickling and copying
 
@@ -2641,7 +2641,7 @@ Choose a setup matching your audit needs:
 
 - For removal deadlines and policy rules only, use the import-free `pydeprecate-expiry-static` and `pydeprecate-policy-static` hooks, which need none of your dependencies (from `v0.16.0`).
 
-The [audit guide](guide/audit/ci-integration.md#pre-commit-integration) contains the hook recipes.
+The [audit guide](audit/ci-integration.md#pre-commit-integration) contains the hook recipes.
 
 ### Can pydeprecate audit a package whose dependencies are not installed?
 
@@ -2665,7 +2665,7 @@ Recognized wrappers can be checked when the required settings are statically res
 
     - Wrappers imported from outside the scanned package are invisible.
 
-`check`, `chains`, `all`, and `status` need imported wrappers and have no static mode. See [Static mode](guide/audit/cli.md#static-mode). For reusable Python rows, see the [Python static API](#how-do-i-audit-deprecations-without-importing-my-package).
+`check`, `chains`, `all`, and `status` need imported wrappers and have no static mode. See [Static mode](audit/cli.md#static-mode). For reusable Python rows, see the [Python static API](#how-do-i-audit-deprecations-without-importing-my-package).
 
 ### How do I audit deprecations without importing my package?
 
@@ -2677,9 +2677,9 @@ Pass its frozen `StaticScanResult` directly to `validate_deprecation_expiry`, `v
 
     Always inspect `.gaps` for incomplete coverage, even when `.wrappers` is empty. Never call a row's stand-in target: it raises `TypeError`.
 
-This suits missing dependencies, docs builds, and isolated audit scripts. Supply `current_version` to expiry when `.version` is `None`; otherwise expiry raises `ImportError`. The result shares the [CLI `--static` blind spots](guide/audit/cli.md#static-mode): dynamic forms can remain invisible without a gap.
+This suits missing dependencies, docs builds, and isolated audit scripts. Supply `current_version` to expiry when `.version` is `None`; otherwise expiry raises `ImportError`. The result shares the [CLI `--static` blind spots](audit/cli.md#static-mode): dynamic forms can remain invisible without a gap.
 
-See the [runnable Python example](guide/audit/index.md#scanning-from-python-without-importing) and [limitations](limitations.md#audit-tooling).
+See the [runnable Python example](audit/index.md#scanning-from-python-without-importing) and [limitations](limitations.md#audit-tooling).
 
 ### My pydeprecate pre-commit hook fails: contains multiple packages
 
@@ -2694,7 +2694,7 @@ Src-layout repositories and single-package roots resolve automatically. For mult
   args: [mypkg]
 ```
 
-The same error, a usage error with exit `2`, applies to every subcommand; see the [audit guide](guide/audit/ci-integration.md#pre-commit-integration).
+The same error, a usage error with exit `2`, applies to every subcommand; see the [audit guide](audit/ci-integration.md#pre-commit-integration).
 
 ### `pydeprecate gap: other copy audited`
 

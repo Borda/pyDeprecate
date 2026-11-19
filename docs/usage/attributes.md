@@ -549,7 +549,7 @@ False
 
     The proxy forwards remapped values positionally. Findings are advisory visibility signals, not failures. Results are `DeprecationWrapperInfo` objects with non-empty `args_mapping_positional_only` fields.
 
-    See [Mapping compatibility](audit/index.md#detecting-mapping-incompatibilities) for the full pattern.
+    See [Mapping compatibility](../audit/index.md#detecting-mapping-incompatibilities) for the full pattern.
 
 #### Stacking `deprecated_class()` for multi-version deprecations
 
@@ -821,7 +821,7 @@ LegacyTrainingConfig 2.0
 ## See also
 
 - [Classes](classes.md) covers classes, constants, Enums, dataclasses, and fatal deprecations.
-- [Audit Tools](audit/index.md) covers scanning and mapping compatibility.
-- [Audit Policy](audit/policy.md) covers removal deadlines and policy enforcement.
-- [CI Integration](audit/ci-integration.md) covers CI gates, pre-commit, and GitHub Actions.
-- [Testing](testing.md) covers testing deprecated code and warning behavior.
+- [Audit Tools](../audit/index.md) covers scanning and mapping compatibility.
+- [Audit Policy](../audit/policy.md) covers removal deadlines and policy enforcement.
+- [CI Integration](../audit/ci-integration.md) covers CI gates, pre-commit, and GitHub Actions.
+- [Testing](../integrations/testing.md) covers testing deprecated code and warning behavior.

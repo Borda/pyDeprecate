@@ -395,7 +395,7 @@ It survives moved code, a version bump and reworded messages. It changes only wh
 
 The rule slugs are `invalid-args`, `misconfigured-target`, `inner-order-property`, `identity-mapping`, `no-effect`, `positional-only-mapping`, `chain`, `expired`, `min-grace` and `message-required`.
 
-The layout is described by the JSON Schema [`docs/schemas/report-1.schema.json`](../../schemas/report-1.schema.json). `schema` is bumped *only* when a key is removed or renamed, or its meaning or type changes. Adding a key does not bump it, so readers must ignore keys they do not know.
+The layout is described by the JSON Schema [`docs/schemas/report-1.schema.json`](../schemas/report-1.schema.json). `schema` is bumped *only* when a key is removed or renamed, or its meaning or type changes. Adding a key does not bump it, so readers must ignore keys they do not know.
 
 The keys added in v0.16 (per-finding records, `gate`, `mode`, …) did not bump it. Every key a v0.15 report has (`schema`, `table`, `gaps[].kind`/`detail`/`hint`) keeps its type and meaning. A v0.15 reader therefore still reads a v0.16 report.
 
@@ -721,7 +721,7 @@ A static run's findings carry the same `location` as an import run's: the file a
 | External factories                                   | A factory imported from outside the scanned package (`from compat import deprecated`, or a star import of one) is invisible. The exception is a call passing `remove_in` by keyword, which produces a `not statically resolvable` gap.  |
 | Report target names                                  | Static mode cannot reproduce these exactly as import mode prints them: `New API` shows the source text. A dataclass whose `attrs_mapping` import mode expands into `args_mapping` reads `dataclass` rather than `dataclass attributes`. |
 
-See [Limitations](../../limitations.md). Run without `--static` in an environment with the package's dependencies for a full audit.
+See [Limitations](../limitations.md). Run without `--static` in an environment with the package's dependencies for a full audit.
 
 ## Exit codes
 

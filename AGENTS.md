@@ -91,7 +91,7 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 
 ### Coding-Agent Plugin (`plugins/pydeprecate/`)
 
-- **Three-way sync**: `src/deprecate/` (code) ↔ `README.md`/`docs/llms.txt`/`docs/guide/*.md` (docs) ↔ `plugins/pydeprecate/skills/*/SKILL.md` (plugin).
+- **Three-way sync**: `src/deprecate/` (code) ↔ `README.md`/`docs/llms.txt`/`docs/{usage,audit,integrations,adoption,migration}/*.md` (docs) ↔ `plugins/pydeprecate/skills/*/SKILL.md` (plugin).
   - A public API change updates all three; a SKILL.md referencing an identifier not in the installed API is a bug.
   - `test_skill_docs_reference_real_api` in `tests/integration/test_agent_plugin.py` guards backticked identifiers and call forms against the installed API:
     - bare tokens (module exports, `TargetMode` members, decorator kwargs such as `deprecated_class`, `TargetMode.ARGS_REMAP` or `skip_if`);
@@ -118,11 +118,11 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 
 - **README ≠ docs/index.md** — README is the PyPI page (do not copy it to docs); `docs/index.md` is a curated overview
 - **Never add `cp README.md docs/index.md` to CI** — `docs/index.md` is tracked in git directly
-- **After any API change**: update `README.md` AND the relevant `docs/guide/` page
+- **After any API change**: update `README.md` AND the relevant `docs/` topic page
 - **New troubleshooting item**: add a `### question` section under the matching topic `##` heading of `docs/troubleshooting.md`, whose first prose paragraph is the answer — the FAQPage JSON-LD is generated from it at build time by `docs/mkdocs_hooks.py`, never edit it by hand
 - **`docs/overrides/main.html`** is Jinja2 (prettier-excluded); do not put content files there
 - **`docs/robots.txt`** — AI crawler access policy; add a `User-agent: <bot> / Allow: /` block when a new mainstream AI crawler is released. The comment referencing the `docs/llms.txt` URL must stay current.
-- **Honest and optimistic docs** — describe what the library really does, and cover every supported user scenario in the topic pages and the [use-cases](docs/guide/use-cases.md) map. Present a limitation as a small known edge with its workaround: a short plain paragraph under its own heading, with a block only for the few that can silently give a wrong result, and do not dwell on it. Where a limitation can block real work, invite the reader to [open an issue](https://github.com/Borda/pyDeprecate/issues) with their practical use case; we are happy to discuss it and integrate it when it fits
+- **Honest and optimistic docs** — describe what the library really does, and cover every supported user scenario in the topic pages and the [use-cases](docs/usage/index.md) map. Present a limitation as a small known edge with its workaround: a short plain paragraph under its own heading, with a block only for the few that can silently give a wrong result, and do not dwell on it. Where a limitation can block real work, invite the reader to [open an issue](https://github.com/Borda/pyDeprecate/issues) with their practical use case; we are happy to discuss it and integrate it when it fits
 - **Keep `docs/llms.txt` compact** — agents pay for every token, so the file spends none on layout:
   - break a code fence or flowchart at logical steps, one step per line, and never hard-wrap a long step onto hanging-indent continuation lines; split a long note at its `;` into separate `Note:` lines instead;
   - leave tables unpadded (mdformat skips this file on purpose), use one blank line between sections and none inside a block, and indent only what the syntax needs;
@@ -169,18 +169,18 @@ Write a clear explanation linking to both sources, then let maintainers decide o
 - **Trust config files over documentation** — when mismatches occur, config files are the source of truth
 - **Suggest documentation updates** when you find mismatches between docs and actual configuration
 - **Update docs immediately after any structural change** — adding, moving, renaming, or deleting files/folders/modules must be followed by updating `.github/CONTRIBUTING.md` (project structure tree, Test Organisation table) and any other `*.md` that references affected paths or names. Do not wait to be asked.
-- **Keep README and docs site in sync** — any API addition, rename, or behavior change must be reflected in `README.md` **and** the relevant `docs/guide/` page; new troubleshooting items go in `docs/troubleshooting.md` only (the FAQPage JSON-LD is generated from it)
+- **Keep README and docs site in sync** — any API addition, rename, or behavior change must be reflected in `README.md` **and** the relevant `docs/` topic page; new troubleshooting items go in `docs/troubleshooting.md` only (the FAQPage JSON-LD is generated from it)
 - **Update `CHANGELOG.md` at PR-creation time** — once the PR number is known and the diff is stable, add or re-assess the entry under `[UnReleased]` (new features → `Added`, fixes → `Fixed`, behavior changes → `Changed`); always include `(#N)` PR link; skip docs-only, test-only, CI, and pure internal refactoring changes; do not write entries during iterative development commits — content may pivot before the PR is opened
 - **Update inline comments when changing behavior** — after any logic change, scan changed files for comments describing that behavior; update stale ones (stale comments mislead more than none)
 - **Keep AI-agent documentation in sync** — `docs/llms.txt` is a machine-readable contract read by AI agents before generating code; it must reflect actual behavior at all times.
   - Apply this sync table on every relevant change:
-    - **Public API behavior change** — affected module docstrings (`routine.py`, `audit/__init__.py`, `proxy/__init__.py`, `utils.py`) · inline comments in changed `src/` files · `README.md` Quick Start · relevant `docs/guide/*.md` topic page · `docs/llms.txt` § Agent Notes · `docs/troubleshooting.md` (add or update Q&A) · FAQPage JSON-LD in `docs/overrides/main.html`
-    - **New deprecation pattern** — `docs/llms.txt` Decision Flowchart · relevant `docs/guide/*.md` topic page (functions, classes, properties, async, or advanced)
-    - **New anti-pattern discovered** — `docs/llms.txt` § Anti-Patterns · relevant `docs/guide/*.md` topic page
-    - **`TargetMode` enum value added or removed** — `docs/llms.txt` Critical Mental Model · Decision Flowchart · relevant `docs/guide/*.md` topic page
+    - **Public API behavior change** — affected module docstrings (`routine.py`, `audit/__init__.py`, `proxy/__init__.py`, `utils.py`) · inline comments in changed `src/` files · `README.md` Quick Start · relevant `docs/usage/*.md` topic page · `docs/llms.txt` § Agent Notes · `docs/troubleshooting.md` (add or update Q&A) · FAQPage JSON-LD in `docs/overrides/main.html`
+    - **New deprecation pattern** — `docs/llms.txt` Decision Flowchart · relevant `docs/usage/*.md` topic page (functions, classes, properties, async, or advanced)
+    - **New anti-pattern discovered** — `docs/llms.txt` § Anti-Patterns · relevant `docs/usage/*.md` topic page
+    - **`TargetMode` enum value added or removed** — `docs/llms.txt` Critical Mental Model · Decision Flowchart · relevant `docs/usage/*.md` topic page
     - **New mainstream AI crawler released** — `docs/robots.txt` (new `User-agent: <bot> / Allow: /` block)
   - `docs/llms.txt` is the highest-leverage surface for AI agents — a stale entry there produces wrong code at scale. `docs/robots.txt` is the access gateway — an unlisted bot gets the wildcard `Allow: /` but explicit entries signal intent to AI platforms.
-- **Follow code example naming conventions** — human-facing docs (`docs/guide/*.md`, `README.md`) use domain-realistic story-telling names; AI-facing docs (`docs/llms.txt`, `docs/llms-full.txt`) use generic names (`old_func`/`new_func`, `old_arg`/`new_arg`); every paired example carries `# NEW API —` / `# DEPRECATED API —` orientation comments. See [Code Example Conventions](.github/CONTRIBUTING.md#code-example-conventions). `attrs_mapping` keys must be the original names callers use today — never a meta-name like `legacy_X` or `deprecated_X`.
+- **Follow code example naming conventions** — human-facing docs (`docs/{usage,audit,integrations,adoption,migration}/*.md`, `README.md`) use domain-realistic story-telling names; AI-facing docs (`docs/llms.txt`, `docs/llms-full.txt`) use generic names (`old_func`/`new_func`, `old_arg`/`new_arg`); every paired example carries `# NEW API —` / `# DEPRECATED API —` orientation comments. See [Code Example Conventions](.github/CONTRIBUTING.md#code-example-conventions). `attrs_mapping` keys must be the original names callers use today — never a meta-name like `legacy_X` or `deprecated_X`.
 - Ensure pre-commit hooks are installed (they run automatically on commit)
 - Provide `deprecated_in` and `remove_in` versions
 - Include migration messages in deprecation warnings

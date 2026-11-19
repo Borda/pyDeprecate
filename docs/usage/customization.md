@@ -154,7 +154,7 @@ Pass `stream=None` to disable all deprecation output for a specific function. Ca
 
 !!! warning "Testing gotcha: `stream=None` suppresses `FutureWarning`"
 
-    When `stream=None` is set, <u>no `FutureWarning` is emitted</u>, so `pytest.warns(FutureWarning)` will fail. Test the call-forwarding result directly instead of asserting the warning. See [Testing Deprecated Code](testing.md#testing-deprecated-code) for patterns.
+    When `stream=None` is set, <u>no `FutureWarning` is emitted</u>, so `pytest.warns(FutureWarning)` will fail. Test the call-forwarding result directly instead of asserting the warning. See [Testing Deprecated Code](../integrations/testing.md#testing-deprecated-code) for patterns.
 
 ```python
 from deprecate import deprecated
@@ -319,10 +319,10 @@ print(collected_warnings)
 
 ## See also
 
-- [Use Cases](use-cases.md) covers worked examples of all deprecation patterns including stream and template usage.
-- Use [Audit Tools](audit/index.md) to complement custom streams with CI enforcement of removal deadlines.
+- [Use Cases](index.md) covers worked examples of all deprecation patterns including stream and template usage.
+- Use [Audit Tools](../audit/index.md) to complement custom streams with CI enforcement of removal deadlines.
 - [Troubleshooting](../troubleshooting.md) explains how to redirect deprecation output to a Python logger instead of `warnings.warn`.
 
 ______________________________________________________________________
 
-Next: [Audit Tools](audit/index.md) — validate decorator configuration, enforce removal deadlines, and detect deprecation chains in CI.
+Next: [Audit Tools](../audit/index.md) — validate decorator configuration, enforce removal deadlines, and detect deprecation chains in CI.

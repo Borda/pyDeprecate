@@ -191,13 +191,13 @@ Sent to 'alice@example.com': 'Hello' [normal]
 
 In test setup code (fixtures, helpers, factory functions), you often need to call deprecated functions without flooding the output with `FutureWarning` noise. The first call still emits its warning (default `num_warns=1`; subsequent calls are silent).
 
-Suppress that specific message session-wide with a scoped `filterwarnings` entry in `pyproject.toml` or `conftest.py`. See [Audit Tools → Suppressing warnings in test fixtures](testing.md#suppressing-warnings-in-test-fixtures) for the config snippets.
+Suppress that specific message session-wide with a scoped `filterwarnings` entry in `pyproject.toml` or `conftest.py`. See [Audit Tools → Suppressing warnings in test fixtures](../integrations/testing.md#suppressing-warnings-in-test-fixtures) for the config snippets.
 
 For assertions, pick the right tool:
 
 - `pytest.warns` asserts a warning **IS** emitted.
 - A `filterwarnings` ignore entry **silences** without any assertion.
-- [`assert_no_warnings`](testing.md#testing-deprecated-code) asserts that **NO** warning of the specified category escapes the block.
+- [`assert_no_warnings`](../integrations/testing.md#testing-deprecated-code) asserts that **NO** warning of the specified category escapes the block.
 
 The last option prevents refactored code from silently regressing into calling deprecated APIs. If the code unexpectedly starts emitting a different warning category, that still surfaces.
 
@@ -571,14 +571,14 @@ print(list(old_range(1, 4)))
 
 ## See also
 
-- Start with [Use Cases overview](use-cases.md) for a guided tour of all deprecation patterns.
+- Start with [Use Cases overview](index.md) for a guided tour of all deprecation patterns.
 - [Functions](functions.md) covers core function deprecation patterns.
 - [Classes](classes.md) covers class, Enum, and dataclass deprecation.
 - [Properties](properties.md) covers `@property` and `@cached_property` deprecation.
 - [Async](async.md) covers async functions and async generators.
 - [Customization](customization.md) covers custom message templates and output streams.
 - [void() Helper](void-helper.md) explains when and why to use `void()` in the function body.
-- Use [Audit Tools](audit/index.md) to enforce removal deadlines and detect deprecation chains in CI.
+- Use [Audit Tools](../audit/index.md) to enforce removal deadlines and detect deprecation chains in CI.
 - [Troubleshooting](../troubleshooting.md) covers common errors and fixes.
 
 ______________________________________________________________________

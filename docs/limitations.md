@@ -41,7 +41,7 @@ The warning fires at the call rather than on the first step. `inspect.isgenerato
 
 A native generator function called with the wrong number of arguments raises `TypeError` at once. Its deprecated wrapper accepts any arguments and only creates the generator.
 
-That arity `TypeError` uses pyDeprecate's own wording and raises on the first `next()` or `async for` step. A `Failed mapping` error from a forwarding target also raises at that step. See [Deprecating generator functions](guide/advanced.md#deprecating-generator-functions).
+That arity `TypeError` uses pyDeprecate's own wording and raises on the first `next()` or `async for` step. A `Failed mapping` error from a forwarding target also raises at that step. See [Deprecating generator functions](usage/advanced.md#deprecating-generator-functions).
 
 ### Cycle detection is lazy
 
@@ -55,7 +55,7 @@ Recurse through the replacement's own name instead. See [the cycle error](troubl
 
 ### Item writes never warn
 
-`proxy["key"] = value` and `del proxy["key"]` pass through silently, like attribute writes, and they honour `skip_if`. With `read_only=True` they raise `AttributeError` unless `skip_if` is active. See [deprecated_instance](guide/classes.md).
+`proxy["key"] = value` and `del proxy["key"]` pass through silently, like attribute writes, and they honour `skip_if`. With `read_only=True` they raise `AttributeError` unless `skip_if` is active. See [deprecated_instance](usage/classes.md).
 
 ### `read_only` covers only the standard mutators
 
@@ -127,7 +127,7 @@ Pickling the proxy itself is unaffected. To detect a proxy, check `isinstance(ob
 
 With `deprecated_instance(old, target=new)`, `isinstance`, hashing and the served protocols follow `new` as soon as the deprecation ships, not at removal. A tuple constant replaced by a list is no longer hashable through the old name.
 
-Keep the replacement the same type as the old object, or a subclass. See [Serving a replacement object](guide/classes.md#serving-a-replacement-object).
+Keep the replacement the same type as the old object, or a subclass. See [Serving a replacement object](usage/classes.md#serving-a-replacement-object).
 
 ### `attrs_mapping` on an instance covers attributes, not keys
 
@@ -151,7 +151,7 @@ Building the proxy does not warn about this. Builtins such as `max` and `min` hi
 
 ### `cached_property` warns at most once per instance while its value stays cached
 
-The cache is filled by the first read, so later reads of that instance never reach pyDeprecate and `num_warns` cannot raise the count. Deleting the cached attribute makes the next read call the getter again, which warns again when the budget allows. With `num_warns=-1` every instance warns on its first read; the default `num_warns=1` budget is shared by all instances, so only the first one warns. See [Properties](guide/properties.md).
+The cache is filled by the first read, so later reads of that instance never reach pyDeprecate and `num_warns` cannot raise the count. Deleting the cached attribute makes the next read call the getter again, which warns again when the budget allows. With `num_warns=-1` every instance warns on its first read; the default `num_warns=1` budget is shared by all instances, so only the first one warns. See [Properties](usage/properties.md).
 
 ## Configuration
 
@@ -163,7 +163,7 @@ A truthy `int` or a string raises `TypeError`; wrap the result in `bool(...)`. S
 
 A bound target such as `target=YourClass.method` works only for a source that is not a classmethod. For a genuine classmethod source it fails: the bound target has no receiver parameter, so the source's receiver argument is rejected.
 
-Inside the class body pass the raw descriptor (`target=method`) instead. See [Class methods and static methods](guide/advanced.md#class-methods-and-static-methods).
+Inside the class body pass the raw descriptor (`target=method`) instead. See [Class methods and static methods](usage/advanced.md#class-methods-and-static-methods).
 
 ### A classmethod target cannot tell a plain or static source from a classmethod
 
@@ -171,13 +171,13 @@ A static source written `@deprecated(...)` above `@staticmethod` is rejected at 
 
 Its first argument is forwarded as the replacement's class. When the call leaves that argument out, the parameter's default is forwarded instead. A value that is not a class raises `TypeError` before any warning.
 
-A class passed there or given as the default is forwarded as the receiver. Make the source a `@classmethod`, or give a static source a bound target such as `target=YourClass.method`. See [Class methods and static methods](guide/advanced.md#class-methods-and-static-methods).
+A class passed there or given as the default is forwarded as the receiver. Make the source a `@classmethod`, or give a static source a bound target such as `target=YourClass.method`. See [Class methods and static methods](usage/advanced.md#class-methods-and-static-methods).
 
 ### An `as_exceptions()` scope reaches a new thread only if the interpreter copies the context
 
 The scope is local to the current thread and `asyncio` task, and tasks created inside it inherit it.
 
-Whether a thread started inside the block inherits it depends on the interpreter; [The global switch](guide/functions.md#the-global-switch) lists which threads and executors do. Run the thread's target through `contextvars.copy_context().run(...)` when it must inherit the scope. Inside a scope `deprecate.AS_EXCEPTIONS` still reports the global value, so do not read it to detect a scope.
+Whether a thread started inside the block inherits it depends on the interpreter; [The global switch](usage/functions.md#the-global-switch) lists which threads and executors do. Run the thread's target through `contextvars.copy_context().run(...)` when it must inherit the scope. Inside a scope `deprecate.AS_EXCEPTIONS` still reports the global value, so do not read it to detect a scope.
 
 ### An `as_exceptions()` scope held across a generator `yield` applies to the consumer
 
@@ -185,7 +185,7 @@ A generator or async generator runs in its consumer's context. While it is suspe
 
 !!! warning "Open and close the scope within one step"
 
-    If the generator is closed from another task (`aclose()` elsewhere, garbage collection), the scope stays open in the consumer's context. See [The global switch](guide/functions.md#the-global-switch).
+    If the generator is closed from another task (`aclose()` elsewhere, garbage collection), the scope stays open in the consumer's context. See [The global switch](usage/functions.md#the-global-switch).
 
 ## Static checkers
 
@@ -193,7 +193,7 @@ A generator or async generator runs in its consumer's context. While it is suspe
 
 PEP 702 tools recognise the decorator by name, so deprecations that pyDeprecate applies at runtime are invisible to mypy, pyright and IDEs.
 
-Stack a literal `warnings.deprecated` (or `typing_extensions.deprecated`) on top as shown in [Static type checkers (PEP 702)](guide/functions.md#static-type-checkers-pep-702). For classes see [PEP 702 static checkers](guide/classes.md#pep-702-static-checkers).
+Stack a literal `warnings.deprecated` (or `typing_extensions.deprecated`) on top as shown in [Static type checkers (PEP 702)](usage/functions.md#static-type-checkers-pep-702). For classes see [PEP 702 static checkers](usage/classes.md#pep-702-static-checkers).
 
 ## Audit tooling
 
@@ -203,7 +203,7 @@ Stack a literal `warnings.deprecated` (or `typing_extensions.deprecated`) on top
 
 Dynamic forms such as wrappers built in loops or through `getattr`, `importlib` or `exec` can remain invisible without a gap. Empty `.gaps` therefore does not prove complete coverage. Rows are approximations with stand-in targets that raise `TypeError` when called.
 
-See [scanning from Python without importing](guide/audit/index.md#scanning-from-python-without-importing) and [CLI static mode](guide/audit/cli.md#static-mode).
+See [scanning from Python without importing](audit/index.md#scanning-from-python-without-importing) and [CLI static mode](audit/cli.md#static-mode).
 
 ### The full audit imports the package it scans
 
@@ -211,7 +211,7 @@ See [scanning from Python without importing](guide/audit/index.md#scanning-from-
 
     The full audit imports the package, so its module-level code runs and its runtime dependencies must be installed in the scanning environment. The import-mode remote pre-commit hooks therefore only suit packages without such dependencies; use a `repo: local` hook otherwise.
 
-    See [Audit Tools](guide/audit/index.md) and [the CLI reference](guide/audit/cli.md).
+    See [Audit Tools](audit/index.md) and [the CLI reference](audit/cli.md).
 
 ### CLI `--static` covers `expiry` and `policy` only, and only what the source spells
 
@@ -231,13 +231,13 @@ A gap does not fail the run unless `--strict` is enabled; strict mode exits with
 
 It reads a `target` imported from outside the package as a replacement, even when it holds `None` or a `TargetMode` member. Members inherited from a base class outside the package are a gap. Its `--report-json` table names a replacement by its source text.
 
-See [Static mode](guide/audit/cli.md#static-mode).
+See [Static mode](audit/cli.md#static-mode).
 
 ### CLI scans are per package, never per file
 
 A single `.py` path is rejected with `File paths are not supported`. A directory holding two or more top-level packages is rejected as well.
 
-Therefore, "scan only the files changed in this commit" is not available. Pass the package directory or an importable name. See [Path formats](guide/audit/cli.md#path-formats).
+Therefore, "scan only the files changed in this commit" is not available. Pass the package directory or an importable name. See [Path formats](audit/cli.md#path-formats).
 
 ### The GitHub Action's `install: true` re-pins pyDeprecate
 
@@ -245,7 +245,7 @@ The default installs pyDeprecate from the action's own ref into the job's Python
 
 !!! tip "Keep your own pin"
 
-    Set `install: false` when your project pins its own version. See [GitHub Action](guide/audit/ci-integration.md#github-action).
+    Set `install: false` when your project pins its own version. See [GitHub Action](audit/ci-integration.md#github-action).
 
 ## Missing something you need?
 

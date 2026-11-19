@@ -150,7 +150,7 @@ repos:
 
 !!! warning "A missing dependency can pass silently"
 
-    A failed submodule import emits `UserWarning: audit: skipped <module>`. The scan skips that module and continues. See [Troubleshooting](../../troubleshooting.md).
+    A failed submodule import emits `UserWarning: audit: skipped <module>`. The scan skips that module and continues. See [Troubleshooting](../troubleshooting.md).
 
     pre-commit hides output from passing hooks. A missing dependency can therefore leave modules unaudited <u>without a visible failure</u>.
 
@@ -456,9 +456,9 @@ permissions:
 
 - [Python audit API](index.md)
 - [Deprecation policy](policy.md)
-- [Testing deprecated code](../testing.md)
-- [Classes](../classes.md)
-- [Selective attribute deprecation](../attributes.md)
-- [Use Cases](../use-cases.md) — Deprecation patterns and scenarios.
-- [Getting Started](../../getting-started.md) — The decorator parameters.
-- [Troubleshooting](../../troubleshooting.md) — Common configuration errors and fixes.
+- [Testing deprecated code](../integrations/testing.md)
+- [Classes](../usage/classes.md)
+- [Selective attribute deprecation](../usage/attributes.md)
+- [Use Cases](../usage/index.md) — Deprecation patterns and scenarios.
+- [Getting Started](../getting-started.md) — The decorator parameters.
+- [Troubleshooting](../troubleshooting.md) — Common configuration errors and fixes.

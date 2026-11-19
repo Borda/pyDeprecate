@@ -105,7 +105,7 @@ Migration checks passed.
 
 </details>
 
-See [Testing](testing.md) for pytest patterns, warning budgets, and `assert_no_warnings` message matching.
+See [Testing](../integrations/testing.md) for pytest patterns, warning budgets, and `assert_no_warnings` message matching.
 
 ## 4. Audit in CI
 
@@ -116,7 +116,7 @@ Run the same audits *locally and in CI* before each release.
 3. Run `pydeprecate policy <package-path>` to enforce your configured grace period and metadata requirements.
 4. Configure pre-commit hooks or the GitHub Action to repeat the checks automatically.
 
-Replace `<package-path>` with your package's source path. See [CLI Reference](audit/cli.md) for arguments and exit codes, and [CI Integration](audit/ci-integration.md) for pre-commit and Action recipes.
+Replace `<package-path>` with your package's source path. See [CLI Reference](../audit/cli.md) for arguments and exit codes, and [CI Integration](../audit/ci-integration.md) for pre-commit and Action recipes.
 
 !!! warning "Confirm audit coverage"
 
@@ -170,7 +170,7 @@ True
 
 </details>
 
-`generate_deprecation_table` returns Markdown from discovered wrapper metadata. See [Audit Tools](audit/index.md) for the full table and `style="matrix"` release columns.
+`generate_deprecation_table` returns Markdown from discovered wrapper metadata. See [Audit Tools](../audit/index.md) for the full table and `style="matrix"` release columns.
 
 1. Announce the deprecation, replacement, and planned removal version when introducing the wrapper.
 2. Record the removed public name and replacement in the removal release's changelog and release notes.
