@@ -16,14 +16,14 @@
         <link rel="prev" href="index.html">
       
       
-        <link rel="next" href="guide/use-cases.html">
+        <link rel="next" href="usage/index.html">
       
       
         
       
       
       <link rel="icon" href="assets/brand/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
     
     
       
@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-04-21",
-  "dateModified": "2026-11-11"
+  "dateModified": "2026-11-19"
 }
 </script>
 
@@ -121,6 +121,17 @@
 
 
 
+
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var moves = {"callable-target-with-attribute-redirection": "usage/attributes.html", "chained-redirect": "usage/attributes.html", "choosing-the-right-testing-tool": "integrations/testing.html", "class-type-compatibility": "usage/attributes.html", "combining-attribute-and-argument-deprecation": "usage/attributes.html", "dataclass-field-renames": "usage/attributes.html", "decorator-syntax-attribute-rename": "usage/attributes.html", "enforcing-a-deprecation-policy": "audit/policy.html", "enforcing-removal-deadlines": "audit/policy.html", "enforcing-the-policy-in-ci": "audit/ci-integration.html", "enum-deprecated-member-aliases": "usage/attributes.html", "explicit-targetmodeattrs_remap-form": "usage/attributes.html", "github-action": "audit/ci-integration.html", "mixed-redirect-and-warn-only-entries": "usage/attributes.html", "monorepo-several-packages-in-one-run": "audit/ci-integration.html", "nested-proxy-wrappers": "usage/attributes.html", "per-attribute-independent-warning-budgets": "usage/attributes.html", "pre-commit-integration": "audit/ci-integration.html", "pytest-integration": "audit/ci-integration.html", "pytest-integration-for-expiry-enforcement": "audit/policy.html", "reads-writes-and-deletes-all-redirect": "usage/attributes.html", "real-world-migration-ml-training-config": "usage/attributes.html", "scanning-a-package": "audit/policy.html", "selective-attribute-deprecation": "usage/attributes.html", "stacking-deprecated_class-for-multi-version-deprecations": "usage/attributes.html", "suppressing-warnings-in-test-fixtures": "integrations/testing.html", "testing-deprecated-code": "integrations/testing.html", "the-two-rules": "audit/policy.html", "warn-only-with-none-redirect": "usage/attributes.html"};
+    var id = decodeURIComponent(window.location.hash.slice(1));
+    if (!id || !moves[id] || document.getElementById(id)) return;
+    if (window.location.pathname.endsWith("/" + moves[id])) return;
+    window.location.replace("./" + moves[id] + "#" + id);
+  });
+</script>
 
   <link rel="alternate" type="text/markdown" href="https://borda.github.io/pyDeprecate/stable/getting-started.html.md">
 <link rel="alternate" type="text/plain" title="llms.txt" href="https://borda.github.io/pyDeprecate/llms.txt">
@@ -518,7 +529,7 @@
   <span class="md-ellipsis">
     
   
-    Use Cases
+    Usage
   
 
     
@@ -534,7 +545,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Use Cases
+    Usage
   
 
           </label>
@@ -547,7 +558,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/use-cases.html" class="md-nav__link">
+      <a href="usage/index.html" class="md-nav__link">
         
   
   
@@ -575,7 +586,35 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/functions.html" class="md-nav__link">
+      <a href="usage/lifecycle.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lifecycle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="usage/functions.html" class="md-nav__link">
         
   
   
@@ -603,7 +642,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/classes.html" class="md-nav__link">
+      <a href="usage/classes.html" class="md-nav__link">
         
   
   
@@ -631,7 +670,35 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/modules.html" class="md-nav__link">
+      <a href="usage/attributes.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attributes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="usage/modules.html" class="md-nav__link">
         
   
   
@@ -659,7 +726,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/properties.html" class="md-nav__link">
+      <a href="usage/properties.html" class="md-nav__link">
         
   
   
@@ -687,7 +754,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/async.html" class="md-nav__link">
+      <a href="usage/async.html" class="md-nav__link">
         
   
   
@@ -715,7 +782,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/advanced.html" class="md-nav__link">
+      <a href="usage/advanced.html" class="md-nav__link">
         
   
   
@@ -723,6 +790,62 @@
     
   
     Advanced
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="usage/customization.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Customization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="usage/void-helper.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    void() Helper
   
 
     
@@ -768,7 +891,7 @@
   <span class="md-ellipsis">
     
   
-    Tools
+    Audit and CI
   
 
     
@@ -784,7 +907,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Tools
+    Audit and CI
   
 
           </label>
@@ -797,7 +920,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/audit.html" class="md-nav__link">
+      <a href="audit/index.html" class="md-nav__link">
         
   
   
@@ -825,14 +948,14 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/cli.html" class="md-nav__link">
+      <a href="audit/policy.html" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    CLI
+    Audit Policy
   
 
     
@@ -853,14 +976,42 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/void-helper.html" class="md-nav__link">
+      <a href="audit/ci-integration.html" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    void() Helper
+    CI Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="audit/cli.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
   
 
     
@@ -906,7 +1057,7 @@
   <span class="md-ellipsis">
     
   
-    Configuration
+    Integrations
   
 
     
@@ -922,7 +1073,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Configuration
+    Integrations
   
 
           </label>
@@ -935,14 +1086,14 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/customization.html" class="md-nav__link">
+      <a href="integrations/testing.html" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Customization
+    Testing
   
 
     
@@ -963,14 +1114,14 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/migration.html" class="md-nav__link">
+      <a href="integrations/docs-integration.html" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Migration Guide
+    Docs Integration
   
 
     
@@ -1045,7 +1196,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/compare-python-deprecation-tools.html" class="md-nav__link">
+      <a href="adoption/compare-python-deprecation-tools.html" class="md-nav__link">
         
   
   
@@ -1073,7 +1224,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/agent-recipes.html" class="md-nav__link">
+      <a href="adoption/agent-recipes.html" class="md-nav__link">
         
   
   
@@ -1097,6 +1248,33 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="migration/index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migration Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1251,10 +1429,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
         
           
-          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
             
   
   
@@ -1272,8 +1450,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_12">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1462,20 +1640,21 @@
 
 
 <h1 id="getting-started">Getting Started<a class="headerlink" href="#getting-started" title="Permanent link">🔗</a></h1>
-<p>You renamed a function (or retired an argument) and now you need the old name to keep working, callers to see a clear deprecation notice, and a firm removal date you can enforce. pyDeprecate does all of that with a single decorator so you can focus on the new API instead of the plumbing.</p>
+<p>You renamed a function or retired an argument. You need the old name to <strong>keep working</strong>, a <strong>clear deprecation notice</strong> for callers, and a <strong>firm removal date</strong> you can enforce.</p>
+<p>pyDeprecate handles all three with a single decorator. You can focus on the new API instead of the plumbing.</p>
 <h2 id="why-pydeprecate-instead-of-warningswarn">Why pyDeprecate instead of <code>warnings.warn</code>?<a class="headerlink" href="#why-pydeprecate-instead-of-warningswarn" title="Permanent link">🔗</a></h2>
-<p><code>warnings.warn</code> tells callers that something is deprecated — but they still have to update their code manually and the old code path keeps running. pyDeprecate adds three things on top:</p>
+<p><code>warnings.warn</code> tells callers that something is deprecated — but they still have to update their code <em>manually</em> and the old code path keeps running. pyDeprecate adds three things on top:</p>
 <ul>
 <li><strong>Automatic call forwarding</strong> — every call to the old function is transparently redirected to the replacement; no stale code runs.</li>
 <li><strong>Argument mapping</strong> — rename or drop arguments across the API boundary with <code>args_mapping={"old": "new"}</code> to help callers migrate to the new signature.</li>
-<li><strong>CI deadline enforcement</strong> — <code>validate_deprecation_expiry()</code> (via <code>pip install 'pyDeprecate[audit]'</code>) returns a message for every wrapper whose removal version has been reached, and <code>pydeprecate expiry</code> exits <code>1</code> on any, so CI fails and deprecated code cannot quietly outlive its deadline.</li>
+<li><strong>CI deadline enforcement</strong> — <code>validate_deprecation_expiry()</code> returns a message for every wrapper whose removal version has been reached. Install it via <code>pip install 'pyDeprecate[audit]'</code>. On any expired wrapper, <code>pydeprecate expiry</code> exits <code>1</code>, so CI fails and deprecated code cannot quietly outlive its deadline.</li>
 </ul>
-<p>If you only need a one-line notice with no forwarding and no deadline tracking, <code>warnings.warn</code> is sufficient. Choose pyDeprecate when you need the old name to keep working while callers migrate.</p>
+<p>If you only need a one-line notice with no forwarding and no deadline tracking, <code>warnings.warn</code> is sufficient. Choose pyDeprecate when you need the old name to <strong>keep working</strong> while callers migrate.</p>
 <h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">🔗</a></h2>
 <p>pyDeprecate requires <strong>Python 3.9 or later</strong> and has zero runtime dependencies. Python 3.9 is past its upstream end of life but is still listed as supported in the package metadata.</p>
-<!-- keep this install table in sync with README.md and docs/index.md -->
+<!-- keep this install table in sync with docs/index.md -->
 
-<p>Choose the install that matches the workflow you need:</p>
+<p>Choose the install that matches the <em>workflow</em> you need:</p>
 <table>
 <thead>
 <tr>
@@ -1497,8 +1676,8 @@
 </tr>
 <tr>
 <td>Command-line audit workflows</td>
-<td><code>pip install 'pyDeprecate[audit,cli]'</code></td>
-<td>Adds <code>packaging</code> version support for <code>pydeprecate expiry</code>, <code>pydeprecate policy</code>, and <code>pydeprecate all</code>; the CLI itself needs no dependency (<code>cli</code> is an empty extra kept for compatibility)</td>
+<td><code>pip install 'pyDeprecate[audit]'</code></td>
+<td>Adds <code>packaging</code> version support for <code>pydeprecate expiry</code>, <code>pydeprecate policy</code>, and <code>pydeprecate all</code>; the CLI itself needs no dependency</td>
 </tr>
 </tbody>
 </table>
@@ -1508,14 +1687,14 @@
 <p>To install directly from source (for pre-release or development versions):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span>https://github.com/Borda/pyDeprecate/archive/main.zip
 </code></pre></div>
-<p>The <code>audit</code> extra adds <code>packaging</code> for version comparison, needed only by <a href="guide/audit.html#enforcing-removal-deadlines"><code>validate_deprecation_expiry</code></a> and <a href="guide/audit.html#enforcing-a-deprecation-policy"><code>validate_deprecation_policy</code></a>. Install it when you want to enforce removal deadlines or a deprecation policy in CI:</p>
+<p>The <code>audit</code> extra adds <code>packaging</code> for version comparison, needed only by <a href="audit/policy.html#enforcing-removal-deadlines"><code>validate_deprecation_expiry</code></a> and <a href="audit/policy.html#enforcing-a-deprecation-policy"><code>validate_deprecation_policy</code></a>. Install it when you want to enforce removal deadlines or a deprecation policy in CI:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">'pyDeprecate[audit]'</span>
 </code></pre></div>
 <p>For command-line audit workflows:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">'pyDeprecate[audit,cli]'</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">'pyDeprecate[audit]'</span>
 </code></pre></div>
 <h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">🔗</a></h2>
-<p>Here is the most common scenario: you renamed a function and need the old name to keep working during the transition. The decorator handles call forwarding automatically, so the deprecated wrapper needs no implementation.</p>
+<p>Here is the most common scenario: you renamed a function and need the old name to keep working during the transition. The decorator handles call forwarding automatically, so the deprecated wrapper needs <strong>no implementation</strong>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
@@ -1541,13 +1720,13 @@
 
 </details>
 
-<p>All calls to <code>addition()</code> are automatically forwarded to <code>compute_sum()</code> with a <code>FutureWarning</code>. The old function's body is never executed.</p>
+<p>All calls to <code>addition()</code> are automatically forwarded to <code>compute_sum()</code> with a <code>FutureWarning</code>. <u>The old function's body is never executed.</u></p>
 <div class="admonition tip">
 <p class="admonition-title">Customizing deprecation messages</p>
-<p>To customize the message template or redirect deprecation output to a logger, see <a href="guide/customization.html">Customization</a>.</p>
+<p>To customize the message template or redirect deprecation output to a logger, see <a href="usage/customization.html">Customization</a>.</p>
 </div>
 <h2 id="api-at-a-glance">API at a Glance<a class="headerlink" href="#api-at-a-glance" title="Permanent link">🔗</a></h2>
-<p>Not sure which API to reach for? This table maps common scenarios to the right tool. For worked examples of each, see <a href="guide/use-cases.html">Use Cases</a>.</p>
+<p>Not sure which API to reach for? This table maps common scenarios to the right tool. For worked examples of each, see <a href="usage/index.html">Use Cases</a>.</p>
 <p><strong>Pick the right decorator:</strong></p>
 <table>
 <thead>
@@ -1597,7 +1776,7 @@
 <tr>
 <td><code>deprecated_in</code></td>
 <td><code>""</code></td>
-<td>Version when deprecated (e.g. <code>"1.0"</code>)</td>
+<td>Version when deprecated (e.g. <code>"1.0"</code>); leaving it empty emits a decoration-time <code>UserWarning</code> unless <code>stream=None</code> or a <code>message_template</code> is set (<code>deprecated_module</code> always emits it)</td>
 </tr>
 <tr>
 <td><code>remove_in</code></td>
@@ -1642,7 +1821,7 @@
 <tr>
 <td><code>update_docstring</code></td>
 <td><code>False</code></td>
-<td>Append Sphinx <code>.. deprecated::</code> notice to docstring</td>
+<td>Insert a Sphinx or MkDocs deprecation notice into the docstring, before its first section</td>
 </tr>
 <tr>
 <td><code>docstring_style</code></td>
@@ -1651,11 +1830,20 @@
 </tr>
 </tbody>
 </table>
-<p>Prefer passing an explicit <code>target</code> (<code>TargetMode.NOTIFY</code>, <code>TargetMode.ARGS_REMAP</code>, or a callable) so the intent is visible at the call site — <code>TargetMode.AUTO</code> is only the front-door default that resolves an omitted <code>target</code>, and you never write it yourself.</p>
-<p>All three decorators (<code>@deprecated</code>, <code>deprecated_callable()</code>, <code>deprecated_class()</code>) share every parameter above. The only differences: <code>deprecated_class()</code> adds <code>attrs_mapping</code> (attribute-name remapping — <code>TypeError</code> on the other two), and a class source is dispatched to <code>deprecated_class</code> by <code>@deprecated</code> but rejected with <code>TypeError</code> by <code>deprecated_callable()</code>. <code>TargetMode.AUTO</code> is front-door-only: <code>deprecated_callable()</code> defaults <code>target</code> to <code>TargetMode.NOTIFY</code>, <code>deprecated_class()</code> leaves it unset, and both raise <code>TypeError</code> when handed <code>TargetMode.AUTO</code> explicitly.</p>
-<p><code>deprecated_instance()</code> shares <code>target</code>, <code>args_mapping</code>, <code>deprecated_in</code>, <code>remove_in</code>, <code>num_warns</code>, <code>stream</code>, <code>args_extra</code>, <code>message_template</code>, <code>skip_if</code>, and <code>as_exception</code>, and takes <code>attrs_mapping</code> like <code>deprecated_class()</code>; it requires <code>obj</code> and adds <code>name</code> (display name) and <code>read_only</code>.</p>
+<p><em>Prefer</em> passing an explicit <code>target</code> (<code>TargetMode.NOTIFY</code>, <code>TargetMode.ARGS_REMAP</code>, or a callable) so the intent is visible at the call site. <code>TargetMode.AUTO</code> is only the front-door default that resolves an omitted <code>target</code>. You never write it yourself.</p>
+<p>All three decorators (<code>@deprecated</code>, <code>deprecated_callable()</code>, <code>deprecated_class()</code>) share every parameter above; pass them by keyword on <code>deprecated_class()</code> and <code>deprecated_instance()</code>, which take only <code>target</code> or <code>obj</code> positionally. They differ as follows:</p>
+<ul>
+<li><code>deprecated_class()</code> adds <code>attrs_mapping</code> for attribute-name remapping. Passing it to the other two raises <code>TypeError</code>.</li>
+<li><code>@deprecated</code> dispatches a class source to <code>deprecated_class</code>. <code>deprecated_callable()</code> rejects a class source with <code>TypeError</code>.</li>
+<li><code>TargetMode.AUTO</code> is front-door-only. <code>deprecated_callable()</code> defaults <code>target</code> to <code>TargetMode.NOTIFY</code>, while <code>deprecated_class()</code> leaves it unset. Both raise <code>TypeError</code> when handed <code>TargetMode.AUTO</code> explicitly.</li>
+</ul>
+<p><code>deprecated_instance()</code> shares <code>target</code>, <code>args_mapping</code>, <code>deprecated_in</code>, <code>remove_in</code>, <code>num_warns</code>, <code>stream</code>, <code>args_extra</code>, <code>message_template</code>, <code>skip_if</code>, and <code>as_exception</code>. It takes <code>attrs_mapping</code> like <code>deprecated_class()</code>. It requires <code>obj</code> and adds <code>name</code> (display name) and <code>read_only</code>.</p>
 <h3 id="parameter-matrix-across-the-api">Parameter matrix across the API<a class="headerlink" href="#parameter-matrix-across-the-api" title="Permanent link">🔗</a></h3>
-<p>Every parameter each factory accepts, with its default. 🚫 marks a parameter the factory does <strong>not</strong> accept — passing it raises <code>TypeError</code>. <strong>required</strong> marks a parameter with no default.</p>
+<p>The matrix lists every parameter each factory accepts, with its default.</p>
+<ul>
+<li>🚫 marks a parameter the factory does <strong>not</strong> accept — passing it raises <code>TypeError</code>.</li>
+<li><strong>required</strong> marks a parameter with no default.</li>
+</ul>
 <table>
 <thead>
 <tr>
@@ -1798,17 +1986,39 @@
 </tr>
 </tbody>
 </table>
-<p>Notes: <code>deprecation_warning</code> is the default <code>FutureWarning</code> sink (<code>stream=None</code> silences it). <code>deprecated_module</code> is the exception: omit <code>stream</code> to warn through <code>warnings.warn</code>; an explicit <code>stream=None</code> still warns there and emits a <code>FutureWarning</code> at the call, because it silences the module warning only from v1.0. <code>name</code> is a display label for <code>deprecated_instance</code> and the module's <code>__name__</code> for <code>deprecated_module</code> (auto-detected from the caller when omitted). <code>message_template</code> is the custom-notice override on every factory; <code>template_mgs</code> is its <strong>deprecated alias</strong> (renamed in v0.12; emits a <code>FutureWarning</code>, removed in v1.0) — pass <code>message_template</code> instead. The front door <code>@deprecated</code> exposes only the parameters common to <code>deprecated_callable</code> and <code>deprecated_class</code>; the proxy-only <code>attrs_mapping</code> is 🚫 there — use <code>deprecated_class(attrs_mapping=...)</code> (or <code>deprecated_instance(obj, attrs_mapping=...)</code>) directly.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<ul>
+<li>
+<p><code>deprecation_warning</code> is the default <code>FutureWarning</code> sink (<code>stream=None</code> silences it).</p>
+</li>
+<li>
+<p><code>deprecated_module</code> is the exception: omit <code>stream</code> to warn through <code>warnings.warn</code>. An explicit <code>stream=None</code> still warns there and emits a <code>FutureWarning</code> at the call. It silences the module warning only from v1.0.</p>
+</li>
+<li>
+<p>On <code>deprecated_instance</code>, the keyword-only <code>target</code>, <code>args_mapping</code> and <code>attrs_mapping</code> are available since v0.16.</p>
+</li>
+<li>
+<p><code>name</code> is a display label for <code>deprecated_instance</code>. For <code>deprecated_module</code>, it is the module's <code>__name__</code>, auto-detected from the caller when omitted.</p>
+</li>
+<li>
+<p><code>message_template</code> is the custom-notice override on every factory. <code>template_mgs</code> is its <strong>deprecated alias</strong> (renamed in v0.12; emits a <code>FutureWarning</code>, removed in v1.0). Pass <code>message_template</code> instead.</p>
+</li>
+<li>
+<p>The front door <code>@deprecated</code> exposes only the parameters common to <code>deprecated_callable</code> and <code>deprecated_class</code>. The proxy-only <code>attrs_mapping</code> is 🚫 there. Use <code>deprecated_class(attrs_mapping=...)</code> (or <code>deprecated_instance(obj, attrs_mapping=...)</code>) directly.</p>
+</li>
+</ul>
+</div>
 <hr />
 <h2 id="enforce-and-automate">Enforce and automate<a class="headerlink" href="#enforce-and-automate" title="Permanent link">🔗</a></h2>
 <p><img alt="Deprecation lifecycle cycle: old API in blue, new API and decorator in yellow, callers migrate, pre-commit, CI and pytest flag the expired wrapper, delete it and repeat" src="assets/images/pydeprecate-lifecycle.svg" /></p>
 <ul>
-<li><strong>Fatal deprecations</strong> — <code>as_exception=True</code> (or <code>deprecate.as_exceptions()</code> / <code>DEPRECATE_AS_EXCEPTIONS=1</code>) raises <code>DeprecatedError</code> instead of warning, so a test run can refuse deprecated calls. See <a href="guide/functions.html#fatal-deprecations">Fatal deprecations</a>.</li>
-<li><strong>CLI</strong> — <code>pydeprecate check</code>, <code>expiry</code>, <code>policy</code>, <code>chains</code> and <code>all</code> audit a package from the shell with CI-friendly exit codes. See the <a href="guide/cli.html">CLI Reference</a>.</li>
-<li><strong>pre-commit and GitHub Action</strong> — run the same checks as a <a href="guide/audit.html#pre-commit-integration">pre-commit hook</a> or a <a href="guide/audit.html#github-action">GitHub Action</a> step.</li>
+<li><strong>Fatal deprecations</strong> — <code>as_exception=True</code> (or <code>deprecate.as_exceptions()</code> / <code>DEPRECATE_AS_EXCEPTIONS=1</code>) raises <code>DeprecatedError</code> instead of warning, so a test run can refuse deprecated calls. See <a href="usage/functions.html#fatal-deprecations">Fatal deprecations</a>.</li>
+<li><strong>CLI</strong> — <code>pydeprecate check</code>, <code>expiry</code>, <code>policy</code>, <code>chains</code> and <code>all</code> audit a package from the shell with CI-friendly exit codes. See the <a href="audit/cli.html">CLI Reference</a>.</li>
+<li><strong>pre-commit and GitHub Action</strong> — run the same checks as a <a href="audit/ci-integration.html#pre-commit-integration">pre-commit hook</a> or a <a href="audit/ci-integration.html#github-action">GitHub Action</a> step.</li>
 </ul>
 <hr />
-<p>Next: <a href="guide/use-cases.html">Use Cases</a> — overview of all deprecation patterns with links to each topic. See also: <a href="guide/customization.html">Customization</a> · <a href="guide/audit.html">Audit Tools</a> · <a href="troubleshooting.html">Troubleshooting</a></p>
+<p>Next: <a href="usage/index.html">Use Cases</a> — overview of all deprecation patterns with links to each topic. See also: <a href="usage/customization.html">Customization</a> · <a href="audit/index.html">Audit Tools</a> · <a href="troubleshooting.html">Troubleshooting</a></p>
 
 
 
@@ -1831,7 +2041,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 11, 2026 13:46:14 UTC">2026-11-11</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 19, 2026 14:21:25 UTC">2026-11-19</span>
   </span>
 
     

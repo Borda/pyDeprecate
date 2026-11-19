@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="assets/brand/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
     
     
       
@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-10-29",
-  "dateModified": "2026-11-15"
+  "dateModified": "2026-11-19"
 }
 </script>
 
@@ -121,6 +121,17 @@
 
 
 
+
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var moves = {"callable-target-with-attribute-redirection": "usage/attributes.html", "chained-redirect": "usage/attributes.html", "choosing-the-right-testing-tool": "integrations/testing.html", "class-type-compatibility": "usage/attributes.html", "combining-attribute-and-argument-deprecation": "usage/attributes.html", "dataclass-field-renames": "usage/attributes.html", "decorator-syntax-attribute-rename": "usage/attributes.html", "enforcing-a-deprecation-policy": "audit/policy.html", "enforcing-removal-deadlines": "audit/policy.html", "enforcing-the-policy-in-ci": "audit/ci-integration.html", "enum-deprecated-member-aliases": "usage/attributes.html", "explicit-targetmodeattrs_remap-form": "usage/attributes.html", "github-action": "audit/ci-integration.html", "mixed-redirect-and-warn-only-entries": "usage/attributes.html", "monorepo-several-packages-in-one-run": "audit/ci-integration.html", "nested-proxy-wrappers": "usage/attributes.html", "per-attribute-independent-warning-budgets": "usage/attributes.html", "pre-commit-integration": "audit/ci-integration.html", "pytest-integration": "audit/ci-integration.html", "pytest-integration-for-expiry-enforcement": "audit/policy.html", "reads-writes-and-deletes-all-redirect": "usage/attributes.html", "real-world-migration-ml-training-config": "usage/attributes.html", "scanning-a-package": "audit/policy.html", "selective-attribute-deprecation": "usage/attributes.html", "stacking-deprecated_class-for-multi-version-deprecations": "usage/attributes.html", "suppressing-warnings-in-test-fixtures": "integrations/testing.html", "testing-deprecated-code": "integrations/testing.html", "the-two-rules": "audit/policy.html", "warn-only-with-none-redirect": "usage/attributes.html"};
+    var id = decodeURIComponent(window.location.hash.slice(1));
+    if (!id || !moves[id] || document.getElementById(id)) return;
+    if (window.location.pathname.endsWith("/" + moves[id])) return;
+    window.location.replace("./" + moves[id] + "#" + id);
+  });
+</script>
 
   <link rel="alternate" type="text/markdown" href="https://borda.github.io/pyDeprecate/stable/limitations.html.md">
 <link rel="alternate" type="text/plain" title="llms.txt" href="https://borda.github.io/pyDeprecate/llms.txt">
@@ -399,7 +410,7 @@
   <span class="md-ellipsis">
     
   
-    Use Cases
+    Usage
   
 
     
@@ -415,7 +426,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Use Cases
+    Usage
   
 
           </label>
@@ -428,7 +439,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/use-cases.html" class="md-nav__link">
+      <a href="usage/index.html" class="md-nav__link">
         
   
   
@@ -456,7 +467,35 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/functions.html" class="md-nav__link">
+      <a href="usage/lifecycle.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lifecycle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="usage/functions.html" class="md-nav__link">
         
   
   
@@ -484,7 +523,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/classes.html" class="md-nav__link">
+      <a href="usage/classes.html" class="md-nav__link">
         
   
   
@@ -512,7 +551,35 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/modules.html" class="md-nav__link">
+      <a href="usage/attributes.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attributes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="usage/modules.html" class="md-nav__link">
         
   
   
@@ -540,7 +607,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/properties.html" class="md-nav__link">
+      <a href="usage/properties.html" class="md-nav__link">
         
   
   
@@ -568,7 +635,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/async.html" class="md-nav__link">
+      <a href="usage/async.html" class="md-nav__link">
         
   
   
@@ -596,7 +663,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/advanced.html" class="md-nav__link">
+      <a href="usage/advanced.html" class="md-nav__link">
         
   
   
@@ -604,6 +671,62 @@
     
   
     Advanced
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="usage/customization.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Customization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="usage/void-helper.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    void() Helper
   
 
     
@@ -649,7 +772,7 @@
   <span class="md-ellipsis">
     
   
-    Tools
+    Audit and CI
   
 
     
@@ -665,7 +788,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Tools
+    Audit and CI
   
 
           </label>
@@ -678,7 +801,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/audit.html" class="md-nav__link">
+      <a href="audit/index.html" class="md-nav__link">
         
   
   
@@ -706,14 +829,14 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/cli.html" class="md-nav__link">
+      <a href="audit/policy.html" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    CLI
+    Audit Policy
   
 
     
@@ -734,14 +857,42 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/void-helper.html" class="md-nav__link">
+      <a href="audit/ci-integration.html" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    void() Helper
+    CI Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="audit/cli.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
   
 
     
@@ -787,7 +938,7 @@
   <span class="md-ellipsis">
     
   
-    Configuration
+    Integrations
   
 
     
@@ -803,7 +954,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Configuration
+    Integrations
   
 
           </label>
@@ -816,14 +967,14 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/customization.html" class="md-nav__link">
+      <a href="integrations/testing.html" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Customization
+    Testing
   
 
     
@@ -844,14 +995,14 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/migration.html" class="md-nav__link">
+      <a href="integrations/docs-integration.html" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Migration Guide
+    Docs Integration
   
 
     
@@ -926,7 +1077,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/compare-python-deprecation-tools.html" class="md-nav__link">
+      <a href="adoption/compare-python-deprecation-tools.html" class="md-nav__link">
         
   
   
@@ -954,7 +1105,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/agent-recipes.html" class="md-nav__link">
+      <a href="adoption/agent-recipes.html" class="md-nav__link">
         
   
   
@@ -978,6 +1129,33 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="migration/index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migration Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1111,6 +1289,67 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Async and generators">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#callable-objects-with-async-def-__call__-are-not-detected-as-coroutine-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Callable objects with async def __call__ are not detected as coroutine functions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#async-and-sync-targets-are-not-interchangeable-in-both-directions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Async and sync targets are not interchangeable in both directions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-typescoroutine-generator-keeps-the-plain-wrapper" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A @types.coroutine generator keeps the plain wrapper
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-deprecated-generator-raises-its-argument-errors-on-the-first-step-not-at-the-call" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A deprecated generator raises its argument errors on the first step, not at the call
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cycle-detection-is-lazy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cycle detection is lazy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1121,6 +1360,155 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Proxies (deprecated_instance, deprecated_class)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#item-writes-never-warn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Item writes never warn
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#read_only-covers-only-the-standard-mutators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        read_only covers only the standard mutators
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-class-alias-is-not-a-type-so-except-match-and-singledispatch-reject-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A class alias is not a type, so except, match and singledispatch reject it
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-proxy-over-a-str-or-bytes-value-claims-ospathlike" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A proxy over a str or bytes value claims os.PathLike
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-proxys-protocols-are-fixed-when-it-is-created" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A proxy's protocols are fixed when it is created
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-class-proxy-cannot-be-pickled-by-reference-when-it-replaces-the-classs-own-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A class proxy cannot be pickled by reference when it replaces the class's own name
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pickled-instances-of-a-class-deprecated-in-place-load-only-while-the-deprecation-is-in-place" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pickled instances of a class deprecated in place load only while the deprecation is in place
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-class-of-a-proxy-cannot-be-pickled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The class of a proxy cannot be pickled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-replacement-object-changes-type-checks-at-once" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A replacement object changes type checks at once
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attrs_mapping-on-an-instance-covers-attributes-not-keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        attrs_mapping on an instance covers attributes, not keys
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-bool-none-or-a-module-cannot-be-a-replacement-object" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A bool, None or a module cannot be a replacement object
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#args_mapping-passes-a-renamed-value-by-keyword-when-the-called-object-hides-its-signature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        args_mapping passes a renamed value by keyword when the called object hides its signature
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cached_property-warns-at-most-once-per-instance-while-its-value-stays-cached" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cached_property warns at most once per instance while its value stays cached
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1133,6 +1521,67 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#skip_if-must-return-a-strict-bool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        skip_if must return a strict bool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-bound-target-does-not-work-for-a-classmethod-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A bound target does not work for a classmethod source
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-classmethod-target-cannot-tell-a-plain-or-static-source-from-a-classmethod" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A classmethod target cannot tell a plain or static source from a classmethod
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#an-as_exceptions-scope-reaches-a-new-thread-only-if-the-interpreter-copies-the-context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An as_exceptions() scope reaches a new thread only if the interpreter copies the context
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#an-as_exceptions-scope-held-across-a-generator-yield-applies-to-the-consumer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An as_exceptions() scope held across a generator yield applies to the consumer
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1144,6 +1593,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Static checkers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#only-a-literal-warningsdeprecated-is-visible-to-type-checkers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Only a literal warnings.deprecated is visible to type checkers
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1151,6 +1617,78 @@
     <span class="md-ellipsis">
       
         Audit tooling
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Audit tooling">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-python-static-api-shares-the-cli-static-blind-spots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Python static API shares the CLI --static blind spots
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-full-audit-imports-the-package-it-scans" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The full audit imports the package it scans
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cli-static-covers-expiry-and-policy-only-and-only-what-the-source-spells" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI --static covers expiry and policy only, and only what the source spells
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cli-scans-are-per-package-never-per-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI scans are per package, never per file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-github-actions-install-true-re-pins-pydeprecate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The GitHub Action's install: true re-pins pyDeprecate
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#missing-something-you-need" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Missing something you need?
       
     </span>
   </a>
@@ -1234,10 +1772,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
         
           
-          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
             
   
   
@@ -1255,8 +1793,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_12">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1364,6 +1902,67 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Async and generators">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#callable-objects-with-async-def-__call__-are-not-detected-as-coroutine-functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Callable objects with async def __call__ are not detected as coroutine functions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#async-and-sync-targets-are-not-interchangeable-in-both-directions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Async and sync targets are not interchangeable in both directions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-typescoroutine-generator-keeps-the-plain-wrapper" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A @types.coroutine generator keeps the plain wrapper
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-deprecated-generator-raises-its-argument-errors-on-the-first-step-not-at-the-call" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A deprecated generator raises its argument errors on the first step, not at the call
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cycle-detection-is-lazy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cycle detection is lazy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1374,6 +1973,155 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Proxies (deprecated_instance, deprecated_class)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#item-writes-never-warn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Item writes never warn
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#read_only-covers-only-the-standard-mutators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        read_only covers only the standard mutators
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-class-alias-is-not-a-type-so-except-match-and-singledispatch-reject-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A class alias is not a type, so except, match and singledispatch reject it
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-proxy-over-a-str-or-bytes-value-claims-ospathlike" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A proxy over a str or bytes value claims os.PathLike
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-proxys-protocols-are-fixed-when-it-is-created" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A proxy's protocols are fixed when it is created
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-class-proxy-cannot-be-pickled-by-reference-when-it-replaces-the-classs-own-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A class proxy cannot be pickled by reference when it replaces the class's own name
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pickled-instances-of-a-class-deprecated-in-place-load-only-while-the-deprecation-is-in-place" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pickled instances of a class deprecated in place load only while the deprecation is in place
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-class-of-a-proxy-cannot-be-pickled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The class of a proxy cannot be pickled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-replacement-object-changes-type-checks-at-once" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A replacement object changes type checks at once
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attrs_mapping-on-an-instance-covers-attributes-not-keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        attrs_mapping on an instance covers attributes, not keys
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-bool-none-or-a-module-cannot-be-a-replacement-object" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A bool, None or a module cannot be a replacement object
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#args_mapping-passes-a-renamed-value-by-keyword-when-the-called-object-hides-its-signature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        args_mapping passes a renamed value by keyword when the called object hides its signature
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cached_property-warns-at-most-once-per-instance-while-its-value-stays-cached" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cached_property warns at most once per instance while its value stays cached
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1386,6 +2134,67 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#skip_if-must-return-a-strict-bool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        skip_if must return a strict bool
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-bound-target-does-not-work-for-a-classmethod-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A bound target does not work for a classmethod source
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-classmethod-target-cannot-tell-a-plain-or-static-source-from-a-classmethod" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A classmethod target cannot tell a plain or static source from a classmethod
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#an-as_exceptions-scope-reaches-a-new-thread-only-if-the-interpreter-copies-the-context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An as_exceptions() scope reaches a new thread only if the interpreter copies the context
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#an-as_exceptions-scope-held-across-a-generator-yield-applies-to-the-consumer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An as_exceptions() scope held across a generator yield applies to the consumer
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1397,6 +2206,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Static checkers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#only-a-literal-warningsdeprecated-is-visible-to-type-checkers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Only a literal warnings.deprecated is visible to type checkers
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1404,6 +2230,78 @@
     <span class="md-ellipsis">
       
         Audit tooling
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Audit tooling">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-python-static-api-shares-the-cli-static-blind-spots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Python static API shares the CLI --static blind spots
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-full-audit-imports-the-package-it-scans" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The full audit imports the package it scans
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cli-static-covers-expiry-and-policy-only-and-only-what-the-source-spells" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI --static covers expiry and policy only, and only what the source spells
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cli-scans-are-per-package-never-per-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI scans are per package, never per file
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-github-actions-install-true-re-pins-pydeprecate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The GitHub Action's install: true re-pins pyDeprecate
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#missing-something-you-need" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Missing something you need?
       
     </span>
   </a>
@@ -1428,50 +2326,172 @@
 
 
 <h1 id="limitations-and-non-goals">Limitations and non-goals<a class="headerlink" href="#limitations-and-non-goals" title="Permanent link">🔗</a></h1>
-<p>pyDeprecate favours a small API over covering every corner of Python. This page lists the corners it deliberately does not cover, so you can recognise them before they surprise you. Each entry states the behaviour in one or two sentences and links to the section with the details and the workaround.</p>
+<p>pyDeprecate keeps its API small on purpose, and within that API it covers functions, classes, properties, modules, async code and CI audits. This page lists the corners where behaviour differs from what you might first expect, so you can plan around them instead of being surprised.</p>
+<p>Each entry states the behaviour in one or two sentences. It links to the section with the details and, in almost every case, a workaround.</p>
+<p>Do you have a real project where one of these gets in the way? These boundaries are design choices, not dead ends. <a href="https://github.com/Borda/pyDeprecate/issues">Open an issue</a> with a small example: a practical use case is exactly how they get revisited.</p>
+<div class="admonition abstract">
+<p class="admonition-title">At a glance</p>
+<ul>
+<li><strong>Async and generators:</strong> a few wrapper shapes need a thin <code>async def</code> in front, and generator errors surface on the first step. See <a href="#async-and-generators">Async and generators</a>.</li>
+<li><strong>Proxies:</strong> they follow the wrapped object's type, so finish setting the object up before you wrap it. See <a href="#proxies-deprecated_instance-deprecated_class">Proxies</a>.</li>
+<li><strong>Configuration:</strong> <code>skip_if</code> returns a strict <code>bool</code>, and scopes follow the interpreter's context rules. See <a href="#configuration">Configuration</a>.</li>
+<li><strong>Audit tooling:</strong> scans work per package, and <code>--static</code> reads only what the source spells. See <a href="#audit-tooling">Audit tooling</a>.</li>
+</ul>
+</div>
 <h2 id="async-and-generators">Async and generators<a class="headerlink" href="#async-and-generators" title="Permanent link">🔗</a></h2>
-<ul>
-<li><strong>Callable objects with <code>async def __call__</code> are not detected as coroutine functions.</strong> <code>inspect.iscoroutinefunction</code> does not look at <code>__call__</code>, and <code>@deprecated</code> rejects a plain callable instance with <code>TypeError</code>, so such an object cannot serve as an <code>async def</code> source. Define a thin <code>async def</code> that awaits the object and decorate that. See <a href="troubleshooting.html#why-cant-i-decorate-a-functoolspartial-or-callable-wrapper">functools.partial and callable wrappers</a>.</li>
-<li><strong>Async and sync targets are not interchangeable in both directions.</strong> An <code>async def</code> source may forward to a sync target, which is called directly without being awaited. A sync source whose target is a coroutine function raises <code>TypeError</code> on the first call, because a sync wrapper cannot await it. Declare the source <code>async def</code>.</li>
-<li><strong>A <code>@types.coroutine</code> generator keeps the plain wrapper.</strong> A generator-based coroutine is a generator function that <code>await</code> accepts only because its own code object carries the <code>CO_ITERABLE_COROUTINE</code> flag, which a generator wrapper lacks, so <code>@deprecated</code> gives it the plain function wrapper: the warning fires at the call rather than on the first step, and <code>inspect.isgeneratorfunction</code> reports <code>False</code> for the wrapper.</li>
-<li><strong>A deprecated generator raises its argument errors on the first step, not at the call.</strong> A native generator function called with the wrong number of arguments raises <code>TypeError</code> at once, but its deprecated wrapper accepts any arguments and only creates the generator, so that arity <code>TypeError</code> (in pyDeprecate's own wording), and a <code>Failed mapping</code> error from a forwarding target, raise on the first <code>next()</code> or <code>async for</code> step. See <a href="guide/advanced.html#deprecating-generator-functions">Deprecating generator functions</a>.</li>
-<li><strong>Cycle detection is lazy.</strong> A <code>target=</code> chain that loops back on itself is not caught at decoration time; the <code>RuntimeError</code> fires when a wrapper in the cycle is first called. For generator wrappers it fires on the first <code>next()</code> or <code>async for</code> step, because calling a generator wrapper runs nothing. The same error fires when a replacement recurses through the deprecated name while the wrapper is still on the call path (for a generator, before its first <code>yield</code>), so recurse through the replacement's own name instead. See <a href="troubleshooting.html#runtimeerror-circular-deprecation-cycle-detected">the cycle error</a>.</li>
-</ul>
+<h3 id="callable-objects-with-async-def-__call__-are-not-detected-as-coroutine-functions">Callable objects with <code>async def __call__</code> are not detected as coroutine functions<a class="headerlink" href="#callable-objects-with-async-def-__call__-are-not-detected-as-coroutine-functions" title="Permanent link">🔗</a></h3>
+<p><code>inspect.iscoroutinefunction</code> does not look at <code>__call__</code>. <code>@deprecated</code> rejects a nameless callable instance with <code>TypeError</code>. An instance that carries a <code>__name__</code> is accepted and <code>await wrapper(...)</code> works, but <code>inspect.iscoroutinefunction(wrapper)</code> is <code>False</code> and the warning fires at the call, not at the <code>await</code>.</p>
+<div class="admonition tip">
+<p class="admonition-title">Workaround</p>
+<p>Define a thin <code>async def</code> that awaits the object and decorate that. See <a href="troubleshooting.html#why-cant-i-decorate-a-functoolspartial-or-callable-wrapper">functools.partial and callable wrappers</a>.</p>
+</div>
+<h3 id="async-and-sync-targets-are-not-interchangeable-in-both-directions">Async and sync targets are not interchangeable in both directions<a class="headerlink" href="#async-and-sync-targets-are-not-interchangeable-in-both-directions" title="Permanent link">🔗</a></h3>
+<p>An <code>async def</code> source may forward to a sync target, which is called directly without being awaited. A sync source whose target is a coroutine function raises <code>TypeError</code> on the first call, because a sync wrapper cannot await it. Declare the source <code>async def</code>.</p>
+<h3 id="a-typescoroutine-generator-keeps-the-plain-wrapper">A <code>@types.coroutine</code> generator keeps the plain wrapper<a class="headerlink" href="#a-typescoroutine-generator-keeps-the-plain-wrapper" title="Permanent link">🔗</a></h3>
+<p>A generator-based coroutine is a generator function that <code>await</code> accepts only because its own code object carries the <code>CO_ITERABLE_COROUTINE</code> flag. A generator wrapper lacks that flag, so <code>@deprecated</code> gives it the plain function wrapper.</p>
+<p>The warning fires at the call rather than on the first step. <code>inspect.isgeneratorfunction</code> reports <code>False</code> for the wrapper.</p>
+<h3 id="a-deprecated-generator-raises-its-argument-errors-on-the-first-step-not-at-the-call">A deprecated generator raises its argument errors on the first step, not at the call<a class="headerlink" href="#a-deprecated-generator-raises-its-argument-errors-on-the-first-step-not-at-the-call" title="Permanent link">🔗</a></h3>
+<p>A native generator function called with the wrong number of arguments raises <code>TypeError</code> at once. Its deprecated wrapper accepts any arguments and only creates the generator.</p>
+<p>That arity <code>TypeError</code> uses pyDeprecate's own wording and raises on the first <code>next()</code> or <code>async for</code> step. A <code>Failed mapping</code> error from a forwarding target also raises at that step. See <a href="usage/advanced.html#deprecating-generator-functions">Deprecating generator functions</a>.</p>
+<p><strong>Changed in v0.15:</strong> before v0.15 generator wrappers warned at call time and were not generator functions.</p>
+<h3 id="cycle-detection-is-lazy">Cycle detection is lazy<a class="headerlink" href="#cycle-detection-is-lazy" title="Permanent link">🔗</a></h3>
+<p>A <code>target=</code> chain that loops back on itself is not caught at decoration time. The <code>RuntimeError</code> fires when a wrapper in the cycle is first called.</p>
+<p>For generator wrappers it fires on the first <code>next()</code> or <code>async for</code> step, because calling a generator wrapper runs nothing. The same error fires when a replacement recurses through the deprecated name while the wrapper is still on the call path. For a generator, this means before its first <code>yield</code>.</p>
+<p>Recurse through the replacement's own name instead. See <a href="troubleshooting.html#runtimeerror-circular-deprecation-cycle-detected">the cycle error</a>.</p>
 <h2 id="proxies-deprecated_instance-deprecated_class">Proxies (<code>deprecated_instance</code>, <code>deprecated_class</code>)<a class="headerlink" href="#proxies-deprecated_instance-deprecated_class" title="Permanent link">🔗</a></h2>
+<h3 id="item-writes-never-warn">Item writes never warn<a class="headerlink" href="#item-writes-never-warn" title="Permanent link">🔗</a></h3>
+<p><code>proxy["key"] = value</code> and <code>del proxy["key"]</code> pass through silently, like attribute writes, and they honour <code>skip_if</code>. With <code>read_only=True</code> they raise <code>AttributeError</code> unless <code>skip_if</code> is active. See <a href="usage/classes.html">deprecated_instance</a>.</p>
+<h3 id="read_only-covers-only-the-standard-mutators"><code>read_only</code> covers only the standard mutators<a class="headerlink" href="#read_only-covers-only-the-standard-mutators" title="Permanent link">🔗</a></h3>
+<div class="admonition warning">
+<p class="admonition-title">A custom mutator slips through</p>
+<p>Besides attribute and item writes and in-place operators, <code>read_only</code> blocks ten standard collection mutators: <code>append</code>, <code>clear</code>, <code>discard</code>, <code>extend</code>, <code>insert</code>, <code>pop</code>, <code>remove</code>, <code>setdefault</code>, <code>update</code> and <code>add</code>. Other built-in mutators such as <code>sort</code>, <code>reverse</code>, <code>popitem</code> and the set <code>*_update</code> methods are not blocked, and neither is a custom method such as <code>register()</code> or <code>reload()</code>.</p>
+<p>See <a href="troubleshooting.html#my-object-mutated-despite-read_onlytrue">read_only troubleshooting</a>.</p>
+</div>
+<h3 id="a-class-alias-is-not-a-type-so-except-match-and-singledispatch-reject-it">A class alias is not a type, so <code>except</code>, <code>match</code> and <code>singledispatch</code> reject it<a class="headerlink" href="#a-class-alias-is-not-a-type-so-except-match-and-singledispatch-reject-it" title="Permanent link">🔗</a></h3>
+<p><code>deprecated_class</code> replaces the class name with a proxy, and the proxy is not a type. <code>isinstance(obj, Old)</code> and <code>issubclass(Sub, Old)</code> work, as does subclassing. Three other uses of the name fail with <code>TypeError</code>, and none of them warns:</p>
 <ul>
-<li><strong>Item writes never warn.</strong> <code>proxy["key"] = value</code> and <code>del proxy["key"]</code> pass through silently, like attribute writes, and they honour <code>skip_if</code>. With <code>read_only=True</code> they raise <code>AttributeError</code> unless <code>skip_if</code> is active. See <a href="guide/classes.html">deprecated_instance</a>.</li>
-<li><strong><code>read_only</code> covers only the standard mutators.</strong> Besides writes through the proxy, it blocks the collection methods <code>append</code>, <code>clear</code>, <code>discard</code>, <code>extend</code>, <code>insert</code>, <code>pop</code>, <code>remove</code>, <code>setdefault</code>, <code>update</code> and <code>add</code>. A custom method such as <code>register()</code> or <code>reload()</code> still mutates the wrapped object. See <a href="troubleshooting.html#my-object-mutated-despite-read_onlytrue">read_only troubleshooting</a>.</li>
-<li><strong>A proxy over a <code>str</code> or <code>bytes</code> value claims <code>os.PathLike</code>.</strong> A proxy carries only the protocols the wrapped object supports, so <code>callable()</code>, <code>Iterator</code>, <code>Awaitable</code> and the other structural ABCs answer as for the object itself. The one exception is text: <code>int()</code>, <code>float()</code>, <code>complex()</code> and <code>os.fspath()</code> parse <code>str</code> and <code>bytes</code> without a dunder on the type, and the proxy keeps those conversions so a deprecated <code>"8080"</code> or path string still converts. That makes such a proxy report <code>os.PathLike</code> and <code>typing.SupportsInt</code> too. Check the type of the unwrapped object when you use one of those two checks as a guard.</li>
-<li><strong>A proxy's protocols are fixed when it is created.</strong> The proxy picks the protocols it serves (calling, iteration, <code>len()</code>, <code>in</code>, subscript, hashing, operators) from the type of the wrapped object, and of its replacement, at the moment it is constructed. A method the type gains afterwards, such as a <code>__call__</code> patched in later or a magic method set on a <code>Mock</code> after wrapping, does not reach that proxy: <code>callable(obj)</code> can be <code>True</code> while <code>callable(proxy)</code> is <code>False</code>. Up to v0.14 every proxy forwarded every protocol. Finish setting up the object before you wrap it, or wrap it again after changing its type.</li>
-<li><strong>A class proxy cannot be pickled by reference when it replaces the class's own name.</strong> When <code>deprecated_class</code> rebinds the module-level name of the decorated class, <code>pickle</code> finds the proxy where it expects the class, so pickling the class alias itself raises <code>PicklingError</code>. This covers the class object only: instances of a class deprecated in place pickle and load as instances of the original class, and neither step warns. A payload pickled before the in-place deprecation loads only while its recorded <code>module.qualname</code> still names the real class; once that name is rebound to the proxy, loading fails. Re-pickling before deprecating does not help, because a payload written while the name is still bound to the real class names that class directly; load such payloads through a <code>pickle.Unpickler.find_class</code> override that unwraps the proxy. This includes exception and <code>OrderedDict</code> subclasses, whose inherited <code>__reduce__</code> calls the class. A class that defines its own <code>__reduce_ex__</code> keeps its own pickling, so members of an Enum deprecated in place still raise <code>PicklingError</code>. <code>deprecated_instance</code> proxies pickle fine. See <a href="troubleshooting.html#does-the-deprecation-survive-copy-deepcopy-and-pickle">copy, deepcopy and pickle</a>.</li>
-<li><strong>Pickled instances of a class deprecated in place load only while the deprecation is in place.</strong> Their payload names one of pyDeprecate's rebuild helpers instead of the class, so the loading process needs pyDeprecate installed, and once the deprecation is removed the helpers refuse the plain class with <code>AttributeError</code>. The helper names stay stable across releases, so upgrading pyDeprecate is safe. To migrate stored instances, load them while the deprecation is in place, then in the migration process set the module attribute back to the real class and re-pickle; re-pickling while the proxy still holds the name writes helper-dependent payloads again. See <a href="troubleshooting.html#what-do-pickled-instances-of-a-class-deprecated-in-place-need-to-load">loading pickled instances</a>.</li>
-<li><strong>The class of a proxy cannot be pickled.</strong> <code>type(proxy)</code> is a generated subclass of <code>_DeprecatedProxy</code> that carries the proxy's protocols and borrows the base class's module and name, so <code>pickle.dumps(type(proxy))</code> raises <code>PicklingError</code>: the borrowed name resolves to a different class. pyDeprecate v0.14 pickled the proxy class by reference. Pickling the proxy itself is unaffected. To detect a proxy, check <code>isinstance(obj, DeprecationProxy)</code> rather than storing or pickling its class.</li>
-<li><strong>A replacement object changes type checks at once.</strong> With <code>deprecated_instance(old, target=new)</code>, <code>isinstance</code>, hashing and the served protocols follow <code>new</code> as soon as the deprecation ships, not at removal: a tuple constant replaced by a list is no longer hashable through the old name. Keep the replacement the same type as the old object, or a subclass. See <a href="guide/classes.html#serving-a-replacement-object">Serving a replacement object</a>.</li>
-<li><strong><code>attrs_mapping</code> on an instance covers attributes, not keys.</strong> <code>deprecated_instance(settings, attrs_mapping={"old": "new"})</code> redirects <code>settings.old</code>; a deprecated key of a dict (<code>settings["old"]</code>) cannot be renamed through the proxy.</li>
-<li><strong>A <code>bool</code>, <code>None</code> or a module cannot be a replacement object.</strong> <code>target=None</code> means no replacement; <code>target=True</code>, <code>target=False</code> and a module raise <code>TypeError</code>. To replace a <code>bool</code> constant, wrap the new value itself (<code>deprecated_instance(NEW_FLAG, name="OLD_FLAG", ...)</code>); redirect a module with <code>deprecated_module</code>.</li>
-<li><strong><code>args_mapping</code> passes a renamed value by keyword when the called object hides its signature.</strong> To place a value renamed onto a positional-only parameter positionally, <code>deprecated_instance</code> and <code>deprecated_class</code> read the signature of the object they call once, when the proxy is built. A builtin such as <code>iter</code> exposes none, and an object whose <code>__signature__</code> raises is treated the same way, so <code>deprecated_instance(iter, args_mapping={"collection": "object"})</code> passes <code>object=</code> by keyword and the call raises the builtin's own <code>TypeError</code> (<code>iter() takes no keyword arguments</code>). Building the proxy does not warn about this, because builtins such as <code>max</code> and <code>min</code> hide their signature too yet accept the renamed keyword (<code>key=</code>). Rename the arguments of such a builtin in a small Python function and wrap that function instead.</li>
-<li><strong><code>cached_property</code> warns at most once per instance.</strong> The cache is filled by the first read, so later reads of that instance never reach pyDeprecate and <code>num_warns</code> cannot raise the count. With <code>num_warns=-1</code> every instance warns on its first read; the default <code>num_warns=1</code> budget is shared by all instances, so only the first one warns. See <a href="guide/properties.html">Properties</a>.</li>
+<li><code>except Old:</code> raises <code>TypeError</code> as soon as any exception reaches the clause, hiding the original exception, and so does <code>except (Old, KeyError):</code>.</li>
+<li><code>match value: case Old():</code> raises <code>TypeError</code>.</li>
+<li><code>functools.singledispatch.register(Old)</code> calls the proxy instead of registering a type.</li>
 </ul>
+<p>This matters most when renaming an exception class. Raising or constructing the old name works and warns, but callers who catch it by that name break. What works today is to keep the old name as a real subclass of the new class and decorate its <code>__init__</code> with <code>@deprecated(target=TargetMode.NOTIFY, ...)</code>.</p>
+<p><code>except OldError:</code> and <code>except NewError:</code> then both catch an <code>OldError</code>, and creating one warns. <code>except OldError:</code> does not catch a plain <code>NewError</code>, so migrate the <code>except</code> clauses to the new name first. For <code>match</code> and <code>singledispatch</code>, switch the call sites to the new class. If you need the alias itself usable in these positions, please <a href="https://github.com/Borda/pyDeprecate/issues">open an issue</a> with your use case.</p>
+<h3 id="a-proxy-over-a-str-or-bytes-value-claims-ospathlike">A proxy over a <code>str</code> or <code>bytes</code> value claims <code>os.PathLike</code><a class="headerlink" href="#a-proxy-over-a-str-or-bytes-value-claims-ospathlike" title="Permanent link">🔗</a></h3>
+<p>A proxy carries only the protocols the wrapped object supports. <code>callable()</code>, <code>Iterator</code>, <code>Awaitable</code> and the other structural ABCs answer as for the object itself.</p>
+<p>The one exception is text: <code>int()</code>, <code>float()</code>, <code>complex()</code> and <code>os.fspath()</code> parse <code>str</code> and <code>bytes</code> without a dunder on the type. The proxy keeps those conversions so a deprecated <code>"8080"</code> or path string still converts. That makes such a proxy report <code>os.PathLike</code> and <code>typing.SupportsInt</code> too.</p>
+<p>Check the type of the unwrapped object when you use one of those two checks as a guard.</p>
+<h3 id="a-proxys-protocols-are-fixed-when-it-is-created">A proxy's protocols are fixed when it is created<a class="headerlink" href="#a-proxys-protocols-are-fixed-when-it-is-created" title="Permanent link">🔗</a></h3>
+<p>The proxy picks its protocols from the type of the wrapped object, and of its replacement, at construction. These protocols cover calling, iteration, <code>len()</code>, <code>in</code>, subscript, hashing and operators.</p>
+<p>A method the type gains afterwards does not reach that proxy. Examples include a <code>__call__</code> patched in later or a magic method set on a <code>Mock</code> after wrapping. As a result, <code>callable(obj)</code> can be <code>True</code> while <code>callable(proxy)</code> is <code>False</code>.</p>
+<p>Finish setting up the object before you wrap it, or wrap it again after changing its type.</p>
+<p><strong>Changed in v0.15:</strong> before v0.15 every proxy forwarded every protocol.</p>
+<h3 id="a-class-proxy-cannot-be-pickled-by-reference-when-it-replaces-the-classs-own-name">A class proxy cannot be pickled by reference when it replaces the class's own name<a class="headerlink" href="#a-class-proxy-cannot-be-pickled-by-reference-when-it-replaces-the-classs-own-name" title="Permanent link">🔗</a></h3>
+<p>When <code>deprecated_class</code> rebinds the decorated class's module-level name, <code>pickle</code> finds the proxy where it expects the class. Pickling the class alias itself therefore raises <code>PicklingError</code>.</p>
+<p>This covers the class object only. Instances of a class deprecated in place pickle and load as instances of the original class, and neither step warns. <code>deprecated_instance</code> proxies pickle fine. See <a href="troubleshooting.html#does-the-deprecation-survive-copy-deepcopy-and-pickle">copy, deepcopy and pickle</a>.</p>
+<details class="info">
+<summary>Older payloads and the <code>find_class</code> workaround</summary>
+<p>A payload pickled before the in-place deprecation loads only while its recorded <code>module.qualname</code> still names the real class. Once that name is rebound to the proxy, loading fails.</p>
+<p>Re-pickling before deprecating does not help. A payload written while the name is still bound to the real class names that class directly. Load such payloads through a <code>pickle.Unpickler.find_class</code> override that unwraps the proxy.</p>
+<p>This includes exception and <code>OrderedDict</code> subclasses, whose inherited <code>__reduce__</code> calls the class. A class that defines its own <code>__reduce_ex__</code> keeps its own pickling. Members of an Enum deprecated in place therefore still raise <code>PicklingError</code>.</p>
+</details>
+<h3 id="pickled-instances-of-a-class-deprecated-in-place-load-only-while-the-deprecation-is-in-place">Pickled instances of a class deprecated in place load only while the deprecation is in place<a class="headerlink" href="#pickled-instances-of-a-class-deprecated-in-place-load-only-while-the-deprecation-is-in-place" title="Permanent link">🔗</a></h3>
+<p>Their payload names one of pyDeprecate's rebuild helpers instead of the class, so the loading process needs pyDeprecate installed. Once the deprecation is removed, the helpers refuse the plain class with <code>AttributeError</code>.</p>
+<div class="admonition tip">
+<p class="admonition-title">Migrate stored instances first</p>
+<p>The helper names stay stable across releases, so upgrading pyDeprecate is safe. To migrate stored instances:</p>
+<ol>
+<li>Load them while the deprecation is in place.</li>
+<li>In the migration process, set the module attribute back to the real class.</li>
+<li>Re-pickle the instances.</li>
+</ol>
+<p>Re-pickling while the proxy still holds the name writes helper-dependent payloads again. See <a href="troubleshooting.html#what-do-pickled-instances-of-a-class-deprecated-in-place-need-to-load">loading pickled instances</a>.</p>
+</div>
+<h3 id="the-class-of-a-proxy-cannot-be-pickled">The class of a proxy cannot be pickled<a class="headerlink" href="#the-class-of-a-proxy-cannot-be-pickled" title="Permanent link">🔗</a></h3>
+<p><code>type(proxy)</code> is a generated subclass of <code>_DeprecatedProxy</code> that carries the proxy's protocols and borrows the base class's module and name. <code>pickle.dumps(type(proxy))</code> raises <code>PicklingError</code> because the borrowed name resolves to a different class.</p>
+<p>Pickling the proxy itself is unaffected. To detect a proxy, check <code>isinstance(obj, DeprecationProxy)</code> rather than storing or pickling its class.</p>
+<p><strong>Changed in v0.15:</strong> before v0.15, pyDeprecate pickled the proxy class by reference.</p>
+<h3 id="a-replacement-object-changes-type-checks-at-once">A replacement object changes type checks at once<a class="headerlink" href="#a-replacement-object-changes-type-checks-at-once" title="Permanent link">🔗</a></h3>
+<p>With <code>deprecated_instance(old, target=new)</code>, <code>isinstance</code>, hashing and the served protocols follow <code>new</code> as soon as the deprecation ships, not at removal. A tuple constant replaced by a list is no longer hashable through the old name.</p>
+<p>Keep the replacement the same type as the old object, or a subclass. See <a href="usage/classes.html#serving-a-replacement-object">Serving a replacement object</a>.</p>
+<h3 id="attrs_mapping-on-an-instance-covers-attributes-not-keys"><code>attrs_mapping</code> on an instance covers attributes, not keys<a class="headerlink" href="#attrs_mapping-on-an-instance-covers-attributes-not-keys" title="Permanent link">🔗</a></h3>
+<p><code>deprecated_instance(settings, attrs_mapping={"old": "new"})</code> redirects <code>settings.old</code>; a deprecated key of a dict (<code>settings["old"]</code>) cannot be renamed through the proxy.</p>
+<h3 id="a-bool-none-or-a-module-cannot-be-a-replacement-object">A <code>bool</code>, <code>None</code> or a module cannot be a replacement object<a class="headerlink" href="#a-bool-none-or-a-module-cannot-be-a-replacement-object" title="Permanent link">🔗</a></h3>
+<p><code>target=None</code> means no replacement; <code>target=True</code>, <code>target=False</code> and a module raise <code>TypeError</code>. To replace a <code>bool</code> constant, wrap the new value itself (<code>deprecated_instance(NEW_FLAG, name="OLD_FLAG", ...)</code>); redirect a module with <code>deprecated_module</code>.</p>
+<p>A proxied scalar warns only on data-use operations such as <code>int(flag)</code> or <code>value + 1</code>. Truth tests (<code>if OLD_FLAG:</code>), <code>==</code>, <code>str()</code> and f-strings stay silent, and <code>OLD_FLAG is True</code> is <code>False</code>. A flag read through <code>if</code> therefore never warns; if that is your main use, please <a href="https://github.com/Borda/pyDeprecate/issues">open an issue</a> with your case.</p>
+<h3 id="args_mapping-passes-a-renamed-value-by-keyword-when-the-called-object-hides-its-signature"><code>args_mapping</code> passes a renamed value by keyword when the called object hides its signature<a class="headerlink" href="#args_mapping-passes-a-renamed-value-by-keyword-when-the-called-object-hides-its-signature" title="Permanent link">🔗</a></h3>
+<p>To place a renamed value onto a positional-only parameter positionally, <code>deprecated_instance</code> and <code>deprecated_class</code> read the called object's signature once, when building the proxy.</p>
+<p>A builtin such as <code>iter</code> exposes none. An object whose <code>__signature__</code> raises is treated the same way. Consequently, <code>deprecated_instance(iter, args_mapping={"collection": "object"})</code> passes <code>object=</code> by keyword and the call raises the builtin's own <code>TypeError</code> (<code>iter() takes no keyword arguments</code>).</p>
+<p>Building the proxy does not warn about this. Builtins such as <code>max</code> and <code>min</code> hide their signature too, yet accept the renamed keyword (<code>key=</code>).</p>
+<div class="admonition tip">
+<p class="admonition-title">Workaround</p>
+<p>Rename the arguments of such a builtin in a small Python function and wrap that function instead.</p>
+</div>
+<h3 id="cached_property-warns-at-most-once-per-instance-while-its-value-stays-cached"><code>cached_property</code> warns at most once per instance while its value stays cached<a class="headerlink" href="#cached_property-warns-at-most-once-per-instance-while-its-value-stays-cached" title="Permanent link">🔗</a></h3>
+<p>The cache is filled by the first read, so later reads of that instance never reach pyDeprecate and <code>num_warns</code> cannot raise the count. Deleting the cached attribute makes the next read call the getter again, which warns again when the budget allows. With <code>num_warns=-1</code> every instance warns on its first read; the default <code>num_warns=1</code> budget is shared by all instances, so only the first one warns. See <a href="usage/properties.html">Properties</a>.</p>
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">🔗</a></h2>
-<ul>
-<li><strong><code>skip_if</code> must return a strict <code>bool</code>.</strong> A truthy <code>int</code> or a string raises <code>TypeError</code>; wrap the result in <code>bool(...)</code>. See <a href="troubleshooting.html#typeerror-skip_if-function-must-return-bool">the <code>skip_if</code> error</a>.</li>
-<li><strong>A bound target does not work for a classmethod source.</strong> A bound target such as <code>target=YourClass.method</code> works only for a source that is not a classmethod; for a genuine classmethod source it fails, because the bound target has no receiver parameter and the source's receiver argument is rejected. Inside the class body pass the raw descriptor (<code>target=method</code>) instead. See <a href="guide/advanced.html#class-methods-and-static-methods">Class methods and static methods</a>.</li>
-<li><strong>A classmethod target cannot tell a plain or static source from a classmethod.</strong> A static source written <code>@deprecated(...)</code> above <code>@staticmethod</code> is rejected at decoration, but a plain function, or a static source written <code>@staticmethod</code> above <code>@deprecated(...)</code>, looks like a classmethod source. Its first argument, or that parameter's default when the call leaves it out, is forwarded as the replacement's class: a value that is not a class raises <code>TypeError</code> before any warning, but a class passed there or given as the default is forwarded as the receiver. Make the source a <code>@classmethod</code>, or give a static source a bound target such as <code>target=YourClass.method</code>. See <a href="guide/advanced.html#class-methods-and-static-methods">Class methods and static methods</a>.</li>
-<li><strong>An <code>as_exceptions()</code> scope reaches a new thread only if the interpreter copies the context.</strong> The scope is local to the current thread and <code>asyncio</code> task, and tasks created inside it inherit it. Whether a thread started inside the block inherits it depends on the interpreter, so run the thread's target through <code>contextvars.copy_context().run(...)</code> when it must. Inside a scope <code>deprecate.AS_EXCEPTIONS</code> still reports the global value, so do not read it to detect a scope.</li>
-<li><strong>An <code>as_exceptions()</code> scope held across a generator <code>yield</code> applies to the consumer.</strong> A generator or async generator runs in its consumer's context, so while it is suspended inside <code>with as_exceptions():</code> the consumer's own code is fatal too, and if the generator is closed from another task (<code>aclose()</code> elsewhere, garbage collection) the scope stays open in the consumer's context. Open and close the scope within one step of the generator. See <a href="guide/functions.html#the-global-switch">The global switch</a>.</li>
-</ul>
+<h3 id="skip_if-must-return-a-strict-bool"><code>skip_if</code> must return a strict <code>bool</code><a class="headerlink" href="#skip_if-must-return-a-strict-bool" title="Permanent link">🔗</a></h3>
+<p>A truthy <code>int</code> or a string raises <code>TypeError</code>; wrap the result in <code>bool(...)</code>. See <a href="troubleshooting.html#typeerror-skip_if-function-must-return-bool">the <code>skip_if</code> error</a>.</p>
+<h3 id="a-bound-target-does-not-work-for-a-classmethod-source">A bound target does not work for a classmethod source<a class="headerlink" href="#a-bound-target-does-not-work-for-a-classmethod-source" title="Permanent link">🔗</a></h3>
+<p>A bound target such as <code>target=YourClass.method</code> works only for a source that is not a classmethod. For a genuine classmethod source it fails: the bound target has no receiver parameter, so the source's receiver argument is rejected.</p>
+<p>Inside the class body pass the raw descriptor (<code>target=method</code>) instead. See <a href="usage/advanced.html#class-methods-and-static-methods">Class methods and static methods</a>.</p>
+<h3 id="a-classmethod-target-cannot-tell-a-plain-or-static-source-from-a-classmethod">A classmethod target cannot tell a plain or static source from a classmethod<a class="headerlink" href="#a-classmethod-target-cannot-tell-a-plain-or-static-source-from-a-classmethod" title="Permanent link">🔗</a></h3>
+<p>A static source written <code>@deprecated(...)</code> above <code>@staticmethod</code> is rejected at decoration. A plain function, or a static source written <code>@staticmethod</code> above <code>@deprecated(...)</code>, looks like a classmethod source.</p>
+<p>Its first argument is forwarded as the replacement's class. When the call leaves that argument out, the parameter's default is forwarded instead. A value that is not a class raises <code>TypeError</code> before any warning.</p>
+<p>A class passed there or given as the default is forwarded as the receiver. Make the source a <code>@classmethod</code>, or give a static source a bound target such as <code>target=YourClass.method</code>. See <a href="usage/advanced.html#class-methods-and-static-methods">Class methods and static methods</a>.</p>
+<h3 id="an-as_exceptions-scope-reaches-a-new-thread-only-if-the-interpreter-copies-the-context">An <code>as_exceptions()</code> scope reaches a new thread only if the interpreter copies the context<a class="headerlink" href="#an-as_exceptions-scope-reaches-a-new-thread-only-if-the-interpreter-copies-the-context" title="Permanent link">🔗</a></h3>
+<p>The scope is local to the current thread and <code>asyncio</code> task, and tasks created inside it inherit it.</p>
+<p>Whether a thread started inside the block inherits it depends on the interpreter; <a href="usage/functions.html#the-global-switch">The global switch</a> lists which threads and executors do. Run the thread's target through <code>contextvars.copy_context().run(...)</code> when it must inherit the scope. Inside a scope <code>deprecate.AS_EXCEPTIONS</code> still reports the global value, so do not read it to detect a scope.</p>
+<h3 id="an-as_exceptions-scope-held-across-a-generator-yield-applies-to-the-consumer">An <code>as_exceptions()</code> scope held across a generator <code>yield</code> applies to the consumer<a class="headerlink" href="#an-as_exceptions-scope-held-across-a-generator-yield-applies-to-the-consumer" title="Permanent link">🔗</a></h3>
+<p>A generator or async generator runs in its consumer's context. While it is suspended inside <code>with as_exceptions():</code>, the consumer's own code is fatal too.</p>
+<div class="admonition warning">
+<p class="admonition-title">Open and close the scope within one step</p>
+<p>If the generator is closed from another task (<code>aclose()</code> elsewhere, garbage collection), the scope stays open in the consumer's context. See <a href="usage/functions.html#the-global-switch">The global switch</a>.</p>
+</div>
 <h2 id="static-checkers">Static checkers<a class="headerlink" href="#static-checkers" title="Permanent link">🔗</a></h2>
-<ul>
-<li><strong>Only a literal <code>warnings.deprecated</code> is visible to type checkers.</strong> PEP 702 tools recognise the decorator by name, so deprecations that pyDeprecate applies at runtime are invisible to mypy, pyright and IDEs. Stack a literal <code>warnings.deprecated</code> (or <code>typing_extensions.deprecated</code>) on top as shown in <a href="guide/functions.html#static-type-checkers-pep-702">Static type checkers (PEP 702)</a>; for classes see <a href="guide/classes.html#pep-702-static-checkers">PEP 702 static checkers</a>.</li>
-</ul>
+<h3 id="only-a-literal-warningsdeprecated-is-visible-to-type-checkers">Only a literal <code>warnings.deprecated</code> is visible to type checkers<a class="headerlink" href="#only-a-literal-warningsdeprecated-is-visible-to-type-checkers" title="Permanent link">🔗</a></h3>
+<p>PEP 702 tools recognise the decorator by name, so deprecations that pyDeprecate applies at runtime are invisible to mypy, pyright and IDEs.</p>
+<p>Stack a literal <code>warnings.deprecated</code> (or <code>typing_extensions.deprecated</code>) on top as shown in <a href="usage/functions.html#static-type-checkers-pep-702">Static type checkers (PEP 702)</a>. For classes see <a href="usage/classes.html#pep-702-static-checkers">PEP 702 static checkers</a>.</p>
 <h2 id="audit-tooling">Audit tooling<a class="headerlink" href="#audit-tooling" title="Permanent link">🔗</a></h2>
+<h3 id="the-python-static-api-shares-the-cli-static-blind-spots">The Python static API shares the CLI <code>--static</code> blind spots<a class="headerlink" href="#the-python-static-api-shares-the-cli-static-blind-spots" title="Permanent link">🔗</a></h3>
+<p><code>find_deprecation_wrappers_static()</code> (since v0.16) returns a <code>StaticScanResult</code>. Read <code>.gaps</code> for recognized unresolved settings and unaudited source, even when <code>.wrappers</code> is empty.</p>
+<p>Dynamic forms such as wrappers built in loops or through <code>getattr</code>, <code>importlib</code> or <code>exec</code> can remain invisible without a gap. Empty <code>.gaps</code> therefore does not prove complete coverage. Rows are approximations with stand-in targets that raise <code>TypeError</code> when called.</p>
+<p>See <a href="audit/index.html#scanning-from-python-without-importing">scanning from Python without importing</a> and <a href="audit/cli.html#static-mode">CLI static mode</a>.</p>
+<h3 id="the-full-audit-imports-the-package-it-scans">The full audit imports the package it scans<a class="headerlink" href="#the-full-audit-imports-the-package-it-scans" title="Permanent link">🔗</a></h3>
+<p>The full audit imports the package, so its <u>module-level code runs</u> and its runtime dependencies must be installed in the scanning environment. The import-mode remote pre-commit hooks therefore only suit packages without such dependencies; use a <code>repo: local</code> hook otherwise.</p>
+<p>See <a href="audit/index.html">Audit Tools</a> and <a href="audit/cli.html">the CLI reference</a>.</p>
+<h3 id="cli-static-covers-expiry-and-policy-only-and-only-what-the-source-spells">CLI <code>--static</code> covers <code>expiry</code> and <code>policy</code> only, and only what the source spells<a class="headerlink" href="#cli-static-covers-expiry-and-policy-only-and-only-what-the-source-spells" title="Permanent link">🔗</a></h3>
+<p><code>pydeprecate expiry --static</code> and <code>policy --static</code> read the source with <code>ast</code>. <code>check</code>, <code>chains</code>, <code>all</code> and <code>status</code> need the imported wrappers, so they have no static mode.</p>
+<p>The following settings are reported as a <code>not statically resolvable</code> gap rather than checked:</p>
 <ul>
-<li><strong>The Python static API shares the CLI <code>--static</code> blind spots.</strong> <code>find_deprecation_wrappers_static()</code> (since 0.16) returns a <code>StaticScanResult</code>: read <code>.gaps</code> for recognized unresolved settings and unaudited source, even when <code>.wrappers</code> is empty. Dynamic forms such as wrappers built in loops or through <code>getattr</code>, <code>importlib</code> or <code>exec</code> can remain invisible without a gap, so empty <code>.gaps</code> does not prove complete coverage. Rows are approximations with stand-in targets that raise <code>TypeError</code> when called. See <a href="guide/audit.html#scanning-from-python-without-importing">scanning from Python without importing</a> and <a href="guide/cli.html#static-mode">CLI static mode</a>.</li>
-<li><strong>The full audit imports the package it scans.</strong> Its module-level code runs and its runtime dependencies must be installed in the scanning environment, so the import-mode remote pre-commit hooks only suit packages without such dependencies; use a <code>repo: local</code> hook otherwise. See <a href="guide/audit.html">Audit Tools</a> and <a href="guide/cli.html">the CLI reference</a>.</li>
-<li><strong>CLI <code>--static</code> covers <code>expiry</code> and <code>policy</code> only, and only what the source spells.</strong> <code>pydeprecate expiry --static</code> and <code>policy --static</code> read the source with <code>ast</code>, so <code>check</code>, <code>chains</code>, <code>all</code> and <code>status</code>, which need the imported wrappers, have no static mode. A setting computed at runtime, held in a name bound more than once, or splatted from anything but a module-level dict literal is reported as a <code>not statically resolvable</code> gap rather than checked, and a gap does not fail the run. Static mode cannot see wrappers built in loops or through <code>getattr</code>, <code>importlib</code> or <code>exec</code>, a proxy built from the private <code>_DeprecatedProxy</code> directly, or a deprecated object or configured decorator imported from outside the scanned package, and it reads a <code>target</code> imported from outside the package as a replacement even when it holds <code>None</code> or a <code>TargetMode</code> member; members inherited from a base class outside it are a gap. Its <code>--report-json</code> table names a replacement by its source text. See <a href="guide/cli.html#static-mode">Static mode</a>.</li>
-<li><strong>CLI scans are per package, never per file.</strong> A single <code>.py</code> path is rejected with <code>File paths are not supported</code>, and a directory holding two or more top-level packages is rejected as well, so "scan only the files changed in this commit" is not available. Pass the package directory or an importable name. See <a href="guide/cli.html#path-formats">Path formats</a>.</li>
-<li><strong>The GitHub Action's <code>install: true</code> re-pins pyDeprecate.</strong> The default installs pyDeprecate from the action's own ref into the job's Python, replacing the version your job already had. Set <code>install: false</code> when your project pins its own version. See <a href="guide/audit.html#github-action">GitHub Action</a>.</li>
+<li>A setting computed at runtime is a gap.</li>
+<li>A setting held in a name bound more than once is a gap.</li>
+<li>A setting splatted from anything but a module-level dict literal is a gap.</li>
 </ul>
+<p>A gap does not fail the run unless <code>--strict</code> is enabled; strict mode exits with status <code>1</code> for a recorded gap. Static mode cannot see:</p>
+<ul>
+<li>It cannot resolve wrappers built in loops, in <code>if</code> blocks or through <code>getattr</code>, <code>importlib</code> or <code>exec</code>; a loop or branch use of <code>deprecated</code> prints an <code>unrecognized use</code> gap. A computed <code>globals()</code> or <code>setattr(sys.modules[...])</code> write leaves every wrapper of that module unresolved.</li>
+<li>It cannot see a proxy built from the private <code>_DeprecatedProxy</code> directly.</li>
+<li>It cannot see a deprecated object or configured decorator imported from outside the scanned package.</li>
+</ul>
+<p>It reads a <code>target</code> imported from outside the package as a replacement, even when it holds <code>None</code> or a <code>TargetMode</code> member. Members inherited from a base class outside the package are a gap. Its <code>--report-json</code> table names a replacement by its source text.</p>
+<p>See <a href="audit/cli.html#static-mode">Static mode</a>.</p>
+<h3 id="cli-scans-are-per-package-never-per-file">CLI scans are per package, never per file<a class="headerlink" href="#cli-scans-are-per-package-never-per-file" title="Permanent link">🔗</a></h3>
+<p>A single <code>.py</code> path is rejected with <code>File paths are not supported</code>. A directory holding two or more top-level packages is rejected as well.</p>
+<p>Therefore, "scan only the files changed in this commit" is not available. Pass the package directory or an importable name. See <a href="audit/cli.html#path-formats">Path formats</a>.</p>
+<h3 id="the-github-actions-install-true-re-pins-pydeprecate">The GitHub Action's <code>install: true</code> re-pins pyDeprecate<a class="headerlink" href="#the-github-actions-install-true-re-pins-pydeprecate" title="Permanent link">🔗</a></h3>
+<p>The default installs pyDeprecate from the action's own ref into the job's Python, replacing the version your job already had.</p>
+<div class="admonition tip">
+<p class="admonition-title">Keep your own pin</p>
+<p>Set <code>install: false</code> when your project pins its own version. See <a href="audit/ci-integration.html#github-action">GitHub Action</a>.</p>
+</div>
+<h2 id="missing-something-you-need">Missing something you need?<a class="headerlink" href="#missing-something-you-need" title="Permanent link">🔗</a></h2>
+<p>If one of the boundaries above blocks a practical use case, we would like to hear about it. Open an issue on <a href="https://github.com/Borda/pyDeprecate/issues">GitHub Issues</a> and include:</p>
+<ul>
+<li>the code you are deprecating and what you expect callers to see</li>
+<li>the decorator or proxy call you tried</li>
+<li>your Python and pyDeprecate versions (<code>pip show pyDeprecate</code>)</li>
+</ul>
+<p>We are happy to discuss the case, and to integrate a change when it fits the design.</p>
 
 
 
@@ -1494,7 +2514,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 15, 2026 13:44:58 UTC">2026-11-15</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 19, 2026 14:21:25 UTC">2026-11-19</span>
   </span>
 
     

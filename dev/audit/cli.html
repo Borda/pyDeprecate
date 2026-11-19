@@ -1,0 +1,3792 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Command-line interface reference for pyDeprecate: scan deprecated wrappers, enforce removal deadlines, lint deprecations against a governance policy, detect chains, and run all checks in one pass.">
+      
+      
+      
+        <link rel="canonical" href="https://borda.github.io/pyDeprecate/stable/audit/cli.html">
+      
+      
+        <link rel="prev" href="ci-integration.html">
+      
+      
+        <link rel="next" href="../integrations/testing.html">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/brand/favicon.svg">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>CLI - pyDeprecate — Python Deprecation Library</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+
+
+<link rel="apple-touch-icon" href="https://borda.github.io/pyDeprecate/dev/assets/brand/apple-touch-icon.png" />
+
+
+<!-- Open Graph meta tags -->
+<meta property="og:type" content="article" />
+<meta property="og:title" content="CLI — pyDeprecate" />
+<meta property="og:description" content="Command-line interface reference for pyDeprecate: scan deprecated wrappers, enforce removal deadlines, lint deprecations against a governance policy, detect chains, and run all checks in one pass." />
+<meta property="og:url" content="https://borda.github.io/pyDeprecate/stable/audit/cli.html" />
+<meta property="og:site_name" content="pyDeprecate — Python Deprecation Library" />
+<meta property="og:image" content="https://borda.github.io/pyDeprecate/dev/assets/brand/social-preview.png" />
+<meta property="og:image:alt" content="pyDeprecate — seamless API migration" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:locale" content="en_US" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="CLI — pyDeprecate" />
+<meta name="twitter:description" content="Command-line interface reference for pyDeprecate: scan deprecated wrappers, enforce removal deadlines, lint deprecations against a governance policy, detect chains, and run all checks in one pass." />
+<meta name="twitter:image" content="https://borda.github.io/pyDeprecate/dev/assets/brand/social-preview.png" />
+<meta name="twitter:image:alt" content="pyDeprecate documentation" />
+
+<!-- JSON-LD structured data -->
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "CLI",
+  "description": "Command-line interface reference for pyDeprecate: scan deprecated wrappers, enforce removal deadlines, lint deprecations against a governance policy, detect chains, and run all checks in one pass.",
+  "url": "https://borda.github.io/pyDeprecate/stable/audit/cli.html",
+  "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/audit/cli.html" },
+  "image": "https://borda.github.io/pyDeprecate/dev/assets/brand/social-preview.png",
+  "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda", "image": "https://avatars.githubusercontent.com/u/6035284", "sameAs": ["https://github.com/Borda", "https://www.linkedin.com/in/jiraborovec", "https://orcid.org/0000-0001-7246-8758"] },
+  "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
+  "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
+  "datePublished": "2026-11-19",
+  "dateModified": "2026-11-19"
+}
+</script>
+
+
+<!-- BreadcrumbList: non-homepage, non-demo content pages -->
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://borda.github.io/pyDeprecate/"},
+    {"@type": "ListItem", "position": 2, "name": "CLI", "item": "https://borda.github.io/pyDeprecate/stable/audit/cli.html"}
+  ]
+}
+</script>
+
+
+
+
+
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var moves = {"callable-target-with-attribute-redirection": "usage/attributes.html", "chained-redirect": "usage/attributes.html", "choosing-the-right-testing-tool": "integrations/testing.html", "class-type-compatibility": "usage/attributes.html", "combining-attribute-and-argument-deprecation": "usage/attributes.html", "dataclass-field-renames": "usage/attributes.html", "decorator-syntax-attribute-rename": "usage/attributes.html", "enforcing-a-deprecation-policy": "audit/policy.html", "enforcing-removal-deadlines": "audit/policy.html", "enforcing-the-policy-in-ci": "audit/ci-integration.html", "enum-deprecated-member-aliases": "usage/attributes.html", "explicit-targetmodeattrs_remap-form": "usage/attributes.html", "github-action": "audit/ci-integration.html", "mixed-redirect-and-warn-only-entries": "usage/attributes.html", "monorepo-several-packages-in-one-run": "audit/ci-integration.html", "nested-proxy-wrappers": "usage/attributes.html", "per-attribute-independent-warning-budgets": "usage/attributes.html", "pre-commit-integration": "audit/ci-integration.html", "pytest-integration": "audit/ci-integration.html", "pytest-integration-for-expiry-enforcement": "audit/policy.html", "reads-writes-and-deletes-all-redirect": "usage/attributes.html", "real-world-migration-ml-training-config": "usage/attributes.html", "scanning-a-package": "audit/policy.html", "selective-attribute-deprecation": "usage/attributes.html", "stacking-deprecated_class-for-multi-version-deprecations": "usage/attributes.html", "suppressing-warnings-in-test-fixtures": "integrations/testing.html", "testing-deprecated-code": "integrations/testing.html", "the-two-rules": "audit/policy.html", "warn-only-with-none-redirect": "usage/attributes.html"};
+    var id = decodeURIComponent(window.location.hash.slice(1));
+    if (!id || !moves[id] || document.getElementById(id)) return;
+    if (window.location.pathname.endsWith("/" + moves[id])) return;
+    window.location.replace("../" + moves[id] + "#" + id);
+  });
+</script>
+
+  <link rel="alternate" type="text/markdown" href="https://borda.github.io/pyDeprecate/stable/audit/cli.html.md">
+<link rel="alternate" type="text/plain" title="llms.txt" href="https://borda.github.io/pyDeprecate/llms.txt">
+</head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cli-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../index.html" title="pyDeprecate — Python Deprecation Library" class="md-header__button md-logo" aria-label="pyDeprecate — Python Deprecation Library" data-md-component="logo">
+      
+  <img src="../assets/brand/mark.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            pyDeprecate — Python Deprecation Library
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              CLI
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Borda/pyDeprecate" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Borda/pyDeprecate
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../index.html" title="pyDeprecate — Python Deprecation Library" class="md-nav__button md-logo" aria-label="pyDeprecate — Python Deprecation Library" data-md-component="logo">
+      
+  <img src="../assets/brand/mark.svg" alt="logo">
+
+    </a>
+    pyDeprecate — Python Deprecation Library
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Borda/pyDeprecate" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    Borda/pyDeprecate
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Usage
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Usage
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/lifecycle.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lifecycle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/functions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Functions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/classes.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Classes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/attributes.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attributes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/modules.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/properties.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Properties
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/async.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Async
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/advanced.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/customization.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Customization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/void-helper.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    void() Helper
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit and CI
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Audit and CI
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="policy.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit Policy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="ci-integration.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="cli.html" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#subcommands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Subcommands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flags
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Flags">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#several-paths-in-one-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Several paths in one run
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Several paths in one run">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#path-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Path validation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#duplicate-and-covered-paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Duplicate and covered paths
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scan-settings-and-workers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scan settings and workers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#audit-gaps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit gaps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#json-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JSON report
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sarif-for-code-scanning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SARIF for code scanning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#policy-rule-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Policy rule flags
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#project-configuration-in-pyprojecttoml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Project configuration in pyproject.toml
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Project configuration in pyproject.toml">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configuration-lookup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration lookup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#version-auto-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version auto-detection
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#accepting-known-findings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Accepting known findings
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Accepting known findings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ignore-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ignore patterns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#baselines-and-suppression" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Baselines and suppression
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#static-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Static mode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Static mode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#readable-settings-and-forms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Readable settings and forms
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#unsettled-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unsettled settings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#static-version-resolution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Static version resolution
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#locations-and-blind-spots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Locations and blind spots
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exit-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit codes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Exit codes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#usage-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Usage errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scan-and-internal-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scan and internal errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ci-recipes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CI recipes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#path-formats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Path formats
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#python-module-invocation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python module invocation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Integrations
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Integrations
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../integrations/testing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../integrations/docs-integration.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adoption
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Adoption
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adoption/compare-python-deprecation-tools.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compare Python Deprecation Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adoption/agent-recipes.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Recipes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migration/index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migration Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-reference.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../troubleshooting.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../limitations.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Limitations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../brand.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Brand
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../changelog.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
+        
+          
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demos
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Demos
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../demo-sphinx/index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sphinx
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../demo-mkdocs/index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MkDocs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#subcommands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Subcommands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flags
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Flags">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#several-paths-in-one-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Several paths in one run
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Several paths in one run">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#path-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Path validation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#duplicate-and-covered-paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Duplicate and covered paths
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scan-settings-and-workers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scan settings and workers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#audit-gaps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit gaps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#json-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JSON report
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sarif-for-code-scanning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SARIF for code scanning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#policy-rule-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Policy rule flags
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#project-configuration-in-pyprojecttoml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Project configuration in pyproject.toml
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Project configuration in pyproject.toml">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configuration-lookup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration lookup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#version-auto-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version auto-detection
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#accepting-known-findings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Accepting known findings
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Accepting known findings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ignore-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ignore patterns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#baselines-and-suppression" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Baselines and suppression
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#static-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Static mode
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Static mode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#readable-settings-and-forms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Readable settings and forms
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#unsettled-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unsettled settings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#static-version-resolution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Static version resolution
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#locations-and-blind-spots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Locations and blind spots
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exit-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit codes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Exit codes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#usage-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Usage errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scan-and-internal-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scan and internal errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ci-recipes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CI recipes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#path-formats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Path formats
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#python-module-invocation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python module invocation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="cli-reference">CLI Reference<a class="headerlink" href="#cli-reference" title="Permanent link">🔗</a></h1>
+<p>The <code>pydeprecate</code> CLI runs all four <a href="index.html">audit checks</a> directly from the command line, without writing a Python script. These checks cover wrapper configuration, expiry enforcement, policy linting, and chain detection.</p>
+<h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">🔗</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">'pyDeprecate[audit]'</span>
+</code></pre></div>
+<p><strong>Start with <code>[audit]</code></strong> unless you are certain you will never use <code>expiry</code>, <code>policy</code>, or <code>all</code>. The <code>[audit]</code> extra pulls in <code>packaging</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>When it needs <code>packaging</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>expiry</code></td>
+<td>It always requires <code>packaging</code>.</td>
+</tr>
+<tr>
+<td><code>policy</code>, including the policy phase of <code>all</code></td>
+<td>It needs <code>packaging</code> only when a wrapper's <code>deprecated_in</code>/<code>remove_in</code> is actually compared against a version. A policy scan with no version fields set never imports it.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">🔗</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>src/mypackage<span class="w">   </span><span class="c1"># run all checks + deprecation table in one pass</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pydeprecate<span class="w"> </span>check<span class="w"> </span>path/to/your/package<span class="w">   </span><span class="c1"># validate wrapper config</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>pydeprecate<span class="w"> </span>check<span class="w"> </span>mypackage.submodule<span class="w">    </span><span class="c1"># importable module name also accepted</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>pydeprecate<span class="w"> </span>policy<span class="w"> </span>src/mypackage<span class="w">         </span><span class="c1"># gate on your deprecation-governance rules</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>--gate<span class="o">=</span>policy<span class="w"> </span>src/pkg_a<span class="w"> </span>src/pkg_b<span class="w">   </span><span class="c1"># several packages, policy gated too, one scan each (since v0.16)</span>
+</code></pre></div>
+<p><strong>Quick demo</strong> using pyDeprecate's own test fixtures (no package setup needed):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Run all checks + deprecation table on the bundled test fixtures</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>tests<span class="w"> </span>--version<span class="w"> </span><span class="m">1</span>.2
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># Standalone deprecation status table only</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>pydeprecate<span class="w"> </span>status<span class="w"> </span>tests<span class="w"> </span>--version<span class="w"> </span><span class="m">1</span>.2
+</code></pre></div>
+<p><code>tests/</code> contains pyDeprecate's own deprecation fixtures. Every subcommand scans a path the same way. It accepts a package directory, a plain directory of top-level modules, or an importable module name; see <a href="#path-formats">Path formats</a>.</p>
+<h2 id="subcommands">Subcommands<a class="headerlink" href="#subcommands" title="Permanent link">🔗</a></h2>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:6"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><input id="__tabbed_1_4" name="__tabbed_1" type="radio" /><input id="__tabbed_1_5" name="__tabbed_1" type="radio" /><input id="__tabbed_1_6" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">check</label><label for="__tabbed_1_2">expiry</label><label for="__tabbed_1_3">policy</label><label for="__tabbed_1_4">chains</label><label for="__tabbed_1_5">all</label><label for="__tabbed_1_6">status</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<p>This subcommand validates wrapper configuration: invalid <code>args_mapping</code> keys, identity mappings, no-effect wrappers, and deprecated-to-deprecated chains. It is backed by <a href="index.html#validating-wrapper-configuration"><code>find_deprecation_wrappers()</code></a>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pydeprecate<span class="w"> </span>check<span class="w"> </span>path/to/your/package
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pydeprecate<span class="w"> </span>check<span class="w"> </span>mypackage.submodule
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Finding</th>
+<th>Exit code</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Invalid argument mappings</td>
+<td>The command exits 1.</td>
+</tr>
+<tr>
+<td>Misconfigured targets</td>
+<td>The command exits 1 for <code>target=False</code>, <code>TargetMode.NOTIFY</code> with an ignored <code>args_mapping</code>, <code>attrs_mapping</code> or <code>args_extra</code>, or <code>TargetMode.ARGS_REMAP</code> without an <code>args_mapping</code>, or <code>deprecated_class(target=TargetMode.ATTRS_REMAP)</code> without an <code>attrs_mapping</code>.</td>
+</tr>
+<tr>
+<td>Inner-order <code>@property @deprecated</code> wrappers</td>
+<td>The command exits 1; only the getter warns, leaving the setter and deleter unprotected.</td>
+</tr>
+<tr>
+<td>Chains, identity mappings, no-effect wrappers and positional-only mappings</td>
+<td>These are reported as warnings; the command exits 0.</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Chains in <code>all</code></p>
+<p><code>check</code> treats chains as advisory warnings (exit 0). <code>all</code> treats chains as hard errors (exit 1), because <code>all</code> ≡ <code>check + expiry + policy + chains</code>. The <code>chains</code> check exits 1 on any chain found.</p>
+<p><code>policy</code> remains advisory inside <code>all</code> unless you pass <code>--gate=policy</code>.</p>
+</div>
+</div>
+<div class="tabbed-block">
+<p>This subcommand checks whether any deprecated wrappers have passed their <code>remove_in</code> deadline using <a href="policy.html#enforcing-removal-deadlines"><code>validate_deprecation_expiry()</code></a>. It requires the <code>[audit]</code> extra.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># explicit version</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>pydeprecate<span class="w"> </span>expiry<span class="w"> </span>path/to/your/package<span class="w"> </span>--version<span class="w"> </span><span class="m">2</span>.0.0
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># auto-detect version (pyproject.toml, installed metadata, then package __version__)</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>pydeprecate<span class="w"> </span>expiry<span class="w"> </span>path/to/your/package
+</code></pre></div>
+<p>The command exits 1 if any wrapper is past its removal deadline. Use <code>--exit-zero</code> to suppress exit 1 when expired wrappers are found.</p>
+<p><strong>Missing <code>packaging</code> skips expiry.</strong> If <code>packaging</code> is not installed, the check is skipped with a warning. It exits 0, or exit 1 under strict mode.</p>
+</div>
+<div class="tabbed-block">
+<p>This subcommand checks whether each deprecation was <em>scheduled</em> responsibly, using <a href="policy.html#enforcing-a-deprecation-policy"><code>validate_deprecation_policy()</code></a>. Every violation message is prefixed with the slug of the rule it broke. <code>policy</code> never needs a package version, so it takes no <code>--version</code> flag.</p>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Default</th>
+<th>Dependency</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>min-grace</code></td>
+<td>The rule is on.</td>
+<td>It requires the <code>[audit]</code> extra.</td>
+</tr>
+<tr>
+<td><code>message-required</code></td>
+<td>The rule is on.</td>
+<td>It works without the extra.</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># default policy: three-minor grace window on a clean release boundary, guidance required</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>pydeprecate<span class="w"> </span>policy<span class="w"> </span>path/to/your/package
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># tune the window to your own release convention — here: removals only at a major</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>pydeprecate<span class="w"> </span>policy<span class="w"> </span>path/to/your/package<span class="w"> </span>--min-grace<span class="o">=</span><span class="m">1</span>.0
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="c1"># switch individual rules off</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>pydeprecate<span class="w"> </span>policy<span class="w"> </span>path/to/your/package<span class="w"> </span>--min-grace<span class="o">=</span>None<span class="w"> </span>--message-required<span class="o">=</span>False
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Outcome</th>
+<th>Exit code</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Any enabled rule finds a violation</td>
+<td>The command exits 1.</td>
+</tr>
+<tr>
+<td><code>--min-grace</code> is malformed</td>
+<td>The command exits 2.</td>
+</tr>
+<tr>
+<td>The nearest <code>pyproject.toml</code> cannot be read or parsed</td>
+<td>The command exits 2 and prints <code>Cannot read &lt;path&gt;: &lt;err&gt;</code>.</td>
+</tr>
+<tr>
+<td>The scan is clean, or <code>--exit-zero</code> is passed</td>
+<td>The command exits 0.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Missing <code>packaging</code> skips only <code>min-grace</code>.</strong> If <code>packaging</code> is not installed, <code>min-grace</code> is skipped with a warning. <code>message-required</code> still runs and can return exit 1.</p>
+<div class="admonition note">
+<p class="admonition-title">Advisory policy in <code>all</code></p>
+<p>The policy defaults encode <em>a</em> project convention: a three-minor grace window on a clean release boundary. Not every repository shares that convention, so <code>pydeprecate all</code> runs this check in <strong>advisory</strong> mode by default. Violations are printed but never change <code>all</code>'s exit code.</p>
+<p>Inside <code>all</code>, the violation table renders as <code>[WARNING]</code> (yellow). Its trailer notes "advisory here — run <code>pydeprecate policy</code> to gate on it".</p>
+<p>To gate CI on the policy, pass <code>--gate=policy</code> to <code>all</code> (since v0.16), or set <code>gate = ["policy"]</code> in <code>[tool.pydeprecate]</code>. Violations then render as <code>[ERROR]</code> without the trailer and fail the run, from the same single scan. The dedicated <code>pydeprecate policy</code> subcommand gates on them too.</p>
+<p>A config-read failure is the one exception to "advisory". An unreadable or malformed <code>pyproject.toml</code> still exits <code>2</code> inside <code>all</code> too, before the chains check ever runs; see below.</p>
+</div>
+</div>
+<div class="tabbed-block">
+<p>This subcommand detects two kinds of chains using <a href="index.html#detecting-deprecation-chains"><code>validate_deprecation_chains()</code></a>:</p>
+<ul>
+<li><code>ChainType.TARGET</code> identifies wrappers whose <code>target</code> is itself a deprecated callable.</li>
+<li><code>ChainType.STACKED</code> identifies stacked argument mappings that should be collapsed.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pydeprecate<span class="w"> </span>chains<span class="w"> </span>path/to/your/package
+</code></pre></div>
+<p>The command exits 1 if any chains are found.</p>
+</div>
+<div class="tabbed-block">
+<p>This subcommand runs all four checks in a single scan pass, then appends a compact markdown deprecation table:</p>
+<ul>
+<li><a href="index.html#validating-wrapper-configuration"><code>find_deprecation_wrappers()</code></a> validates wrapper configuration.</li>
+<li><a href="policy.html#enforcing-removal-deadlines"><code>validate_deprecation_expiry()</code></a> enforces removal deadlines.</li>
+<li><a href="policy.html#enforcing-a-deprecation-policy"><code>validate_deprecation_policy()</code></a> checks policy.</li>
+<li><a href="index.html#detecting-deprecation-chains"><code>validate_deprecation_chains()</code></a> detects chains.</li>
+</ul>
+<p><strong>Missing <code>packaging</code> leaves some checks running.</strong> If <code>packaging</code> is not installed, expiry and policy's <code>min-grace</code> rule are skipped with a warning. <code>message-required</code> still runs, and the other checks continue.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># explicit version</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>path/to/your/package<span class="w"> </span>--version<span class="w"> </span><span class="m">2</span>.0.0
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># auto-detect version</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>path/to/your/package
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1"># also save the appended table</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>path/to/your/package<span class="w"> </span>--output<span class="w"> </span>DEPRECATIONS.md
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="c1"># also gate on the policy, from the same scan (since v0.16)</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>path/to/your/package<span class="w"> </span>--gate<span class="o">=</span>policy
+</code></pre></div>
+<p>The command exits 1 if any hard error is found. Hard errors include invalid argument mappings, misconfigured targets, inner-order properties, deprecated-to-deprecated chains, or expired wrappers. The deprecation table is always appended regardless of pass/fail outcome.</p>
+<p><strong>Policy violations are advisory here by default</strong>, because the defaults encode a project convention that not every repository shares. They render as <code>[WARNING]</code> with a trailer noting the check is advisory and naming <code>pydeprecate policy</code> as the gate. They never contribute to the exit code.</p>
+<p><code>--gate=policy</code> (since v0.16) makes them errors that fail <code>all</code> exactly as <code>pydeprecate policy</code> would. <code>--gate</code> takes a comma-separated list of <code>check</code>, <code>expiry</code>, <code>policy</code> and <code>chains</code>, and only adds checks. <code>check</code>, <code>expiry</code> and <code>chains</code> always gate, so today only <code>policy</code> changes anything.</p>
+<div class="admonition note">
+<p class="admonition-title">Configuration failures</p>
+<p>Advisory treatment covers violation <em>counts</em> only. A policy <strong>configuration</strong> failure still exits <code>2</code>, printing <code>Cannot read &lt;path&gt;: &lt;err&gt;</code>, before the chains check ever runs. This includes an unreadable or unparsable nearest <code>pyproject.toml</code>, or a malformed <code>[tool.pydeprecate.policy]</code> value.</p>
+<table>
+<thead>
+<tr>
+<th>Dependency state</th>
+<th>Behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>packaging</code> is missing</td>
+<td>Expiry is skipped and policy skips <code>min-grace</code>, but its packaging-free <code>message-required</code> rule still runs. Without <code>--gate=policy</code>, that rule is advisory, so neither affects <code>all</code>'s exit <code>1</code>. With <code>--gate=policy</code>, a <code>message-required</code> violation still exits <code>1</code> unless <code>--exit-zero</code> applies.</td>
+</tr>
+<tr>
+<td><code>packaging</code> is missing and explicit <code>--version</code> is malformed</td>
+<td>The malformed version is also advisory.</td>
+</tr>
+<tr>
+<td><code>packaging</code> is available</td>
+<td>An invalid explicit <code>--version</code> exits <code>2</code>.</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="tabbed-block">
+<p>This subcommand generates and prints a markdown deprecation table to stdout. It runs no checks and exits <code>0</code> on success; an invalid <code>--style</code> or <code>--version</code> exits <code>2</code>. Use this when you only want to render the deprecation status table without running any validation.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pydeprecate<span class="w"> </span>status<span class="w"> </span>path/to/your/package
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>pydeprecate<span class="w"> </span>status<span class="w"> </span>path/to/your/package<span class="w"> </span>--style<span class="w"> </span>matrix
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>pydeprecate<span class="w"> </span>status<span class="w"> </span>path/to/your/package<span class="w"> </span>--version<span class="w"> </span><span class="m">2</span>.0.0<span class="w"> </span>--output<span class="w"> </span>DEPRECATIONS.md
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Style</th>
+<th>Layout</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--style compact</code> (default)</td>
+<td>It renders one row per symbol with a status column.</td>
+</tr>
+<tr>
+<td><code>--style matrix</code></td>
+<td>It renders one column per release with <code>D</code>, <code>R</code> and <code>D/R</code> lifecycle markers. <code>D/R</code> means deprecated and removed in the same release.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Equivalent release spellings.</strong> With the <code>audit</code> extra installed, spellings of one release such as <code>1.0</code>, <code>v1.0</code> and <code>1.0.0</code> share a column. Without <code>packaging</code>, only spellings that differ by the <code>v</code> prefix merge.</p>
+<p><code>--output FILE</code> writes the table to a file in addition to printing it to stdout.</p>
+</div>
+</div>
+</div>
+<h2 id="flags">Flags<a class="headerlink" href="#flags" title="Permanent link">🔗</a></h2>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th style="text-align: center;"><code>check</code></th>
+<th style="text-align: center;"><code>expiry</code></th>
+<th style="text-align: center;"><code>policy</code></th>
+<th style="text-align: center;"><code>chains</code></th>
+<th style="text-align: center;"><code>all</code></th>
+<th style="text-align: center;"><code>status</code></th>
+<th>Effect</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--version VERSION</code></td>
+<td>auto-detected</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td>Package version for deadline comparison, applied to every path. Auto-detected per path if omitted (see below).</td>
+<td><code>policy</code> compares <code>deprecated_in</code> to <code>remove_in</code> only, so it takes no version.</td>
+</tr>
+<tr>
+<td><code>--gate CHECKS</code></td>
+<td><code>pyproject.toml</code></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;"></td>
+<td>Checks <code>all</code> gates on beyond <code>check</code>, <code>expiry</code> and <code>chains</code>, comma-separated: <code>--gate=policy</code> makes policy violations errors that fail the run.</td>
+<td>Since v0.16. Default is <code>gate</code> of <code>[tool.pydeprecate]</code>, else none; <code>--gate=</code> switches the file's list off. Unknown check → exit <code>2</code>.</td>
+</tr>
+<tr>
+<td><code>--no-recursive</code></td>
+<td>off</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td>Scan top-level module only; skip submodules.</td>
+<td>Also spelled <code>--recursive=false</code>.</td>
+</tr>
+<tr>
+<td><code>--no-include-members</code></td>
+<td>off</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td>Leave deprecated class members (methods, constructors, descriptors) out of the scan; only module-level wrappers are checked.</td>
+<td>Members are scanned by default, as by every audit function (<code>include_members=True</code>). Also spelled <code>--include-members=false</code>.</td>
+</tr>
+<tr>
+<td><code>--exit-zero</code></td>
+<td>off</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;"></td>
+<td>Exit <code>0</code> instead of <code>1</code> when hard errors are found — useful for advisory CI steps; usage errors (<code>2</code>) and scan or internal errors (<code>3</code>) still fail.</td>
+<td></td>
+</tr>
+<tr>
+<td><code>--strict</code></td>
+<td><code>pyproject.toml</code></td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;"></td>
+<td>Exit <code>1</code> when any part of the audit did not run, even with no finding. This means any <code>pydeprecate gap:</code> line, such as an unimportable module or an unresolved version.</td>
+<td>Since v0.16. The default is <code>strict</code> of <code>[tool.pydeprecate]</code>, else off; <code>--no-strict</code> switches it off for one run. A typed <code>--strict</code> together with <code>--exit-zero</code> → exit <code>2</code>. A typed <code>--exit-zero</code> overrides a <code>strict = true</code> that only <code>pyproject.toml</code> sets; one stderr note states the run is not strict.</td>
+</tr>
+<tr>
+<td><code>--ignore PATTERNS</code></td>
+<td><code>pyproject.toml</code></td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;"></td>
+<td>Accept known findings without fixing them: entries <code>module:symbol</code> (every rule) or <code>rule:module:symbol</code> (one rule, or <code>*</code>), each part an <code>fnmatch</code> glob; comma-separated and repeatable. Suppressed findings are not printed, counted or gated on.</td>
+<td>Since v0.16. Default is <code>ignore</code> of <code>[tool.pydeprecate]</code>, else nothing; <code>--ignore=</code> switches the file's list off. Malformed entry → exit <code>2</code>.</td>
+</tr>
+<tr>
+<td><code>--baseline FILE</code></td>
+<td><code>pyproject.toml</code></td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;"></td>
+<td>Accept every finding listed in an earlier <code>--report-json</code> file (since pyDeprecate v0.16), matched by finding id.</td>
+<td>Since v0.16. Default is <code>baseline</code> of <code>[tool.pydeprecate]</code>, relative to that file; <code>--baseline=</code> switches it off. A file that is missing or unreadable, or is not a report with a <code>findings</code> list → exit <code>2</code>.</td>
+</tr>
+<tr>
+<td><code>--exclude</code></td>
+<td><code>pyproject.toml</code></td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td>Glob patterns over full dotted module names to leave out of the scan; the scan itself never imports a matching package nor descends into it. One pattern, or comma-separated.</td>
+<td>Default is the <code>exclude</code> list of <code>[tool.pydeprecate]</code> (see below), else nothing. Quote the value — an unquoted <code>*</code> is expanded by the shell first. Malformed → exit <code>2</code>.</td>
+</tr>
+<tr>
+<td><code>--style</code></td>
+<td><code>compact</code></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;">✓</td>
+<td>Table rendering style — <code>compact</code> (default) or <code>matrix</code>.</td>
+<td></td>
+</tr>
+<tr>
+<td><code>--output FILE</code></td>
+<td>stdout only</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td>Also save the markdown table to a file. Table is always printed to stdout regardless.</td>
+<td>For <code>all</code>, a failure to write the file is reported but never changes the exit code.</td>
+</tr>
+<tr>
+<td><code>--report-json FILE</code></td>
+<td>off</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td>Write the run's machine-readable record for CI tooling: the deprecation table of this run's scan, every gap and every finding (see below).</td>
+<td>Written on exit <code>0</code> or <code>1</code> only; a write failure is reported on stderr and never changes the exit code.</td>
+</tr>
+<tr>
+<td><code>--report-sarif FILE</code></td>
+<td>off</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;"></td>
+<td>Write the run's active findings as a SARIF 2.1.0 file for code-scanning tools (see below).</td>
+<td>Since v0.16. Written on exit <code>0</code> or <code>1</code> only; a write failure is reported on stderr and never changes the exit code.</td>
+</tr>
+<tr>
+<td><code>--static</code></td>
+<td>off</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;">✓</td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td style="text-align: center;"></td>
+<td>Read the package's source with <code>ast</code> instead of importing it, for an environment without its runtime dependencies (see <a href="#static-mode">Static mode</a>).</td>
+<td>Nothing from the package is imported or run. A wrapper the source alone does not settle is a <code>not statically resolvable</code> gap, not a finding.</td>
+</tr>
+</tbody>
+</table>
+<p>A bare <code>pydeprecate policy src/mypackage</code> runs a recursive scan and exits <code>1</code> on violations. It applies both default-on rules below: <code>--min-grace=0.3</code> and <code>--message-required=True</code>. The project's <code>pyproject.toml</code> can override these defaults; see <a href="#project-configuration-in-pyprojecttoml">Project configuration in <code>pyproject.toml</code></a>.</p>
+<p>Flags and the path may come in any order. <code>pydeprecate check --exit-zero src/mypackage</code> scans <code>src/mypackage</code>, using the order a <a href="ci-integration.html#pre-commit-integration">pre-commit hook</a> produces from its <code>args</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Syntax</th>
+<th>Behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Boolean flags</td>
+<td>They accept <code>true</code>, <code>false</code>, <code>1</code> or <code>0</code>, case-insensitively, as <code>--flag value</code> or <code>--flag=value</code>.</td>
+</tr>
+<tr>
+<td>Negated booleans</td>
+<td>Use <code>--no-flag</code>, as in <code>--no-recursive</code>. The older <code>--noflag</code> spelling (<code>--norecursive</code>) still works but is not listed in <code>--help</code>.</td>
+</tr>
+<tr>
+<td>Option names</td>
+<td>Every option may use dashes or underscores (<code>--exit-zero</code>, <code>--exit_zero</code>), but never abbreviations.</td>
+</tr>
+<tr>
+<td>Option values</td>
+<td>Values stay strings, so <code>--version 0.10</code> and <code>--min-grace=0.10</code> keep their trailing zero.</td>
+</tr>
+<tr>
+<td>Positional arguments</td>
+<td>Every positional argument is a path; see <a href="#several-paths-in-one-run">Several paths in one run</a>.</td>
+</tr>
+<tr>
+<td>Invalid syntax</td>
+<td>A short flag such as <code>-r src/mypackage</code>, or a boolean value other than <code>true</code>/<code>false</code>/<code>1</code>/<code>0</code>, exits <code>2</code>. The command does not scan something you did not name.</td>
+</tr>
+<tr>
+<td>Subcommand help</td>
+<td><code>pydeprecate &lt;subcommand&gt; --help</code> lists the options of each subcommand.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="several-paths-in-one-run">Several paths in one run<a class="headerlink" href="#several-paths-in-one-run" title="Permanent link">🔗</a></h3>
+<p>Since v0.16 every subcommand takes several paths — <code>pydeprecate all src/pkg_a src/pkg_b</code> — and audits them in one run with one exit code:</p>
+<ol>
+<li>Every path is checked <em>before</em> anything is imported.</li>
+<li>Duplicate and recursively covered paths are combined when their settings and versions allow it.</li>
+<li>The retained paths are scanned one after another, each with its own import root, settings, and auto-detected version.</li>
+<li>The console prints one scan header per path, then each check's findings of all paths in one section. For <code>all</code> and <code>status</code>, it then prints one table per path under a <code>### &lt;package&gt;</code> heading.</li>
+<li>One exit code covers all paths. Each path is judged with its own strict mode and <code>--gate</code> list; the run fails when any path fails.</li>
+</ol>
+<h4 id="path-validation">Path validation<a class="headerlink" href="#path-validation" title="Permanent link">🔗</a></h4>
+<p>The following conditions exit <code>2</code> with nothing scanned:</p>
+<ul>
+<li>A path is a file or a directory of several packages.</li>
+<li>A name is neither an existing path nor a findable module.</li>
+<li>Any path's <code>pyproject.toml</code> contains a malformed setting.</li>
+<li>Two paths import as the same top-level name from different places. The diagnostic is <code>&lt;a&gt; and &lt;b&gt; both import as &lt;name&gt;; scan them in separate runs</code>.</li>
+</ul>
+<p>A plain directory takes part in import-name checks with the bare name of each top-level file it scans. A file its <code>exclude</code> leaves out takes no part.</p>
+<p><strong>Missing submodules are found later.</strong> Validation looks up <em>only</em> the top-level package without importing it. A missing submodule of an importable package (<code>pkg.nosuch</code>) therefore exits <code>2</code> when its path is scanned, after the paths before it. No report is written.</p>
+<h4 id="duplicate-and-covered-paths">Duplicate and covered paths<a class="headerlink" href="#duplicate-and-covered-paths" title="Permanent link">🔗</a></h4>
+<table>
+<thead>
+<tr>
+<th>Paths</th>
+<th>Scan behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The same path is given twice</td>
+<td>It is scanned once, with one stderr note.</td>
+</tr>
+<tr>
+<td>A package and a subpackage its recursive scan imports</td>
+<td>They are scanned once, with one stderr note. Every directory between them must hold an <code>__init__.py</code>, and the package's <code>exclude</code> must not leave the subpackage out.</td>
+</tr>
+<tr>
+<td>Any other subpackage</td>
+<td>It keeps its own scan.</td>
+</tr>
+<tr>
+<td>A covered path finds a different <code>[tool.pydeprecate]</code> file</td>
+<td>It exits <code>2</code>, since those settings would be dropped. Scan it in a separate run.</td>
+</tr>
+<tr>
+<td>A covered path finds its own version during auto-detection</td>
+<td>It exits <code>2</code>, since that version would be dropped. Scan it in a separate run.</td>
+</tr>
+<tr>
+<td>A covered path finds neither its own settings nor version</td>
+<td>It takes the covering path's settings and version. For example, <code>src/pkg/sub</code> has only a repository-root <code>pyproject.toml</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>Version auto-detection applies to <code>expiry</code>, <code>all</code> and <code>status</code> without <code>--version</code>. A covered path's own version can come from a nearer <code>pyproject.toml</code> with a <code>[project]</code> table. For a dotted module name such as <code>pkg.component</code>, it can come from an installed <code>pkg-component</code> distribution.</p>
+<h4 id="scan-settings-and-workers">Scan settings and workers<a class="headerlink" href="#scan-settings-and-workers" title="Permanent link">🔗</a></h4>
+<p>Each path takes its <code>[tool.pydeprecate]</code> settings from the <code>pyproject.toml</code> nearest to that path. These settings are <code>exclude</code>, <code>strict</code>, <code>ignore</code>, <code>baseline</code>, <code>gate</code> and the policy rules.</p>
+<table>
+<thead>
+<tr>
+<th>Retained paths and mode</th>
+<th>Execution</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>More than one path, import mode</td>
+<td>Each scan runs in a fresh Python worker process. A shared dependency can therefore initialize once in each worker. Live parent-process monkeypatches, custom import finders and <code>sys.modules</code> state are not inherited.</td>
+</tr>
+<tr>
+<td>One path, import mode</td>
+<td>The scan runs in the calling process.</td>
+</tr>
+<tr>
+<td><code>--static</code></td>
+<td>The scan reads source without importing it or starting these workers.</td>
+</tr>
+</tbody>
+</table>
+<p>A typed <code>--version</code> applies to every path, and the run says so before the first scan header. Flags apply to every path.</p>
+<p><strong>Run-wide exit handling.</strong> <code>--exit-zero</code> applies to the whole run. It conflicts with a typed <code>--strict</code>, but overrides strict mode configured in any path’s <code>pyproject.toml</code>.</p>
+<p>The report holds every path in <code>paths</code>, <code>versions</code>, and each finding's and gap's <code>path</code>. The SARIF file lists them in <code>run.properties.paths</code> and gives each result its <code>path</code>.</p>
+<div class="admonition info">
+<p class="admonition-title">Legacy positional versions</p>
+<p>With exactly two positionals, <code>expiry</code>, <code>all</code> and <code>status</code> can still read the second one as the version. It must name no existing path or findable module and parse as a version, as in <code>pydeprecate expiry src/mypackage 2.0</code>.</p>
+<p>This form is <strong>deprecated</strong> and stops working in v1.0. The run prints a notice on stderr asking for <code>--version</code> instead.</p>
+<p>A second positional that is not a version is a second path. A mistyped one is therefore reported as <code>No such path or importable module</code>.</p>
+<p>Operands after a <code>--</code> separator are <em>always</em> paths. <code>pydeprecate expiry -- src/mypackage 2.0</code> scans <code>2.0</code> as a second path instead of reading it as the version. Pass <code>--version 2.0</code> there.</p>
+</div>
+<h4 id="audit-gaps">Audit gaps<a class="headerlink" href="#audit-gaps" title="Permanent link">🔗</a></h4>
+<div class="admonition warning">
+<p class="admonition-title">Passing runs can have gaps</p>
+<p>A run can pass without auditing everything. A gap leaves the exit code alone unless strict mode is on; see <a href="#exit-codes">Exit codes</a>.</p>
+</div>
+<p>Each gap is reported as one unwrapped stderr line starting with <code>pydeprecate gap: &lt;kind&gt;:</code>. These lines stay visible in a CI log.</p>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>Meaning or reporting detail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>module not audited</code></td>
+<td>One line is printed per submodule that failed to import, whatever warnings filters the audited package installs. One additional <code>&lt;package&gt;.*</code> line appears when a recursive walk stopped early and left remaining submodules unaudited.</td>
+</tr>
+<tr>
+<td><code>version not resolved</code></td>
+<td>The version was not resolved.</td>
+</tr>
+<tr>
+<td><code>version not PEP 440</code></td>
+<td>The version is not PEP 440.</td>
+</tr>
+<tr>
+<td><code>remove_in not PEP 440</code></td>
+<td>A wrapper's own <code>remove_in</code> is not a valid PEP 440 version. Its removal deadline (<code>expiry</code>) or grace window (<code>policy</code>'s <code>min-grace</code>) was skipped. One line is printed per wrapper; <code>all</code> names each wrapper once.</td>
+</tr>
+<tr>
+<td><code>deprecated_in not PEP 440</code></td>
+<td>A wrapper's own <code>deprecated_in</code> is not a valid PEP 440 version, so <code>policy</code>'s <code>min-grace</code> skipped its grace window. One line is printed per wrapper.</td>
+</tr>
+<tr>
+<td><code>epoch change</code></td>
+<td>A forward change of PEP 440 epoch makes the <code>min-grace</code> window unmeasurable. One line is printed per wrapper.</td>
+</tr>
+<tr>
+<td><code>packaging missing</code></td>
+<td><code>packaging</code> is missing.</td>
+</tr>
+<tr>
+<td><code>nested files not audited</code></td>
+<td>Nested files were not audited.</td>
+</tr>
+<tr>
+<td><code>other copy audited</code></td>
+<td>The scanned package's import name was already taken by a copy from another directory, so that copy was audited. It may be the CLI's own <code>deprecate</code>, or an editable install of another checkout. Run the scan in the checkout's own environment.</td>
+</tr>
+<tr>
+<td><code>not statically resolvable</code></td>
+<td>A <code>--static</code> run could not read a wrapper, or a setting one of its rules needs, from the source alone. See <a href="#static-mode">Static mode</a>.</td>
+</tr>
+</tbody>
+</table>
+<h4 id="json-report">JSON report<a class="headerlink" href="#json-report" title="Permanent link">🔗</a></h4>
+<p>For tooling, <code>--report-json FILE</code> records the same run as JSON — every subcommand takes it. The file has layout version (<code>schema</code>) 1; since v0.16 it also holds one record per finding:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="p">{</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">"schema"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="nt">"tool"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pyDeprecate"</span><span class="p">,</span><span class="w"> </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"0.16.0"</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span><span class="nt">"command"</span><span class="p">:</span><span class="w"> </span><span class="s2">"expiry"</span><span class="p">,</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">  </span><span class="nt">"mode"</span><span class="p">:</span><span class="w"> </span><span class="s2">"import"</span><span class="p">,</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">  </span><span class="nt">"paths"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"src/mypackage"</span><span class="p">],</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">  </span><span class="nt">"versions"</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="w"> </span><span class="nt">"path"</span><span class="p">:</span><span class="w"> </span><span class="s2">"src/mypackage"</span><span class="p">,</span><span class="w"> </span><span class="nt">"package"</span><span class="p">:</span><span class="w"> </span><span class="s2">"mypackage"</span><span class="p">,</span><span class="w"> </span><span class="nt">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2.0"</span><span class="p">,</span><span class="w"> </span><span class="nt">"source"</span><span class="p">:</span><span class="w"> </span><span class="s2">"user-provided"</span><span class="w"> </span><span class="p">}],</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">  </span><span class="nt">"options"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"strict"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="nt">"exit_zero"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="nt">"gates"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"expiry"</span><span class="p">],</span><span class="w"> </span><span class="nt">"recursive"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">"exclude"</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">  </span><span class="nt">"gate"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"failed"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nt">"reasons"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"findings"</span><span class="p">]</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">  </span><span class="nt">"exit_code"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">  </span><span class="nt">"table"</span><span class="p">:</span><span class="w"> </span><span class="s2">"| API | ... |"</span><span class="p">,</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">  </span><span class="nt">"gaps"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="w">      </span><span class="nt">"kind"</span><span class="p">:</span><span class="w"> </span><span class="s2">"module not audited"</span><span class="p">,</span>
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="w">      </span><span class="nt">"detail"</span><span class="p">:</span><span class="w"> </span><span class="s2">"mypackage.extra: ImportError(...)"</span><span class="p">,</span>
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="w">      </span><span class="nt">"hint"</span><span class="p">:</span><span class="w"> </span><span class="s2">"install the scanned package's runtime dependencies in the environment that runs the scan"</span><span class="p">,</span>
+<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="w">      </span><span class="nt">"path"</span><span class="p">:</span><span class="w"> </span><span class="s2">"src/mypackage"</span>
+<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a><span class="w">  </span><span class="nt">"findings"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a><span class="w">    </span><span class="p">{</span>
+<a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a><span class="w">      </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"expired:mypackage:old_fn"</span><span class="p">,</span>
+<a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a><span class="w">      </span><span class="nt">"rule"</span><span class="p">:</span><span class="w"> </span><span class="s2">"expired"</span><span class="p">,</span>
+<a id="__codelineno-9-24" name="__codelineno-9-24" href="#__codelineno-9-24"></a><span class="w">      </span><span class="nt">"check"</span><span class="p">:</span><span class="w"> </span><span class="s2">"expiry"</span><span class="p">,</span>
+<a id="__codelineno-9-25" name="__codelineno-9-25" href="#__codelineno-9-25"></a><span class="w">      </span><span class="nt">"level"</span><span class="p">:</span><span class="w"> </span><span class="s2">"error"</span><span class="p">,</span>
+<a id="__codelineno-9-26" name="__codelineno-9-26" href="#__codelineno-9-26"></a><span class="w">      </span><span class="nt">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Callable `mypackage.old_fn` was scheduled for removal in version 1.5 but still exists in version 2.0. ..."</span><span class="p">,</span>
+<a id="__codelineno-9-27" name="__codelineno-9-27" href="#__codelineno-9-27"></a><span class="w">      </span><span class="nt">"details"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<a id="__codelineno-9-28" name="__codelineno-9-28" href="#__codelineno-9-28"></a><span class="w">      </span><span class="nt">"subject"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"module"</span><span class="p">:</span><span class="w"> </span><span class="s2">"mypackage"</span><span class="p">,</span><span class="w"> </span><span class="nt">"symbol"</span><span class="p">:</span><span class="w"> </span><span class="s2">"old_fn"</span><span class="p">,</span><span class="w"> </span><span class="nt">"api_type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"callable"</span><span class="p">,</span><span class="w"> </span><span class="nt">"label"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Callable `mypackage.old_fn`"</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-9-29" name="__codelineno-9-29" href="#__codelineno-9-29"></a><span class="w">      </span><span class="nt">"deprecated_in"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1.0"</span><span class="p">,</span>
+<a id="__codelineno-9-30" name="__codelineno-9-30" href="#__codelineno-9-30"></a><span class="w">      </span><span class="nt">"remove_in"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1.5"</span><span class="p">,</span>
+<a id="__codelineno-9-31" name="__codelineno-9-31" href="#__codelineno-9-31"></a><span class="w">      </span><span class="nt">"location"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"file"</span><span class="p">:</span><span class="w"> </span><span class="s2">"src/mypackage/__init__.py"</span><span class="p">,</span><span class="w"> </span><span class="nt">"line"</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="w"> </span><span class="p">},</span>
+<a id="__codelineno-9-32" name="__codelineno-9-32" href="#__codelineno-9-32"></a><span class="w">      </span><span class="nt">"path"</span><span class="p">:</span><span class="w"> </span><span class="s2">"src/mypackage"</span>
+<a id="__codelineno-9-33" name="__codelineno-9-33" href="#__codelineno-9-33"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-9-34" name="__codelineno-9-34" href="#__codelineno-9-34"></a><span class="w">  </span><span class="p">],</span>
+<a id="__codelineno-9-35" name="__codelineno-9-35" href="#__codelineno-9-35"></a><span class="w">  </span><span class="nt">"suppressed"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<a id="__codelineno-9-36" name="__codelineno-9-36" href="#__codelineno-9-36"></a><span class="w">  </span><span class="nt">"summary"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">"findings"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">"errors"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">"warnings"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"notes"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"gaps"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="nt">"suppressed"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"baseline_unmatched"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="nt">"ignore_unmatched"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-9-37" name="__codelineno-9-37" href="#__codelineno-9-37"></a><span class="p">}</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mode</code></td>
+<td>It is <code>static</code> for a <code>--static</code> run and <code>import</code> otherwise.</td>
+</tr>
+<tr>
+<td><code>table</code></td>
+<td>It is the markdown deprecation table of the scan that ran, or <code>null</code> when it could not be rendered. Several paths join one table per path, each under a <code>### &lt;package&gt;</code> heading. A note replaces any table that could not be rendered.</td>
+</tr>
+<tr>
+<td>Each gap</td>
+<td>It carries one of the kinds above, its detail, a remedy and the scan path it came from.</td>
+</tr>
+<tr>
+<td><code>paths</code> and <code>versions</code></td>
+<td>They list every scanned path.</td>
+</tr>
+<tr>
+<td><code>options</code></td>
+<td>It summarises the run. <code>strict</code> is true when any path is strict; <code>gates</code> and <code>exclude</code> are the union over the paths.</td>
+</tr>
+<tr>
+<td><code>findings</code></td>
+<td>It lists every finding the subcommand evaluates, once per id at its level in this run, sorted by level and then id. <code>error</code> fails the gate; <code>warning</code> is reported only.</td>
+</tr>
+<tr>
+<td><code>message</code></td>
+<td>It is the finding's full description.</td>
+</tr>
+<tr>
+<td><code>location</code></td>
+<td>It identifies where the wrapper is defined. The POSIX path is relative to the repository root when the file is under it, else absolute. This is the same root as the SARIF locations below.</td>
+</tr>
+<tr>
+<td>Location line</td>
+<td>The line is that of the wrapper's first decorator.</td>
+</tr>
+<tr>
+<td>Null locations</td>
+<td><code>line</code> is <code>null</code> for a deprecated module. <code>location</code> is <code>null</code> for a <code>deprecated_instance</code> data object or a class built at runtime.</td>
+</tr>
+<tr>
+<td>Static locations</td>
+<td>A <code>--static</code> run places a wrapper as an import run does when the source shows its definition. A wrapper of an object defined in another module or bound more than once has no location there.</td>
+</tr>
+<tr>
+<td><code>gate</code></td>
+<td>It says whether the gate failed before <code>--exit-zero</code> and why: <code>findings</code>, and <code>gaps</code> under <code>--strict</code>.</td>
+</tr>
+<tr>
+<td><code>exit_code</code></td>
+<td>It is the process exit code.</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>id</code> is <code>&lt;rule&gt;:&lt;module&gt;:&lt;symbol&gt;</code>. A deprecated module has an empty symbol: <code>expired:mypackage.oldmod:</code>. The id holds no version, line, message or path.</p>
+<p>It survives moved code, a version bump and reworded messages. It changes only when the symbol, its module or the rule is renamed.</p>
+<table>
+<thead>
+<tr>
+<th>Naming case</th>
+<th>Effect on the id</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A wrapper has several public names</td>
+<td>It is reported under the one named like the wrapper (<code>__name__</code>), so adding an alias does not rename its id.</td>
+</tr>
+<tr>
+<td>Its <code>__name__</code> is private (<code>old = deprecated(...)(_impl)</code>), or it is a proxy (<code>deprecated_class</code>, <code>deprecated_instance</code>)</td>
+<td>It is reported under the first public name in alphabetical order. A new alias that sorts earlier would rename it.</td>
+</tr>
+<tr>
+<td>A subpackage is scanned instead of its package with <code>--no-recursive</code></td>
+<td>A re-export can be reported under another module.</td>
+</tr>
+</tbody>
+</table>
+<p>The rule slugs are <code>invalid-args</code>, <code>misconfigured-target</code>, <code>inner-order-property</code>, <code>identity-mapping</code>, <code>no-effect</code>, <code>positional-only-mapping</code>, <code>chain</code>, <code>expired</code>, <code>min-grace</code> and <code>message-required</code>.</p>
+<p>The layout is described by the JSON Schema <a href="../schemas/report-1.schema.json"><code>docs/schemas/report-1.schema.json</code></a>. <code>schema</code> is bumped <em>only</em> when a key is removed or renamed, or its meaning or type changes. Adding a key does not bump it, so readers must ignore keys they do not know.</p>
+<p>The keys added in v0.16 (per-finding records, <code>gate</code>, <code>mode</code>, …) did not bump it. Every key a v0.15 report has (<code>schema</code>, <code>table</code>, <code>gaps[].kind</code>/<code>detail</code>/<code>hint</code>) keeps its type and meaning. A v0.15 reader therefore still reads a v0.16 report.</p>
+<p><strong>Report publication.</strong> The file is written only when the run exits <code>0</code> or <code>1</code>. A usage error (exit <code>2</code>) or crash (exit <code>3</code>) leaves any existing report unchanged. Consumers <u>must check the exit code</u> before reading or publishing a report.</p>
+<p>The <a href="ci-integration.html#github-action">GitHub Action</a> builds its gap annotations and job summary from this file.</p>
+<h3 id="sarif-for-code-scanning">SARIF for code scanning<a class="headerlink" href="#sarif-for-code-scanning" title="Permanent link">🔗</a></h3>
+<p><a href="https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html">SARIF</a> (Static Analysis Results Interchange Format) is the OASIS standard JSON format in which static-analysis tools report findings. Each finding includes a rule, a level, a message, a file and line, and an identifying fingerprint.</p>
+<p>GitHub code scanning reads it to list each finding as an alert. It uses the fingerprint to recognise a finding it has already seen, avoiding duplicate alerts when code moves. See <a href="https://docs.github.com/en/code-security/reference/code-scanning/sarif-files/sarif-support">GitHub's SARIF support</a>.</p>
+<p>For pyDeprecate this turns an <code>expired</code>, <code>min-grace</code> or <code>chain</code> finding into an alert on the wrapper's decorator line, with no custom CI glue. The same file opens in any other SARIF viewer. When all you need is a pass or fail gate, skip it: the exit code and <code>--report-json</code> cover that.</p>
+<p>For code scanning, <code>--report-sarif FILE</code> (since v0.16; every subcommand but <code>status</code>) writes the same run as one SARIF 2.1.0 run. The file is written only on exit <code>0</code> or <code>1</code>.</p>
+<table>
+<thead>
+<tr>
+<th>SARIF content</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Results</td>
+<td>There is one result per active finding with its level in the run, its message and its stable id. The id is the <code>pydeprecateFindingId/v1</code> partial fingerprint.</td>
+</tr>
+<tr>
+<td>Rules</td>
+<td>There is one rule per check rule the subcommand evaluates.</td>
+</tr>
+<tr>
+<td>Locations</td>
+<td>A result uses a path relative to the repository root under the <code>%SRCROOT%</code> base. It uses the line of the wrapper's first decorator, or line 1 for a deprecated module.</td>
+</tr>
+<tr>
+<td>Files outside the root</td>
+<td>They use an absolute <code>file:</code> URI and are counted in a stderr advisory. Code scanning cannot match them to a repository file.</td>
+</tr>
+<tr>
+<td>Findings without a source file</td>
+<td>A finding such as a <code>deprecated_instance</code> data object is kept without a location and counted in <code>run.properties.unlocated</code>. GitHub code scanning does not display it. A run whose results all lack a location says so on stderr.</td>
+</tr>
+<tr>
+<td>Suppressed findings</td>
+<td>They are left out and counted in <code>run.properties.suppressed</code>.</td>
+</tr>
+<tr>
+<td>Gaps</td>
+<td>They are tool-execution notifications.</td>
+</tr>
+<tr>
+<td><code>run.properties.mode</code></td>
+<td>This is the report's <code>mode</code>: <code>static</code> for a <code>--static</code> run, else <code>import</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>The repository root is resolved in this order:</p>
+<ol>
+<li>Use the nearest directory at or above the working directory that holds <code>.git</code>.</li>
+<li>Otherwise use <code>GITHUB_WORKSPACE</code> when the working directory lies inside it.</li>
+<li>Otherwise use the working directory.</li>
+</ol>
+<p>The CLI can therefore run from any directory of the checkout. Scan the package in the checkout rather than an installed copy.</p>
+<p><strong>PEP 702-only symbols.</strong> There is intentionally no <code>--include-pep702</code> flag. Every subcommand evaluates pyDeprecate schedule metadata (<code>deprecated_in</code>, <code>remove_in</code>, a replacement) that symbols deprecated only with <code>warnings.deprecated</code> lack. List those with the Python API: <code>find_deprecation_wrappers(..., include_pep702=True)</code>; see <a href="index.html#pep-702-only-deprecations">PEP 702-only deprecations</a>.</p>
+<h3 id="policy-rule-flags">Policy rule flags<a class="headerlink" href="#policy-rule-flags" title="Permanent link">🔗</a></h3>
+<p>These two flags are specific to <code>policy</code>, one per rule. Switch them off with <code>--min-grace=None</code> and <code>--message-required=False</code>.</p>
+<p>The <em>Default</em> column is the built-in value. A <code>[tool.pydeprecate.policy]</code> table in <code>pyproject.toml</code> replaces it, and a typed flag beats both.</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Rule slug</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--min-grace=&lt;delta&gt;</code></td>
+<td><code>0.3</code></td>
+<td><code>min-grace</code></td>
+<td>Minimum distance between <code>deprecated_in</code> and <code>remove_in</code> as a version-shaped delta: <code>1.0</code> one major, <code>0.3</code> three minors, <code>0.0.2</code> two patches.</td>
+</tr>
+<tr>
+<td><code>--message-required=&lt;bool&gt;</code></td>
+<td><code>True</code></td>
+<td><code>message-required</code></td>
+<td>Require every wrapper to name a replacement (a <code>target</code>, a mapping, or a <code>message_template</code>).</td>
+</tr>
+</tbody>
+</table>
+<p>The delta has two or three components with at most one non-zero. A bare <code>1</code> is rejected as ambiguous (one <em>what</em>?), as is a mixed spelling such as <code>1.2</code>.</p>
+<p>The removal must be one clean bump of a single component: <code>1.2</code> → <code>1.5</code> or <code>2.0</code>, never <code>2.3</code>. A coarser bump always clears a finer window: <code>0.3</code> is satisfied by one major bump.</p>
+<table>
+<thead>
+<tr>
+<th>Delta or project</th>
+<th>Interpretation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>An all-zero spelling such as <code>0.0</code></td>
+<td>This is a zero-count window with no minimum distance. A clean bump of that unit or coarser is still required.</td>
+</tr>
+<tr>
+<td>Ten or more steps</td>
+<td>No quoting is needed on the command line: <code>--min-grace=0.10</code> is ten minors.</td>
+</tr>
+<tr>
+<td><code>--min-grace=1.0</code>, or <code>min-grace = "1.0"</code> in <code>pyproject.toml</code></td>
+<td>This is the strict "removals only at a major release" policy.</td>
+</tr>
+<tr>
+<td>A <code>0.x</code> project</td>
+<td>No special setting is needed. A bump to <code>1.0</code> is a major step and clears any window. Removals inside the <code>0.x</code> line are counted in minors as usual.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Malformed grace windows.</strong> A malformed <code>--min-grace</code> value is rejected before the scan starts. It exits <code>2</code> with a message naming the accepted spellings; it is never silently ignored.</p>
+<h3 id="project-configuration-in-pyprojecttoml">Project configuration in <code>pyproject.toml</code><a class="headerlink" href="#project-configuration-in-pyprojecttoml" title="Permanent link">🔗</a></h3>
+<p>Declare the settings once, next to the code they govern. Every bare <code>pydeprecate</code> run, in a developer's shell or a CI step, applies them without repeating flags:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">[tool.pydeprecate]</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">exclude</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"my_package.tests"</span><span class="p">,</span><span class="w"> </span><span class="s2">"*._legacy*"</span><span class="p">]</span><span class="w">   </span><span class="c1"># every subcommand: the scan skips these packages (never imports them itself)</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">strict</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span><span class="w">                                  </span><span class="c1"># every gate subcommand: a gap fails the run (`--no-strict` overrides)</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">ignore</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"my_package.legacy:old_api"</span><span class="p">]</span><span class="w">         </span><span class="c1"># every gate subcommand: findings accepted without a fix</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="n">baseline</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"ci/pydeprecate-baseline.json"</span><span class="w">      </span><span class="c1"># every gate subcommand: findings of an earlier report, by id</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="n">gate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"policy"</span><span class="p">]</span><span class="w">                              </span><span class="c1"># `all` only (since v0.16): also fail on policy violations</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="k">[tool.pydeprecate.policy]</span><span class="w">                      </span><span class="c1"># the `policy` subcommand's rules, keyed by rule slug</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="n">min-grace</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"0.3"</span><span class="w">  </span><span class="c1"># quoted dotted delta; false switches the rule off (TOML has no null)</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="n">message-required</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+</code></pre></div>
+<p>Each setting resolves independently as <strong>flag → <code>pyproject.toml</code> → built-in default</strong>. The <code>Exclude:</code> header line (printed when the list is non-empty) and the <code>Policy:</code> header line name the source of each value: <code>flag</code>, <code>pyproject.toml</code>, or <code>built-in</code>. The other settings (<code>strict</code>, <code>gate</code>, <code>ignore</code>, <code>baseline</code>) print no source line:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>Exclude: my_package.tests, *._legacy* (pyproject.toml)
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>Policy: min-grace=0.3 (pyproject.toml)  message-required=True (built-in)
+</code></pre></div>
+<h4 id="configuration-lookup">Configuration lookup<a class="headerlink" href="#configuration-lookup" title="Permanent link">🔗</a></h4>
+<p>The table is looked up like <code>--version</code> auto-detection below. Search from the scanned <em>path</em>'s directory up to two parents. The nearest file declaring <code>[tool.pydeprecate]</code> wins.</p>
+<p>There is <strong>one table per project</strong>: a nested file declaring it replaces the parent's whole table. A bare module <em>name</em> never triggers the lookup.</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Accepted values and effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>exclude</code></td>
+<td>Patterns are <code>fnmatch</code> globs over the full dotted module name (<code>my_package.tests</code>, not <code>tests</code>). A pattern matching a package excludes its whole subtree. A string or comma-separated string is accepted in place of the list.</td>
+</tr>
+<tr>
+<td><code>min-grace</code></td>
+<td>It takes the dotted delta as a string (<code>"1.0"</code>, <code>"0.3"</code>, <code>"0.0.2"</code>), or a one-key unit table (<code>{ minor = 3 }</code>). Quote the delta (<code>"0.10"</code>, not <code>0.10</code>): a TOML float drops the trailing zero exactly as the shell does.</td>
+</tr>
+</tbody>
+</table>
+<p>A wrapper is reported <em>if and only if</em> the module it is reported under does not match <code>exclude</code>. Even when something else in the package imports an excluded module, its wrappers stay out.</p>
+<div class="admonition failure">
+<p class="admonition-title">Configuration validation</p>
+<p>A malformed value from the file exits <code>2</code>. The message names the <code>pyproject.toml</code> it came from.</p>
+<p>The following are rejected the same way:</p>
+<ul>
+<li><code>message-required</code> or <code>strict</code> is not a boolean.</li>
+<li>An <code>exclude</code> or <code>ignore</code> entry is not a string.</li>
+<li>An ignore entry is malformed.</li>
+<li>A <code>baseline</code> file cannot be read or is not a report with a <code>findings</code> list.</li>
+</ul>
+<p>Unknown keys in either table are reported on stderr and ignored, never silently enforced. <code>min_grace</code> with an underscore is the usual typo.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">TOML parser required</p>
+<p>Reading the file needs a TOML parser. It is built in on Python 3.11+; on 3.9–3.10, use the <code>tomli</code> backport from the <code>[audit]</code> extra.</p>
+<p>Without a parser, a reachable <code>pyproject.toml</code> triggers a stderr advisory instead of being silently skipped. None of its <code>[tool.pydeprecate]</code> settings apply, including <code>strict = true</code>, so <u>a gap no longer fails the run</u>.</p>
+<p>On Python 3.9 or 3.10, install the <code>[audit]</code> extra to read <code>strict</code> from <code>pyproject.toml</code>. Otherwise pass <code>--strict</code> on the command line.</p>
+</div>
+<p><code>pydeprecate all</code> applies the same resolved settings to its single scan and its advisory policy pass.</p>
+<p><strong>Python policy API.</strong> The Python API (<code>validate_deprecation_policy()</code>) takes a module object or importable name, never a filesystem path. It does not read <code>pyproject.toml</code>; pass its keyword arguments, including <code>exclude</code>, explicitly.</p>
+<h4 id="version-auto-detection">Version auto-detection<a class="headerlink" href="#version-auto-detection" title="Permanent link">🔗</a></h4>
+<p>Every subcommand and the JSON report table use the same <code>--version</code> auto-detection resolver:</p>
+<ol>
+<li>For an existing <em>path</em>, search its directory and up to 2 parent directories for a <code>pyproject.toml</code>. The nearest file with a <code>[project]</code> table owns the version, even if its version cannot be resolved. Files without that table are skipped.</li>
+<li>If the local version is unresolved or the argument is a bare module name, try installed metadata in the order below.</li>
+<li><em>Only after</em> these lookups fail, read the top-level import package's string <code>__version__</code>.</li>
+</ol>
+<p>Installed metadata is tried under these names in order:</p>
+<ol>
+<li>Try the full import name first.</li>
+<li>Try the top-level import name next.</li>
+<li>Try the distribution that ships that top-level package, such as <code>PIL</code> → <code>Pillow</code>.</li>
+</ol>
+<p>The full name takes priority because a dotted component can have a separately versioned distribution.</p>
+<p><strong>Lookup boundaries.</strong> An unresolved version does not fall through to an ancestor project. A bare module <em>name</em> skips the <code>pyproject.toml</code> lookup, so it cannot pick up an unrelated project's version from your current working directory.</p>
+<p>The Python API (<code>validate_deprecation_expiry()</code>, <code>generate_deprecation_table()</code>) resolves the module's top-level package through this chain without the <code>pyproject.toml</code> step. It receives a module, never a path.</p>
+<p>Only a genuinely unresolved version skips the expiry check with a <code>version not resolved</code> gap and exit <code>0</code>, or exit <code>1</code> under <code>--strict</code>. Pass <code>--version</code> to supply it explicitly.</p>
+<h3 id="accepting-known-findings">Accepting known findings<a class="headerlink" href="#accepting-known-findings" title="Permanent link">🔗</a></h3>
+<p>Fix a finding when you can. When one must stay for now, <strong>accept it</strong> instead of excluding its whole module. For example, a removal might be waiting on a downstream release:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pydeprecate<span class="w"> </span>expiry<span class="w"> </span>src/mypackage<span class="w"> </span>--ignore<span class="o">=</span><span class="s1">'expired:mypackage.legacy:old_api'</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>src/mypackage<span class="w"> </span>--report-json<span class="o">=</span>ci/pydeprecate-baseline.json<span class="w">   </span><span class="c1"># record today's backlog once</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>pydeprecate<span class="w"> </span>all<span class="w"> </span>src/mypackage<span class="w"> </span>--baseline<span class="o">=</span>ci/pydeprecate-baseline.json<span class="w">      </span><span class="c1"># later runs fail only on new findings</span>
+</code></pre></div>
+<h4 id="ignore-patterns">Ignore patterns<a class="headerlink" href="#ignore-patterns" title="Permanent link">🔗</a></h4>
+<table>
+<thead>
+<tr>
+<th>Entry</th>
+<th>Scope</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>module:symbol</code></td>
+<td>It accepts every rule of that symbol.</td>
+</tr>
+<tr>
+<td><code>rule:module:symbol</code></td>
+<td>It accepts one rule; use <code>*</code> for any rule.</td>
+</tr>
+<tr>
+<td><code>*:mypackage.compat.*:*</code></td>
+<td>Each part is an <code>fnmatch</code> glob, so this accepts everything under <code>mypackage.compat</code>.</td>
+</tr>
+<tr>
+<td><code>expired:mypackage.oldmod:</code></td>
+<td>The empty symbol names a deprecated module.</td>
+</tr>
+</tbody>
+</table>
+<p>Commas <em>always</em> separate entries. A character class holding a comma such as <code>[a,o]</code> is therefore never one glob; write the class without commas (<code>[ao]</code>). The rule slugs are those of the report (<code>expired</code>, <code>min-grace</code>, <code>chain</code>, …).</p>
+<h4 id="baselines-and-suppression">Baselines and suppression<a class="headerlink" href="#baselines-and-suppression" title="Permanent link">🔗</a></h4>
+<p>A baseline is any <code>--report-json</code> file with a <code>findings</code> list, written since pyDeprecate v0.16. Its finding ids are accepted exactly. Ids hold no line or version, so moved code and version bumps stay accepted, and a renamed symbol is a new finding.</p>
+<p>Ids under the file's <code>suppressed</code> key count only when the baseline itself suppressed them (<code>suppressed_by.kind</code> is <code>baseline</code>). A baseline regenerated from a run that used it therefore keeps them.</p>
+<p>A finding an ignore entry suppressed is not carried over: delete the ignore entry and it is active again. There is no update flag; regenerate the file with <code>--report-json</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Suppression detail</th>
+<th>Behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Both an ignore entry and the baseline name a finding</td>
+<td>It counts as ignored.</td>
+</tr>
+<tr>
+<td>Console and exit code</td>
+<td>Suppressed findings disappear from the console sections, the counts and the exit code. The run prints <code>N finding(s) suppressed (ignore: a, baseline: b).</code></td>
+</tr>
+<tr>
+<td>Report</td>
+<td>It lists suppressed findings under <code>suppressed</code> with what matched them.</td>
+</tr>
+<tr>
+<td>Gaps and other outputs</td>
+<td>Suppressed findings never affect gaps, and SARIF and the GitHub Action never show them.</td>
+</tr>
+</tbody>
+</table>
+<p>An unmatched baseline entry is reported once on stderr when all these conditions hold:</p>
+<ul>
+<li>It matches no finding of a check that ran on its wrapper.</li>
+<li>No gap such as <code>remove_in not PEP 440</code> or <code>not statically resolvable</code> names the wrapper.</li>
+<li>Its module was audited: it was inside a scanned package, not excluded, and imported without error.</li>
+</ul>
+<p>The diagnostic is <code>… baseline entries match no finding of this run (stale, or outside a narrowed scan); regenerate the baseline from a full-scope run.</code></p>
+<p>The entry is counted as <code>summary.baseline_unmatched</code>; it never fails the run. One baseline may therefore be shared by several packages scanned in separate runs. Unused ignore entries are only counted (<code>summary.ignore_unmatched</code>).</p>
+<h2 id="static-mode">Static mode<a class="headerlink" href="#static-mode" title="Permanent link">🔗</a></h2>
+<p><code>pydeprecate expiry --static</code> and <code>pydeprecate policy --static</code> read the package's source with Python's <code>ast</code> module instead of importing it. <strong>Nothing</strong> from the scanned package is imported or executed, including for the version and the <code>--report-json</code> table.</p>
+<p>Use it where the package's runtime dependencies are not installed, such as the isolated environment of a remote <a href="ci-integration.html#pre-commit-integration">pre-commit hook</a>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># phmdoctest:skip — CI template: replace src/mypackage with your package directory</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>pydeprecate<span class="w"> </span>expiry<span class="w"> </span>--static<span class="w"> </span>src/mypackage<span class="w"> </span>--version<span class="w"> </span><span class="m">2</span>.0
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>pydeprecate<span class="w"> </span>policy<span class="w"> </span>--static<span class="w"> </span>src/mypackage
+</code></pre></div>
+<p>The output carries a <code>Mode: static (source read with ast; nothing imported)</code> header line. Recognized wrappers with resolvable settings are checked, subject to the blind spots below. A clean run does <strong>not</strong> establish complete coverage.</p>
+<p>The source has to spell the settings a rule reads:</p>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Reads</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>expired</code></td>
+<td><code>remove_in</code></td>
+</tr>
+<tr>
+<td><code>min-grace</code></td>
+<td><code>deprecated_in</code>, <code>remove_in</code></td>
+</tr>
+<tr>
+<td><code>message-required</code></td>
+<td><code>target</code>, <code>args_mapping</code>, <code>attrs_mapping</code>, <code>message_template</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="readable-settings-and-forms">Readable settings and forms<a class="headerlink" href="#readable-settings-and-forms" title="Permanent link">🔗</a></h3>
+<table>
+<thead>
+<tr>
+<th>Setting form</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A literal can be read.</td>
+<td>Use <code>remove_in="2.0"</code>.</td>
+</tr>
+<tr>
+<td>A module-level name bound once to a literal can be read.</td>
+<td>Use <code>VERSION = "2.0"</code>.</td>
+</tr>
+<tr>
+<td>An entry of a module-level dict literal splatted into the call can be read.</td>
+<td>Use <code>**_DEPRECATION_ARGS</code>, bound once.</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Target form</th>
+<th>Interpretation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A function, class or lambda, or a bare name imported from outside the scanned package</td>
+<td>It is read as a replacement.</td>
+</tr>
+<tr>
+<td><code>None</code>, <code>True</code>, <code>False</code> and <code>TargetMode</code> members</td>
+<td>They are read as such, also through a module-level name bound once to one. That name can be bound in the same module or imported from another module of the scanned package.</td>
+</tr>
+<tr>
+<td>A <code>deprecated_instance</code> <code>target</code> that builds plain data</td>
+<td>It is read as data. As at runtime, <code>message-required</code> therefore needs an <code>attrs_mapping</code> or a <code>message_template</code> for it. Plain data includes a literal, a list, dict or set display, a module-level name bound once to one, or a call of a class.</td>
+</tr>
+<tr>
+<td>A call of a class the same file defines with <code>__call__</code> or with bases</td>
+<td>It is a gap.</td>
+</tr>
+</tbody>
+</table>
+<p>Static mode recognizes these forms:</p>
+<table>
+<thead>
+<tr>
+<th>Form</th>
+<th>Where or how it is recognized</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>@deprecated(...)</code> and <code>@deprecated_callable(...)</code></td>
+<td>They are recognized on functions and class members.</td>
+</tr>
+<tr>
+<td><code>@deprecated_class(...)</code> and <code>@deprecated(...)</code></td>
+<td>They are recognized on classes.</td>
+</tr>
+<tr>
+<td><code>name = deprecated(...)(obj)</code></td>
+<td>A wrapper call is recognized.</td>
+</tr>
+<tr>
+<td><code>name = deprecated_class(...)(obj)</code></td>
+<td>A class wrapper call is recognized.</td>
+</tr>
+<tr>
+<td><code>name = deprecated_instance(obj, ...)</code></td>
+<td>An instance wrapper call is recognized.</td>
+</tr>
+<tr>
+<td>A decorator configured once and applied many times</td>
+<td><code>legacy = deprecated(...)</code>, then <code>@legacy</code>, is recognized, also when imported from another module of the package.</td>
+</tr>
+<tr>
+<td>Aliases</td>
+<td><code>public = _old</code> is recognized.</td>
+</tr>
+<tr>
+<td>Inherited members</td>
+<td>Members inherited from a base class in the scanned package are recognized.</td>
+</tr>
+<tr>
+<td><code>deprecated_module(...)</code></td>
+<td>It is recognized when called in the module it deprecates.</td>
+</tr>
+<tr>
+<td>A module-level <code>with</code> block</td>
+<td>Code inside it is recognized.</td>
+</tr>
+</tbody>
+</table>
+<p>Factory names are followed however they are imported. Examples include <code>import deprecate as d</code>, <code>from deprecate.proxy import deprecated_class</code>, <code>from deprecate import *</code>, or a project module that re-exports them. Rows are named and attributed as an import-mode scan does.</p>
+<h3 id="unsettled-settings">Unsettled settings<a class="headerlink" href="#unsettled-settings" title="Permanent link">🔗</a></h3>
+<p><strong>Recognized but unresolved deprecations are reported.</strong> A form the scan recognizes as a deprecation but cannot settle from the source is reported rather than skipped. Each unsettled wrapper or setting produces one stderr line: <code>pydeprecate gap: not statically resolvable: &lt;file&gt;:&lt;line&gt;: &lt;reason&gt;</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Unsettled form</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Computed values</td>
+<td>A version computed at runtime, an f-string, or a name bound twice cannot be settled.</td>
+</tr>
+<tr>
+<td>Mutable dicts</td>
+<td>A dict changed after construction cannot be settled. Neither can a dict read other than by a <code>**</code> splat or a factory keyword: an alias or helper call may change it.</td>
+</tr>
+<tr>
+<td>Rebound names</td>
+<td>Names the module rebinds through <code>globals()</code>, <code>vars()</code> or <code>setattr(sys.modules[...], ...)</code> cannot be settled.</td>
+</tr>
+<tr>
+<td>Expression splats</td>
+<td>Settings splatted from an expression cannot be settled.</td>
+</tr>
+<tr>
+<td>Factory placement or binding</td>
+<td>A factory used inside a function, inside <code>if</code> or <code>try</code>, or under a name also bound to something else cannot be settled.</td>
+</tr>
+<tr>
+<td>Outer decorators</td>
+<td>A decorator stacked over the factory that may replace the wrapper cannot be settled. The exceptions are <code>property</code>, <code>classmethod</code>, <code>staticmethod</code>, <code>functools.lru_cache</code>, <code>functools.cache</code>, <code>abc.abstractmethod</code>, <code>dataclasses.dataclass</code> and the <code>typing</code> markers.</td>
+</tr>
+<tr>
+<td>Attribute targets</td>
+<td>An attribute <code>target</code> other than a recognized <code>TargetMode</code> member cannot be settled.</td>
+</tr>
+<tr>
+<td>Star-import targets</td>
+<td>A <code>target</code> a star import may bind cannot be settled.</td>
+</tr>
+<tr>
+<td>Targets from within the package</td>
+<td>A <code>target</code> imported from another package module cannot be settled unless that module binds it once to a literal or a definition.</td>
+</tr>
+<tr>
+<td>Unread bases</td>
+<td>Members inherited from a base class the scan does not read cannot be settled.</td>
+</tr>
+<tr>
+<td>Star-import exports</td>
+<td>A star import cannot be settled if its <code>__all__</code> is computed or the module also changes it in place or reads it (<code>__all__.append(...)</code>).</td>
+</tr>
+<tr>
+<td>Replaced class members</td>
+<td>A deprecated class member that an <code>if</code>, <code>try</code> or loop in the class body may replace cannot be settled.</td>
+</tr>
+<tr>
+<td>Import cycles</td>
+<td>An import cycle cannot be settled.</td>
+</tr>
+</tbody>
+</table>
+<p>A module whose source cannot be parsed, or is nested too deeply to analyze, is a <code>module not audited</code> gap. The rest of the package is still read.</p>
+<p>The wrapper is left out only of rules that read the unsettled setting. A version held in a variable therefore still lets <code>message-required</code> judge its replacement.</p>
+<p>A module kept out of the walk by <code>--no-recursive</code> or <code>--exclude</code> is read on demand when a walked module re-exports from it. Its gap lines are printed too.</p>
+<div class="admonition tip">
+<p class="admonition-title">Use strict mode</p>
+<p>A gap does not change the exit code unless strict mode is on, as with every other gap. A static run therefore passes when everything it could read is clean.</p>
+<p>Read the gap lines, or the <code>gaps</code> of <code>--report-json</code>, to see what was not audited. Spell those settings literally to bring them into the audit.</p>
+<p>With <code>--strict</code> or <code>strict = true</code>, a static run that recorded any gap exits <code>1</code>. A CI gate that must not pass on a partly read source <strong>should enable it</strong>.</p>
+</div>
+<h3 id="static-version-resolution">Static version resolution<a class="headerlink" href="#static-version-resolution" title="Permanent link">🔗</a></h3>
+<p>Without <code>--version</code>, the resolver tries these sources in order:</p>
+<ol>
+<li>Read the static <code>[project].version</code> of <code>pyproject.toml</code>.</li>
+<li>For a <code>dynamic</code> version, read the source the package build uses: <code>[tool.setuptools.dynamic].version.attr</code>, else the package's <code>__version__</code>.</li>
+<li>Try installed metadata.</li>
+<li>Read the <code>__version__</code> literal in the package's <code>__init__.py</code>. Follow <code>from .module import __version__</code>, <code>... import version as __version__</code> and <code>from module import *</code> re-exports.</li>
+</ol>
+<p><strong>Rebound versions can fall back to stale metadata.</strong> A <code>__version__</code> rebound inside <code>if</code> or <code>try</code>, or through a function's <code>global</code>, makes the source read yield nothing. It does not yield the literal before the rebinding. Resolution therefore falls back to the package's installed metadata, which may be stale for a development checkout. Pass <code>--version</code> <strong>explicitly</strong> in that case.</p>
+<h3 id="locations-and-blind-spots">Locations and blind spots<a class="headerlink" href="#locations-and-blind-spots" title="Permanent link">🔗</a></h3>
+<p>A static run's findings carry the same <code>location</code> as an import run's: the file and the line of the wrapper's first decorator. Results from <code>--report-sarif</code> therefore show in GitHub code scanning. A wrapper of an object defined in another module or bound more than once has <code>location: null</code>.</p>
+<p><strong>No gap line does not prove full coverage.</strong> Gap lines cover only what the scan recognizes, so they do not prove that nothing was missed. The blind spots below are invisible to the scan and print no gap line. A clean static run does not show they hold no deprecation.</p>
+<table>
+<thead>
+<tr>
+<th>Blind spot</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dynamically created wrappers</td>
+<td>Static mode cannot see wrappers created in loops or through <code>getattr</code>, <code>importlib</code> or <code>exec</code>.</td>
+</tr>
+<tr>
+<td>Private proxy construction</td>
+<td>It cannot see a proxy built from the private <code>_DeprecatedProxy</code> directly.</td>
+</tr>
+<tr>
+<td>Imported deprecated objects or configured decorators</td>
+<td>It cannot see these when imported from outside the scanned package. An import scan lists such an object under the module that re-exports it.</td>
+</tr>
+<tr>
+<td>Bare external target names</td>
+<td><code>from compat import NO_REPLACEMENT</code> is read as a replacement even when it holds <code>None</code> or a <code>TargetMode</code> member, so <code>message-required</code> passes it.</td>
+</tr>
+<tr>
+<td>Calls to external target names</td>
+<td>A <code>deprecated_instance</code> <code>target</code> calling an external name (<code>target=Settings()</code>) is read as an instance of a class. <code>message-required</code> therefore flags it even when the call returns a callable.</td>
+</tr>
+<tr>
+<td>External factories</td>
+<td>A factory imported from outside the scanned package (<code>from compat import deprecated</code>, or a star import of one) is invisible. The exception is a call passing <code>remove_in</code> by keyword, which produces a <code>not statically resolvable</code> gap.</td>
+</tr>
+<tr>
+<td>Report target names</td>
+<td>Static mode cannot reproduce these exactly as import mode prints them: <code>New API</code> shows the source text. A dataclass whose <code>attrs_mapping</code> import mode expands into <code>args_mapping</code> reads <code>dataclass</code> rather than <code>dataclass attributes</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>See <a href="../limitations.html">Limitations</a>. Run without <code>--static</code> in an environment with the package's dependencies for a full audit.</p>
+<h2 id="exit-codes">Exit codes<a class="headerlink" href="#exit-codes" title="Permanent link">🔗</a></h2>
+<table>
+<thead>
+<tr>
+<th>Subcommand</th>
+<th>Exit <code>0</code></th>
+<th>Exit <code>1</code></th>
+<th>Exit <code>2</code></th>
+<th>Exit <code>3</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>check</code></td>
+<td>Clean or warnings only (chains / identity / no-effect / positional-only)</td>
+<td>Invalid argument mappings, misconfigured targets or inner-order properties found</td>
+<td>A usage error (below)</td>
+<td>Scan or internal error</td>
+</tr>
+<tr>
+<td><code>expiry</code></td>
+<td>No expired wrappers; or <code>packaging</code> not installed or the version unresolved (gap printed; exit 1 under strict mode)</td>
+<td>Expired wrappers found</td>
+<td>Malformed <code>--version</code> when <code>packaging</code> is available; a usage error</td>
+<td>Scan or internal error</td>
+</tr>
+<tr>
+<td><code>policy</code></td>
+<td>No violations; or only a skipped <code>min-grace</code> rule</td>
+<td>Policy violations found</td>
+<td>Malformed rule value (flag or <code>pyproject.toml</code>); a usage error</td>
+<td>Scan or internal error</td>
+</tr>
+<tr>
+<td><code>chains</code></td>
+<td>No chains</td>
+<td>Deprecated-to-deprecated chains found</td>
+<td>A usage error</td>
+<td>Scan or internal error</td>
+</tr>
+<tr>
+<td><code>all</code></td>
+<td>All checks clean, or only warnings and ungated policy violations (table always appended)</td>
+<td>Any error of <code>check</code>, <code>expiry</code> or <code>chains</code>, and of <code>policy</code> with <code>--gate=policy</code></td>
+<td>Malformed <code>--version</code>, rule value or <code>--gate</code>; a usage error</td>
+<td>Scan or internal error</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>Table rendered — status is not a pass/fail gate</td>
+<td>—</td>
+<td>Malformed <code>--version</code> or <code>--style</code>; a usage error</td>
+<td>Scan or internal error</td>
+</tr>
+</tbody>
+</table>
+<p><code>--exit-zero</code> turns exit <code>1</code> into <code>0</code> and never masks <code>2</code> or <code>3</code>. A <code>strict = true</code> from <code>pyproject.toml</code> is switched off by a typed <code>--exit-zero</code> for that run; stderr says so once.</p>
+<p><code>--strict</code> (since v0.16), or <code>strict = true</code> in <code>[tool.pydeprecate]</code>, adds one exit-<code>1</code> reason to every subcommand but <code>status</code>: any recorded gap. A gap is a part of the audit that did not run, printed as a <code>pydeprecate gap: &lt;kind&gt;:</code> line. Without strict mode, gaps never change the exit code.</p>
+<p>A strict run that fails on its gaps says so on stderr after them: <code>Strict mode: N gap(s) fail this run.</code></p>
+<h3 id="usage-errors">Usage errors<a class="headerlink" href="#usage-errors" title="Permanent link">🔗</a></h3>
+<p>A usage error (exit <code>2</code>) on any path stops the run before anything is scanned, on every subcommand. The following are usage errors:</p>
+<table>
+<thead>
+<tr>
+<th>Error</th>
+<th>Detail or diagnostic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Malformed exclusions</td>
+<td><code>--exclude</code> is malformed, whether supplied as a flag or in <code>pyproject.toml</code>.</td>
+</tr>
+<tr>
+<td>Unknown options</td>
+<td>An option is unknown.</td>
+</tr>
+<tr>
+<td>Invalid booleans</td>
+<td>A boolean flag has a value other than <code>true</code>/<code>false</code>/<code>1</code>/<code>0</code>.</td>
+</tr>
+<tr>
+<td>Duplicate version inputs</td>
+<td>The version is given both as the legacy second positional argument and as <code>--version</code>.</td>
+</tr>
+<tr>
+<td>Invalid gates</td>
+<td><code>--gate</code> or <code>gate</code> names an unknown check or is not a list.</td>
+</tr>
+<tr>
+<td>Conflicting import names</td>
+<td>Two paths import as the same name from different places.</td>
+</tr>
+<tr>
+<td>Covered paths with independent configuration</td>
+<td>Another path's recursive scan already covers a path with its own <code>[tool.pydeprecate]</code> settings or, with auto-detection, its own version.</td>
+</tr>
+<tr>
+<td>Empty report paths</td>
+<td><code>--report-json=</code> is empty.</td>
+</tr>
+<tr>
+<td>Conflicting exit flags</td>
+<td><code>--strict</code> is typed together with <code>--exit-zero</code>.</td>
+</tr>
+<tr>
+<td>Invalid strict configuration</td>
+<td>A <code>strict</code> value in <code>pyproject.toml</code> is not a boolean.</td>
+</tr>
+<tr>
+<td>Invalid ignore inputs</td>
+<td>An <code>--ignore</code> entry is malformed, or <code>--ignore</code> receives a list literal.</td>
+</tr>
+<tr>
+<td>Invalid baselines</td>
+<td>A <code>--baseline</code> file is missing, unreadable, malformed or has no <code>findings</code> list, as in a report written before v0.16. Malformed means a <code>findings</code> or <code>suppressed</code> value is not a list, or an entry lacks a string <code>id</code>.</td>
+</tr>
+<tr>
+<td>Single files</td>
+<td>A single <code>.py</code> file produces <code>File paths are not supported</code>.</td>
+</tr>
+<tr>
+<td>Several top-level packages</td>
+<td>A directory holding two or more top-level packages produces <code>contains multiple packages (…)</code>; pass the package sub-directory instead.</td>
+</tr>
+<tr>
+<td>Missing paths or modules</td>
+<td>A name is neither an existing path nor an importable module. This produces <code>No such path or importable module</code>, also for relative spellings such as <code>./typo</code> or <code>.pkg</code>.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Missing submodules are checked during the scan.</strong> Only a missing submodule of an importable package (<code>pkg.nosuch</code>) is found when its own path is scanned. With several paths, the ones before it are scanned first. It still exits <code>2</code> with no report.</p>
+<p>With <code>--static</code>, these are also usage errors:</p>
+<table>
+<thead>
+<tr>
+<th>Error</th>
+<th>Detail or diagnostic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Unsupported subcommand</td>
+<td>The flag is used on a subcommand other than <code>expiry</code> and <code>policy</code>: <code>--static, --no-static and --nostatic are supported by `expiry` and `policy` only, not `check`</code>.</td>
+</tr>
+<tr>
+<td>Dotted module names</td>
+<td>Locating one would import its parent packages; pass its directory instead.</td>
+</tr>
+<tr>
+<td>Modules without Python source</td>
+<td>A built-in or compiled module has no Python source.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="scan-and-internal-errors">Scan and internal errors<a class="headerlink" href="#scan-and-internal-errors" title="Permanent link">🔗</a></h3>
+<p>Exit <code>3</code> means the audit itself did not run. Neither error writes a <code>--report-json</code> file.</p>
+<table>
+<thead>
+<tr>
+<th>Diagnostic</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pydeprecate: scan error: …</code></td>
+<td>The scanned package cannot be imported because its module-level code raises or exits. This never occurs with <code>--static</code>, which imports nothing.</td>
+</tr>
+<tr>
+<td><code>pydeprecate: internal error: …</code></td>
+<td>There is a bug in the CLI. The diagnostic includes the issue tracker to report it to.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Submodule failures.</strong> A <em>submodule</em> that fails is a <code>module not audited</code> gap unless explicitly requested. When explicitly requested, the run exits <code>3</code> even when a parent scan covers it.</p>
+<p>Policy violations are the one finding <code>all</code> reports without acting on by default: they move <code>all</code> from <code>0</code> to <code>1</code> only with <code>--gate=policy</code>.</p>
+<p>Unknown or misspelled flags are <em>never</em> silently ignored. For example, <code>pydeprecate expiry mypackage --verison 2.0</code> exits <code>2</code> with an <code>unrecognized arguments: --verison</code> diagnostic before anything is scanned.</p>
+<h2 id="ci-recipes">CI recipes<a class="headerlink" href="#ci-recipes" title="Permanent link">🔗</a></h2>
+<p>Use <code>pydeprecate all --gate=policy</code> (since v0.16) for <strong>one step and one scan</strong>. It fails the build on misconfigured wrappers, chains, expired deprecations, and deprecations scheduled in a way the project does not allow. The console sections and the report's <code>rule</code> field tell you which problem you have.</p>
+<p>A monorepo passes every package to the same step. The full workflow, with the rules declared once in <code>[tool.pydeprecate.policy]</code>, is in the <a href="ci-integration.html#enforcing-the-policy-in-ci">audit guide</a>.</p>
+<p>While bringing an existing codebase into line, follow these steps:</p>
+<ol>
+<li>Run the gate <strong>advisory-first</strong> so it reports without blocking.</li>
+<li>Drop the flag once the backlog is clear.</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pydeprecate<span class="w"> </span>policy<span class="w"> </span>src/mypackage<span class="w"> </span>--exit-zero
+</code></pre></div>
+<p>On GitHub Actions the CLI also ships as a ready-made step, <code>uses: Borda/pyDeprecate@&lt;tag&gt;</code>; the step exits with the CLI's own code. See the <a href="ci-integration.html#github-action">GitHub Action</a> section of the audit guide for every input and output.</p>
+<h2 id="path-formats">Path formats<a class="headerlink" href="#path-formats" title="Permanent link">🔗</a></h2>
+<p>All subcommands accept these path formats:</p>
+<table>
+<thead>
+<tr>
+<th>Format</th>
+<th>Behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Package directory</strong></td>
+<td>Provide a path to a directory with <code>__init__.py</code>, such as <code>src/mypackage</code>.</td>
+</tr>
+<tr>
+<td><strong>Importable module name</strong></td>
+<td>Provide a dotted module path such as <code>mypackage.utils</code> in import mode. Static mode accepts only top-level module names.</td>
+</tr>
+<tr>
+<td><strong>Plain directory</strong></td>
+<td>The scan reads top-level <code>.py</code> files only. Nested files are reported as a <code>nested files not audited</code> gap.</td>
+</tr>
+<tr>
+<td><strong>No path</strong></td>
+<td>The scan picks the single package under <code>src/</code>, else the single package at the repository root. With several packages the run fails, so pass the path.</td>
+</tr>
+</tbody>
+</table>
+<p>The subcommand may be omitted too: <code>pydeprecate src/mypackage</code> runs <code>check</code>.</p>
+<p><strong>Unsupported paths.</strong> A single <code>.py</code> file, or a directory holding two or more top-level packages, is a usage error (exit <code>2</code>) for every subcommand.</p>
+<p>While scanning, the imported code sees no pydeprecate arguments in <code>sys.argv</code>. The header line <code>Imported from:</code> names the file the package was actually imported from.</p>
+<h2 id="python-module-invocation">Python module invocation<a class="headerlink" href="#python-module-invocation" title="Permanent link">🔗</a></h2>
+<p>Both <code>pydeprecate</code> and <code>python -m deprecate</code> are equivalent entry points:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>python<span class="w"> </span>-m<span class="w"> </span>deprecate<span class="w"> </span>check<span class="w"> </span>src/mypackage
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>python<span class="w"> </span>-m<span class="w"> </span>deprecate<span class="w"> </span>expiry<span class="w"> </span>src/mypackage<span class="w"> </span>--version<span class="w"> </span><span class="m">2</span>.0.0
+</code></pre></div>
+<p>Module invocation is useful where the <code>pydeprecate</code> script is not on <code>PATH</code>, such as a Docker image where only <code>python</code> is available.</p>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 19, 2026 14:21:25 UTC">2026-11-19</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 19, 2026 14:21:25 UTC">2026-11-19</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2020&ndash;2026 Jiri Borovec
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

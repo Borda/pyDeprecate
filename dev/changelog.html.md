@@ -24,7 +24,7 @@
 - **Every CLI subcommand audits several paths in one run.** `pydeprecate check src/ lib/` takes any number of paths; the GitHub Action `path` input takes one path per line. ([#266](https://github.com/Borda/pyDeprecate/pull/266))
 - **`pydeprecate all --gate=policy` fails on policy violations.** `--gate` (or `gate = ["policy"]` in `[tool.pydeprecate]`) takes a comma-separated list over `check`, `expiry`, `policy` and `chains`; only `policy` changes the exit code, and it counts the violations of the same scan. An unknown check exits `2`. Without it `all` keeps reporting policy violations without failing on them. ([#266](https://github.com/Borda/pyDeprecate/pull/266))
 - **`--report-sarif FILE` writes SARIF 2.1.0 for code scanning.** One result per active finding, keyed by finding id; suppressed findings are omitted and gaps become tool notifications. Available on every subcommand except `status`. ([#266](https://github.com/Borda/pyDeprecate/pull/266))
-- **The GitHub Action gains `fail-on-gap` and `sarif` inputs, step outputs and finding annotations.** `fail-on-gap` maps to `--strict` and `sarif` to `--report-sarif`; the step outputs are `exit-code`, `findings`, `errors`, `warnings`, `gaps`, `suppressed`, `report-json` and `sarif-file`. Each finding becomes an annotation on its wrapper's line, at most 50 per run. ([#266](https://github.com/Borda/pyDeprecate/pull/266))
+- **The GitHub Action gains `fail-on-gap` and `sarif` inputs, step outputs and finding annotations.** `fail-on-gap` maps to `--strict` and `sarif` to `--report-sarif`; the step outputs are `exit-code`, `findings`, `errors`, `warnings`, `gaps`, `suppressed`, `report-json` and `sarif-file`. Each finding becomes an annotation on its wrapper's line, at most 10 per level per step, with the rest counted in one notice. ([#266](https://github.com/Borda/pyDeprecate/pull/266))
 
 **Audit API**
 
@@ -42,6 +42,10 @@
 - **Matrix audit tables have one column per release.** `generate_deprecation_table(..., style="matrix")` and the CLI matrix output merge the spellings `1.0`, `v1.0` and `1.0.0` of one release into a single column, headed by the shortest spelling. Without `packaging` only spellings that differ by the `v` prefix merge. ([#262](https://github.com/Borda/pyDeprecate/pull/262))
 - **`validate_deprecation_expiry(<module path>)` without a version surfaces the package's real import error.** The module path is now imported before the version lookup, so a package whose own import fails raises its actual exception instead of "Could not determine version". A degenerate module path such as an empty name raises importlib's own error. ([#262](https://github.com/Borda/pyDeprecate/pull/262))
 - **Unparsed matrix columns are ordered by their displayed header text.** Version strings that are not PEP 440 releases come after the parsed releases, now sorted by the `v`-prefixed header as rendered instead of the raw string, so columns such as `next` and `vlegacy` swap order (`vlegacy | vnext`). A committed matrix table that contains such columns re-renders with the new order. ([#262](https://github.com/Borda/pyDeprecate/pull/262))
+
+### Removed
+
+- **The empty `cli` extra is removed.** The `pydeprecate` command has needed no dependency since v0.15, so `pip install 'pyDeprecate[audit]'` now covers every command. `pip install 'pyDeprecate[cli]'` still installs the package, with pip's warning that the extra does not exist; the hooks manifest and the GitHub Action install `pyDeprecate[audit]`. ([#269](https://github.com/Borda/pyDeprecate/pull/269))
 
 ## [0.15.0] — 2026-11-09 — Scoped fatal deprecations, a dependency-free CLI, & CI integrations
 

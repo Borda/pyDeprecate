@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://borda.github.io/pyDeprecate/stable/api-reference.html">
       
       
-        <link rel="prev" href="guide/agent-recipes.html">
+        <link rel="prev" href="migration/index.html">
       
       
         <link rel="next" href="troubleshooting.html">
@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="assets/brand/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
     
     
       
@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-05-23",
-  "dateModified": "2026-11-15"
+  "dateModified": "2026-11-19"
 }
 </script>
 
@@ -121,6 +121,17 @@
 
 
 
+
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var moves = {"callable-target-with-attribute-redirection": "usage/attributes.html", "chained-redirect": "usage/attributes.html", "choosing-the-right-testing-tool": "integrations/testing.html", "class-type-compatibility": "usage/attributes.html", "combining-attribute-and-argument-deprecation": "usage/attributes.html", "dataclass-field-renames": "usage/attributes.html", "decorator-syntax-attribute-rename": "usage/attributes.html", "enforcing-a-deprecation-policy": "audit/policy.html", "enforcing-removal-deadlines": "audit/policy.html", "enforcing-the-policy-in-ci": "audit/ci-integration.html", "enum-deprecated-member-aliases": "usage/attributes.html", "explicit-targetmodeattrs_remap-form": "usage/attributes.html", "github-action": "audit/ci-integration.html", "mixed-redirect-and-warn-only-entries": "usage/attributes.html", "monorepo-several-packages-in-one-run": "audit/ci-integration.html", "nested-proxy-wrappers": "usage/attributes.html", "per-attribute-independent-warning-budgets": "usage/attributes.html", "pre-commit-integration": "audit/ci-integration.html", "pytest-integration": "audit/ci-integration.html", "pytest-integration-for-expiry-enforcement": "audit/policy.html", "reads-writes-and-deletes-all-redirect": "usage/attributes.html", "real-world-migration-ml-training-config": "usage/attributes.html", "scanning-a-package": "audit/policy.html", "selective-attribute-deprecation": "usage/attributes.html", "stacking-deprecated_class-for-multi-version-deprecations": "usage/attributes.html", "suppressing-warnings-in-test-fixtures": "integrations/testing.html", "testing-deprecated-code": "integrations/testing.html", "the-two-rules": "audit/policy.html", "warn-only-with-none-redirect": "usage/attributes.html"};
+    var id = decodeURIComponent(window.location.hash.slice(1));
+    if (!id || !moves[id] || document.getElementById(id)) return;
+    if (window.location.pathname.endsWith("/" + moves[id])) return;
+    window.location.replace("./" + moves[id] + "#" + id);
+  });
+</script>
 
   <link rel="alternate" type="text/markdown" href="https://borda.github.io/pyDeprecate/stable/api-reference.html.md">
 <link rel="alternate" type="text/plain" title="llms.txt" href="https://borda.github.io/pyDeprecate/llms.txt">
@@ -399,7 +410,7 @@
   <span class="md-ellipsis">
     
   
-    Use Cases
+    Usage
   
 
     
@@ -415,7 +426,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Use Cases
+    Usage
   
 
           </label>
@@ -428,7 +439,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/use-cases.html" class="md-nav__link">
+      <a href="usage/index.html" class="md-nav__link">
         
   
   
@@ -456,7 +467,35 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/functions.html" class="md-nav__link">
+      <a href="usage/lifecycle.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lifecycle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="usage/functions.html" class="md-nav__link">
         
   
   
@@ -484,7 +523,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/classes.html" class="md-nav__link">
+      <a href="usage/classes.html" class="md-nav__link">
         
   
   
@@ -512,7 +551,35 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/modules.html" class="md-nav__link">
+      <a href="usage/attributes.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attributes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="usage/modules.html" class="md-nav__link">
         
   
   
@@ -540,7 +607,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/properties.html" class="md-nav__link">
+      <a href="usage/properties.html" class="md-nav__link">
         
   
   
@@ -568,7 +635,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/async.html" class="md-nav__link">
+      <a href="usage/async.html" class="md-nav__link">
         
   
   
@@ -596,7 +663,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/advanced.html" class="md-nav__link">
+      <a href="usage/advanced.html" class="md-nav__link">
         
   
   
@@ -604,6 +671,62 @@
     
   
     Advanced
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="usage/customization.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Customization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="usage/void-helper.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    void() Helper
   
 
     
@@ -649,7 +772,7 @@
   <span class="md-ellipsis">
     
   
-    Tools
+    Audit and CI
   
 
     
@@ -665,7 +788,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Tools
+    Audit and CI
   
 
           </label>
@@ -678,7 +801,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/audit.html" class="md-nav__link">
+      <a href="audit/index.html" class="md-nav__link">
         
   
   
@@ -706,14 +829,14 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/cli.html" class="md-nav__link">
+      <a href="audit/policy.html" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    CLI
+    Audit Policy
   
 
     
@@ -734,14 +857,42 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/void-helper.html" class="md-nav__link">
+      <a href="audit/ci-integration.html" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    void() Helper
+    CI Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="audit/cli.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
   
 
     
@@ -787,7 +938,7 @@
   <span class="md-ellipsis">
     
   
-    Configuration
+    Integrations
   
 
     
@@ -803,7 +954,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Configuration
+    Integrations
   
 
           </label>
@@ -816,14 +967,14 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/customization.html" class="md-nav__link">
+      <a href="integrations/testing.html" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Customization
+    Testing
   
 
     
@@ -844,14 +995,14 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/migration.html" class="md-nav__link">
+      <a href="integrations/docs-integration.html" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Migration Guide
+    Docs Integration
   
 
     
@@ -926,7 +1077,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/compare-python-deprecation-tools.html" class="md-nav__link">
+      <a href="adoption/compare-python-deprecation-tools.html" class="md-nav__link">
         
   
   
@@ -954,7 +1105,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/agent-recipes.html" class="md-nav__link">
+      <a href="adoption/agent-recipes.html" class="md-nav__link">
         
   
   
@@ -978,6 +1129,33 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="migration/index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migration Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -2026,10 +2204,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
         
           
-          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
             
   
   
@@ -2047,8 +2225,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_12">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -3012,7 +3190,8 @@
 
 
 <h1 id="api-reference">API Reference<a class="headerlink" href="#api-reference" title="Permanent link">🔗</a></h1>
-<p>Auto-generated from source docstrings. For usage examples see the <a href="guide/use-cases.html">Use Cases</a> guide, or <a href="getting-started.html">Getting Started</a> for installation and a first deprecation. The <code>pydeprecate</code> command-line tool is documented in the <a href="guide/cli.html">CLI Reference</a>.</p>
+<p>This reference is auto-generated from source docstrings. For usage examples, see the <a href="usage/index.html">Use Cases</a> guide. For installation and a first deprecation, see <a href="getting-started.html">Getting Started</a>.</p>
+<p>The <code>pydeprecate</code> command-line tool is documented in the <a href="audit/cli.html">CLI Reference</a>.</p>
 <h2 id="decorator">Decorator<a class="headerlink" href="#decorator" title="Permanent link">🔗</a></h2>
 
 
@@ -4093,10 +4272,11 @@ resolve against <code>SomeClass</code>.  A <code>None</code> mapping keeps the o
 Unlisted attributes and calls continue to use the normal target-forwarding behaviour.</p>
 <p><strong>Validation limitation</strong>: attribute existence is checked using :func:<code>inspect.getattr_static</code>,
 which detects class-level attributes and <code>__slots__</code> entries but not instance-only attributes
-set in <code>__init__</code> via <code>self.x = ...</code>.  For dataclass targets without defaults, the field
-name appears in <code>__dataclass_fields__</code> but the attribute itself is instance-only —
-decoration-time validation will raise :class:<code>ValueError</code> even though access would succeed at
-runtime.  As a workaround, add a class-level default or use a <code>None</code> (warn-only) entry.</p>
+set in <code>__init__</code> via <code>self.x = ...</code>.  Such an instance-only attribute makes decoration-time
+validation raise :class:<code>ValueError</code> even though access would succeed at runtime.  Dataclass fields
+are recognised through <code>__dataclass_fields__</code>, so they validate even without a default.  As a
+workaround for other instance-only attributes, add a class-level default or use a <code>None</code>
+(warn-only) entry.</p>
 <p>The mode can also be set explicitly as <code>target=TargetMode.ATTRS_REMAP</code> — both forms are equivalent;
 the explicit form is self-documenting and enables validation at decoration time. Passing
 <code>target=TargetMode.ATTRS_REMAP</code> without <code>attrs_mapping</code>, or passing an empty <code>attrs_mapping={}</code>,
@@ -5137,7 +5317,7 @@ plain :class:<code>types.ModuleType</code> first if needed.</p>
     </div>
 
 </div><h2 id="fatal-deprecations">Fatal deprecations<a class="headerlink" href="#fatal-deprecations" title="Permanent link">🔗</a></h2>
-<p><code>deprecate.AS_EXCEPTIONS</code> is a plain <code>bool</code> module attribute: the process-wide switch that turns every deprecation into a <code>DeprecatedError</code>. It is seeded at import from the <code>DEPRECATE_AS_EXCEPTIONS</code> environment variable and re-read on every emission. See <a href="guide/functions.html#fatal-deprecations">Fatal deprecations</a>.</p>
+<p><code>deprecate.AS_EXCEPTIONS</code> is a plain <code>bool</code> module attribute: the process-wide switch that turns every deprecation into a <code>DeprecatedError</code>. It is seeded at import from the <code>DEPRECATE_AS_EXCEPTIONS</code> environment variable and re-read on every emission. See <a href="usage/functions.html#fatal-deprecations">Fatal deprecations</a>.</p>
 
 
 <div class="doc doc-object doc-function">
@@ -8261,7 +8441,7 @@ The ordering operators are overridden to raise <code>TypeError</code> so acciden
     </div>
 
 </div><h3 id="legacy-audit-aliases">Legacy audit aliases<a class="headerlink" href="#legacy-audit-aliases" title="Permanent link">🔗</a></h3>
-<p>Deprecated since 0.6 and removed in 1.0; use the replacement named in each entry.</p>
+<p>These aliases are deprecated since v0.6 and removed in v1.0. Use the replacement named in each entry.</p>
 
 
 <div class="doc doc-object doc-class">
@@ -8984,7 +9164,7 @@ without triggering deprecation warnings.</p>
     </div>
 
 </div><h2 id="command-line">Command line<a class="headerlink" href="#command-line" title="Permanent link">🔗</a></h2>
-<p>The <code>pydeprecate</code> command wraps the audit functions above for CI and pre-commit use; its subcommands, flags and exit codes are listed in the <a href="guide/cli.html">CLI Reference</a>.</p>
+<p>The <code>pydeprecate</code> command wraps the audit functions above for CI and pre-commit use. Its subcommands, flags and exit codes are listed in the <a href="audit/cli.html">CLI Reference</a>.</p>
 
 
 
@@ -9007,7 +9187,7 @@ without triggering deprecation warnings.</p>
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 15, 2026 13:44:58 UTC">2026-11-15</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 19, 2026 14:21:25 UTC">2026-11-19</span>
   </span>
 
     

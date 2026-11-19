@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="assets/brand/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
     
     
       
@@ -97,7 +97,7 @@
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/changelog.html" },
   "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
-  "dateModified": "2026-11-15"
+  "dateModified": "2026-11-19"
 }
 </script>
 
@@ -118,6 +118,17 @@
 
 
 
+
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var moves = {"callable-target-with-attribute-redirection": "usage/attributes.html", "chained-redirect": "usage/attributes.html", "choosing-the-right-testing-tool": "integrations/testing.html", "class-type-compatibility": "usage/attributes.html", "combining-attribute-and-argument-deprecation": "usage/attributes.html", "dataclass-field-renames": "usage/attributes.html", "decorator-syntax-attribute-rename": "usage/attributes.html", "enforcing-a-deprecation-policy": "audit/policy.html", "enforcing-removal-deadlines": "audit/policy.html", "enforcing-the-policy-in-ci": "audit/ci-integration.html", "enum-deprecated-member-aliases": "usage/attributes.html", "explicit-targetmodeattrs_remap-form": "usage/attributes.html", "github-action": "audit/ci-integration.html", "mixed-redirect-and-warn-only-entries": "usage/attributes.html", "monorepo-several-packages-in-one-run": "audit/ci-integration.html", "nested-proxy-wrappers": "usage/attributes.html", "per-attribute-independent-warning-budgets": "usage/attributes.html", "pre-commit-integration": "audit/ci-integration.html", "pytest-integration": "audit/ci-integration.html", "pytest-integration-for-expiry-enforcement": "audit/policy.html", "reads-writes-and-deletes-all-redirect": "usage/attributes.html", "real-world-migration-ml-training-config": "usage/attributes.html", "scanning-a-package": "audit/policy.html", "selective-attribute-deprecation": "usage/attributes.html", "stacking-deprecated_class-for-multi-version-deprecations": "usage/attributes.html", "suppressing-warnings-in-test-fixtures": "integrations/testing.html", "testing-deprecated-code": "integrations/testing.html", "the-two-rules": "audit/policy.html", "warn-only-with-none-redirect": "usage/attributes.html"};
+    var id = decodeURIComponent(window.location.hash.slice(1));
+    if (!id || !moves[id] || document.getElementById(id)) return;
+    if (window.location.pathname.endsWith("/" + moves[id])) return;
+    window.location.replace("./" + moves[id] + "#" + id);
+  });
+</script>
 
   <link rel="alternate" type="text/markdown" href="https://borda.github.io/pyDeprecate/stable/changelog.html.md">
 <link rel="alternate" type="text/plain" title="llms.txt" href="https://borda.github.io/pyDeprecate/llms.txt">
@@ -396,7 +407,7 @@
   <span class="md-ellipsis">
     
   
-    Use Cases
+    Usage
   
 
     
@@ -412,7 +423,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Use Cases
+    Usage
   
 
           </label>
@@ -425,7 +436,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/use-cases.html" class="md-nav__link">
+      <a href="usage/index.html" class="md-nav__link">
         
   
   
@@ -453,7 +464,35 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/functions.html" class="md-nav__link">
+      <a href="usage/lifecycle.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lifecycle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="usage/functions.html" class="md-nav__link">
         
   
   
@@ -481,7 +520,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/classes.html" class="md-nav__link">
+      <a href="usage/classes.html" class="md-nav__link">
         
   
   
@@ -509,7 +548,35 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/modules.html" class="md-nav__link">
+      <a href="usage/attributes.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attributes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="usage/modules.html" class="md-nav__link">
         
   
   
@@ -537,7 +604,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/properties.html" class="md-nav__link">
+      <a href="usage/properties.html" class="md-nav__link">
         
   
   
@@ -565,7 +632,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/async.html" class="md-nav__link">
+      <a href="usage/async.html" class="md-nav__link">
         
   
   
@@ -593,7 +660,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/advanced.html" class="md-nav__link">
+      <a href="usage/advanced.html" class="md-nav__link">
         
   
   
@@ -601,6 +668,62 @@
     
   
     Advanced
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="usage/customization.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Customization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="usage/void-helper.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    void() Helper
   
 
     
@@ -646,7 +769,7 @@
   <span class="md-ellipsis">
     
   
-    Tools
+    Audit and CI
   
 
     
@@ -662,7 +785,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Tools
+    Audit and CI
   
 
           </label>
@@ -675,7 +798,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/audit.html" class="md-nav__link">
+      <a href="audit/index.html" class="md-nav__link">
         
   
   
@@ -703,14 +826,14 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/cli.html" class="md-nav__link">
+      <a href="audit/policy.html" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    CLI
+    Audit Policy
   
 
     
@@ -731,14 +854,42 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/void-helper.html" class="md-nav__link">
+      <a href="audit/ci-integration.html" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    void() Helper
+    CI Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="audit/cli.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
   
 
     
@@ -784,7 +935,7 @@
   <span class="md-ellipsis">
     
   
-    Configuration
+    Integrations
   
 
     
@@ -800,7 +951,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    Configuration
+    Integrations
   
 
           </label>
@@ -813,14 +964,14 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/customization.html" class="md-nav__link">
+      <a href="integrations/testing.html" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Customization
+    Testing
   
 
     
@@ -841,14 +992,14 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/migration.html" class="md-nav__link">
+      <a href="integrations/docs-integration.html" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Migration Guide
+    Docs Integration
   
 
     
@@ -923,7 +1074,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/compare-python-deprecation-tools.html" class="md-nav__link">
+      <a href="adoption/compare-python-deprecation-tools.html" class="md-nav__link">
         
   
   
@@ -951,7 +1102,7 @@
   
   
     <li class="md-nav__item">
-      <a href="guide/agent-recipes.html" class="md-nav__link">
+      <a href="adoption/agent-recipes.html" class="md-nav__link">
         
   
   
@@ -975,6 +1126,33 @@
           </ul>
         </nav>
       
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="migration/index.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migration Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1214,6 +1392,17 @@
     <span class="md-ellipsis">
       
         Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#removed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Removed
       
     </span>
   </a>
@@ -2072,10 +2261,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_13" >
         
           
-          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_13" id="__nav_13_label" tabindex="0">
             
   
   
@@ -2093,8 +2282,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_12">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_13_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_13">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2254,6 +2443,17 @@
     <span class="md-ellipsis">
       
         Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#removed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Removed
       
     </span>
   </a>
@@ -3129,7 +3329,7 @@
 <li><strong>Every CLI subcommand audits several paths in one run.</strong> <code>pydeprecate check src/ lib/</code> takes any number of paths; the GitHub Action <code>path</code> input takes one path per line. (<a href="https://github.com/Borda/pyDeprecate/pull/266">#266</a>)</li>
 <li><strong><code>pydeprecate all --gate=policy</code> fails on policy violations.</strong> <code>--gate</code> (or <code>gate = ["policy"]</code> in <code>[tool.pydeprecate]</code>) takes a comma-separated list over <code>check</code>, <code>expiry</code>, <code>policy</code> and <code>chains</code>; only <code>policy</code> changes the exit code, and it counts the violations of the same scan. An unknown check exits <code>2</code>. Without it <code>all</code> keeps reporting policy violations without failing on them. (<a href="https://github.com/Borda/pyDeprecate/pull/266">#266</a>)</li>
 <li><strong><code>--report-sarif FILE</code> writes SARIF 2.1.0 for code scanning.</strong> One result per active finding, keyed by finding id; suppressed findings are omitted and gaps become tool notifications. Available on every subcommand except <code>status</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/266">#266</a>)</li>
-<li><strong>The GitHub Action gains <code>fail-on-gap</code> and <code>sarif</code> inputs, step outputs and finding annotations.</strong> <code>fail-on-gap</code> maps to <code>--strict</code> and <code>sarif</code> to <code>--report-sarif</code>; the step outputs are <code>exit-code</code>, <code>findings</code>, <code>errors</code>, <code>warnings</code>, <code>gaps</code>, <code>suppressed</code>, <code>report-json</code> and <code>sarif-file</code>. Each finding becomes an annotation on its wrapper's line, at most 50 per run. (<a href="https://github.com/Borda/pyDeprecate/pull/266">#266</a>)</li>
+<li><strong>The GitHub Action gains <code>fail-on-gap</code> and <code>sarif</code> inputs, step outputs and finding annotations.</strong> <code>fail-on-gap</code> maps to <code>--strict</code> and <code>sarif</code> to <code>--report-sarif</code>; the step outputs are <code>exit-code</code>, <code>findings</code>, <code>errors</code>, <code>warnings</code>, <code>gaps</code>, <code>suppressed</code>, <code>report-json</code> and <code>sarif-file</code>. Each finding becomes an annotation on its wrapper's line, at most 10 per level per step, with the rest counted in one notice. (<a href="https://github.com/Borda/pyDeprecate/pull/266">#266</a>)</li>
 </ul>
 <p><strong>Audit API</strong></p>
 <ul>
@@ -3147,6 +3347,10 @@
 <li><strong>Matrix audit tables have one column per release.</strong> <code>generate_deprecation_table(..., style="matrix")</code> and the CLI matrix output merge the spellings <code>1.0</code>, <code>v1.0</code> and <code>1.0.0</code> of one release into a single column, headed by the shortest spelling. Without <code>packaging</code> only spellings that differ by the <code>v</code> prefix merge. (<a href="https://github.com/Borda/pyDeprecate/pull/262">#262</a>)</li>
 <li><strong><code>validate_deprecation_expiry(&lt;module path&gt;)</code> without a version surfaces the package's real import error.</strong> The module path is now imported before the version lookup, so a package whose own import fails raises its actual exception instead of "Could not determine version". A degenerate module path such as an empty name raises importlib's own error. (<a href="https://github.com/Borda/pyDeprecate/pull/262">#262</a>)</li>
 <li><strong>Unparsed matrix columns are ordered by their displayed header text.</strong> Version strings that are not PEP 440 releases come after the parsed releases, now sorted by the <code>v</code>-prefixed header as rendered instead of the raw string, so columns such as <code>next</code> and <code>vlegacy</code> swap order (<code>vlegacy | vnext</code>). A committed matrix table that contains such columns re-renders with the new order. (<a href="https://github.com/Borda/pyDeprecate/pull/262">#262</a>)</li>
+</ul>
+<h3 id="removed">Removed<a class="headerlink" href="#removed" title="Permanent link">🔗</a></h3>
+<ul>
+<li><strong>The empty <code>cli</code> extra is removed.</strong> The <code>pydeprecate</code> command has needed no dependency since v0.15, so <code>pip install 'pyDeprecate[audit]'</code> now covers every command. <code>pip install 'pyDeprecate[cli]'</code> still installs the package, with pip's warning that the extra does not exist; the hooks manifest and the GitHub Action install <code>pyDeprecate[audit]</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/269">#269</a>)</li>
 </ul>
 <h2 id="0150-2026-11-09-scoped-fatal-deprecations-a-dependency-free-cli-ci-integrations">[0.15.0] — 2026-11-09 — Scoped fatal deprecations, a dependency-free CLI, &amp; CI integrations<a class="headerlink" href="#0150-2026-11-09-scoped-fatal-deprecations-a-dependency-free-cli-ci-integrations" title="Permanent link">🔗</a></h2>
 <h3 id="added_2">Added<a class="headerlink" href="#added_2" title="Permanent link">🔗</a></h3>
@@ -3664,7 +3868,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 15, 2026 13:44:58 UTC">2026-11-15</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 19, 2026 14:21:25 UTC">2026-11-19</span>
   </span>
 
     

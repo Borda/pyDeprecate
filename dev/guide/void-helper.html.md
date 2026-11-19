@@ -1,27 +1,27 @@
 ---
 id: void-helper
-description: "Learn when and how to use pyDeprecate's void(...) helper: silence IDE warnings in deprecated stubs, compare alternatives like pass and docstring-only bodies, and understand how void(...) interacts with type checking."
+description: "Learn when and how to use pyDeprecate's void(...) helper to silence IDE warnings in deprecated stubs. Compare pass and docstring-only alternatives, and understand type-checking interactions."
 ---
 
 # The void(...) Helper
 
-When `@deprecated` forwards to a `target` callable, the deprecated function's body never runs — every call is intercepted before the body executes. This creates a practical annoyance: IDEs and linters see the parameters in the signature but nothing using them in the body, and they flag them as unused.
+When `@deprecated` forwards to a `target` callable, the deprecated function's body **never runs** — every call is intercepted before the body executes. This creates a practical annoyance: IDEs and linters see the parameters in the signature but nothing using them in the body, and they flag them as unused.
 
-`void(...)` is a no-op that accepts any arguments and returns `None`. Its only job is to silence those IDE warnings by giving the parameters a nominal "use" that says: the body is intentionally empty, not accidentally incomplete. It has no runtime effect.
+`void(...)` is a *no-op* that accepts any arguments and returns `None`. Its only job is to silence those IDE warnings by giving the parameters a nominal "use" that says: the body is intentionally empty, not accidentally incomplete. It has **no runtime effect**.
 
 ## When to use void(...)
 
-Use `void(...)` when all three of these are true:
+Use `void(...)` when *all three* of these are true:
 
 - The deprecated function forwards to a `target` callable (not `TargetMode.NOTIFY` or `TargetMode.ARGS_REMAP`).
 - Your IDE or linter flags the function parameters as unused.
 - You want the code to clearly signal that the empty body is deliberate.
 
-If you prefer, a bare `pass` or a standalone docstring are equally valid. pyDeprecate does not require `void(...)`. Use whichever form is clearest for your team.
+If you prefer, a bare `pass` or a standalone docstring are equally valid. pyDeprecate does **not require** `void(...)`. Use whichever form is clearest for your team.
 
 ## Basic usage
 
-`void(...)` appears as the return expression of a deprecated wrapper. The call to `add` is forwarded to `add_values` immediately — the `return void(a, b)` line is never reached, but it tells the IDE that `a` and `b` are intentionally accepted and ignored.
+`void(...)` appears as the return expression of a deprecated wrapper. The call to `add` is forwarded to `add_values` immediately, so the `return void(a, b)` line is never reached. It tells the IDE that `a` and `b` are intentionally accepted and ignored.
 
 ```python
 # NEW API — adds two integers and returns the sum
@@ -62,11 +62,11 @@ print(add_v1(2, 3))
 
 ## Alternatives to void(...)
 
-Three common patterns for the body of a deprecated function that forwards to a target. All are equivalent at runtime because the body is never reached — the choice is about communicating intent to readers and static analysis.
+There are three common patterns for the body of a deprecated function that forwards to a target. All are *equivalent at runtime* because the body is never reached. The choice is about communicating intent to readers and static analysis.
 
 ### Option 1: `pass` statement
 
-Simplest approach. Clear, idiomatic Python for "do nothing". IDEs may still flag the parameters as unused since nothing references them.
+`pass` is the simplest approach and clear, idiomatic Python for "do nothing". IDEs may still flag the parameters as unused since nothing references them.
 
 ```python
 from deprecate import deprecated
@@ -97,7 +97,7 @@ print(compute(2, 3))
 
 ### Option 2: Docstring-only body
 
-A docstring alone is a valid function body. Useful when you want to document what the deprecated function did historically or provide migration notes inline.
+A docstring alone is a valid function body. It is useful when you want to document what the deprecated function did historically or provide migration notes inline.
 
 ```python
 from deprecate import deprecated
@@ -128,7 +128,7 @@ print(compute(2, 3))
 
 ### Option 3: `void(...)` call
 
-References all parameters explicitly, silencing "unused parameter" warnings in PyCharm, VS Code (Pylance), and ruff. Also serves as a visual marker that the empty body is intentional.
+`void(...)` references all parameters explicitly, silencing "unused parameter" warnings in PyCharm, VS Code (Pylance), and ruff. It also serves as a visual marker that the empty body is intentional.
 
 ```python
 from deprecate import deprecated, void
@@ -169,7 +169,13 @@ If you use a strict linter that flags unused parameters (e.g. ruff's `ARG001`), 
 
 ## void(...) in generator stubs
 
-A deprecated generator stub must still contain `yield`. The wrapper kind follows the stub: a stub whose body is only `return void(...)` is a plain function, so its wrapper is a plain function that warns at call time and `inspect.isgeneratorfunction` reports `False`, even when the target is a generator. Call `void(...)` as a statement and add `yield from ()` so the stub stays a generator function; see [Advanced](advanced.md) for a full example.
+A deprecated generator stub <u>must still contain</u> `yield`. The wrapper kind follows the stub.
+
+!!! warning "A plain stub gets a plain wrapper"
+
+    A stub whose body is only `return void(...)` is a plain function. Its wrapper is therefore a plain function that warns at call time. `inspect.isgeneratorfunction` reports `False`, even when the target is a generator.
+
+Call `void(...)` as a statement and add `yield from ()` so the stub stays a generator function. See [Advanced](../usage/advanced.md) for a full example.
 
 ## void(...) with methods
 
@@ -202,7 +208,7 @@ Resized to 800x600 (bilinear)
 
 </details>
 
-You do not need to pass `self` to `void(...)` — only the parameters your linter flags. `self` is implicitly used by method dispatch and is never flagged.
+You do **not** need to pass `self` to `void(...)` — only the parameters your linter flags. `self` is implicitly used by method dispatch and is never flagged.
 
 ## Type annotation note
 
@@ -213,9 +219,7 @@ You do not need to pass `self` to `void(...)` — only the parameters your linte
 `void(...)` returns `None`, which looks incompatible with a function annotated as `-> int`. In practice this is fine because:
 
 1. **The body never runs.** `@deprecated` intercepts the call and forwards to the target before the body executes. The `return void(...)` line is dead code.
-
 2. **Type checkers handle dead code leniently.** Since mypy and pyright can see the decorator, they generally do not flag return type mismatches in unreachable paths.
-
 3. **If your type checker does complain**, two workarounds:
 
 ```python
@@ -258,7 +262,7 @@ In practice, neither workaround is usually needed — modern versions of mypy ha
 
 ## void(...) vs assert_no_warnings
 
-These two utilities solve completely different problems. Their names might suggest a connection, but they operate in different contexts. `assert_no_warnings` is a test-time tool covered in [Testing Deprecated Code](audit.md#testing-deprecated-code).
+These two utilities solve *completely different* problems. Their names might suggest a connection, but they operate in different contexts. `assert_no_warnings` is a test-time tool covered in [Testing Deprecated Code](../integrations/testing.md#testing-deprecated-code).
 
 |                    | `void(...)`                                                | `assert_no_warnings()`                                                  |
 | ------------------ | ---------------------------------------------------------- | ----------------------------------------------------------------------- |
@@ -301,9 +305,9 @@ print(result)
 
 ## See also
 
-- [Use Cases](use-cases.md) — worked examples of deprecation patterns, including those that use `void()`
-- [Troubleshooting](../troubleshooting.md) — why `deprecated_instance` does not emit warnings on arithmetic or comparison operators (same CPython dunder limitation)
+- [Use Cases](../usage/index.md) covers worked examples of deprecation patterns, including those that use `void()`.
+- [Troubleshooting](../troubleshooting.md) explains which `deprecated_instance` operators warn and which stay silent.
 
 ______________________________________________________________________
 
-Next: [Audit Tools](audit.md) — validate decorator configuration, enforce removal deadlines, and detect deprecation chains in CI.
+Next: [Audit Tools](../audit/index.md) — validate decorator configuration, enforce removal deadlines, and detect deprecation chains in CI.

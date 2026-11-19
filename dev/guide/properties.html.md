@@ -5,11 +5,18 @@ description: Deprecating Python properties and cached properties — getter-only
 
 # Properties
 
-This page covers deprecation of `@property` and `@cached_property` descriptors: decorator order rules, all-accessor wrapping, setter/deleter chains, and the dataclass field alias pattern. For function deprecation see [Functions](functions.md); for class deprecation see [Classes](classes.md).
+This page covers deprecation of `@property` and `@cached_property` descriptors: decorator order rules, all-accessor wrapping, setter/deleter chains, and the dataclass field alias pattern. For function deprecation see [Functions](../usage/functions.md); for class deprecation see [Classes](../usage/classes.md).
 
 ## Properties and cached properties
 
-`@deprecated` works with `@property` and `@cached_property`. The decorator only adds a `FutureWarning` at access time — it does **not** forward reads or writes to another property. For a getter-only property, either decorator order is valid. To add a warning to all three accessors (`fget`, `fset`, `fdel`) so that read, write, **and** delete each fire `FutureWarning`, place `@deprecated` on the **outside** (`@deprecated @property` order, or explicit `deprecated(...)(property(fget, fset, fdel))`). The inner-first order (`@property @deprecated`) only adds a warning to `fget` — apply `@deprecated` to setter and deleter separately if you also need them to warn.
+`@deprecated` works with `@property` and `@cached_property`. The decorator *only* adds a `FutureWarning` at access time; it does **not** forward reads or writes to another property.
+
+| Order                                                                                     | Accessors that warn                                                                             |
+| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Outer: `@deprecated @property`, or explicit `deprecated(...)(property(fget, fset, fdel))` | All three accessors (`fget`, `fset`, `fdel`) warn on read, write, **and** delete.               |
+| Inner-first: `@property @deprecated`                                                      | Only `fget` warns; apply `@deprecated` to setter and deleter separately if they must also warn. |
+
+For a getter-only property both orders warn on read, but use the outer order: the inner order `@property @deprecated` fails `pydeprecate check`.
 
 ```python
 from functools import cached_property
@@ -18,13 +25,13 @@ from deprecate import deprecated
 
 
 class Config:
-    @property
     @deprecated(deprecated_in="1.0", remove_in="2.0")
+    @property
     def timeout(self) -> int:
         return 30
 
-    @cached_property
     @deprecated(deprecated_in="1.0", remove_in="2.0")
+    @cached_property
     def base_url(self) -> str:
         return "https://example.com"
 
@@ -41,15 +48,20 @@ print(Config().timeout)
 
 </details>
 
-The `FutureWarning` fires on **attribute access** (`obj.timeout`), not on a call. For `@cached_property`, the warning fires on **first access only** — subsequent accesses return the cached value without emitting another warning. The cache is filled after the first read, so later reads of the same object never reach pyDeprecate and no `num_warns` value can raise the count. With `num_warns=-1` each new object warns once, on its first access; the default `num_warns=1` budget is shared by all objects, so only the first object to read the property warns.
+The `FutureWarning` fires on **attribute access** (`obj.timeout`), not on a call.
 
-!!! tip "Decorator order for getter-only properties"
+!!! note "Cached properties warn on first access only"
 
-    Either `@property @deprecated` (inner) or `@deprecated @property` (outer) order works for getter-only properties. Inner order is conventional — the deprecated decorator is closer to the `def`. For properties with a setter or deleter, use outer order; see the next section.
+    For `@cached_property`, subsequent accesses return the cached value without emitting another warning. The cache is filled after the first read. While that value remains cached, later reads of the same object do not reach pyDeprecate. Deleting the cached attribute makes the next read invoke the descriptor again, which can warn when the budget allows.
+
+    - With `num_warns=-1`, **each new object** warns once, on its first access.
+    - The default `num_warns=1` budget is **shared by all objects**, so only the first object to read the property warns.
+
+**Decorator order for getter-only properties.** Use `@deprecated @property` (outer) order. The inner order `@property @deprecated` also warns on read for a getter-only property, but `pydeprecate check` and `find_deprecation_wrappers` flag it, because a later setter or deleter would be silently unprotected. For properties with a setter or deleter, outer order is required; see the next section.
 
 ### Deprecating a property with a setter or deleter
 
-When the property being deprecated has a setter or deleter, all three accessors (`fget`, `fset`, `fdel`) are wrapped automatically — each fires a `FutureWarning`. Both the chain-style decorator pattern and the explicit construction pattern work:
+When the property being deprecated has a setter or deleter, all three accessors (`fget`, `fset`, `fdel`) are **wrapped automatically** — each fires a `FutureWarning`. Both the chain-style decorator pattern and the explicit construction pattern work:
 
 ```python
 from deprecate import deprecated
@@ -91,11 +103,9 @@ del cfg.timeout  # FutureWarning: delete
 
 `obj.timeout` fires `FutureWarning` on **read**, `obj.timeout = value` fires on **write**, and `del obj.timeout` fires on **delete**.
 
-!!! tip "Want only the getter to warn?"
+!!! tip "Per-accessor warnings"
 
-    If you want the setter or deleter to remain silent, apply `@deprecated` directly to `fget` using inner order (`@property @deprecated`) instead of wrapping the full `property` object.
-
-!!! tip "Testing each accessor independently"
+    To warn on the getter only, apply `@deprecated` directly to `fget` using inner order (`@property @deprecated`) instead of wrapping the full `property` object; the setter and deleter then remain silent. `pydeprecate check` flags that shape, so it suits only code you do not audit.
 
     Each accessor (`fget`, `fset`, `fdel`) has its own warning counter — assert read, write, and delete warnings in separate `pytest.warns` blocks, or use `num_warns=-1` to disable per-accessor deduplication.
 
@@ -124,15 +134,15 @@ class Config:
     timeout = deprecated(deprecated_in="1.0", remove_in="2.0")(property(_timeout_fget, _timeout_fset, _timeout_fdel))
 ```
 
-!!! note "Audit discoverability with explicit construction"
-
-    `find_deprecation_wrappers` discovers explicit-construction properties via the accessor that carries `__deprecation_config__` metadata. For setter-only properties (`property(None, fset)`), it discovers via `fset`; if `fget` is plain (not deprecated), it falls through to `fset` or `fdel`.
+`find_deprecation_wrappers` discovers explicit-construction properties via the accessor that carries `__deprecation_config__` metadata. For setter-only properties (`property(None, fset)`), it discovers via `fset`; if `fget` is plain (not deprecated), it falls through to `fset` or `fdel`.
 
 ### Strict mode: `from deprecate import property`
 
-The inner order `@property @deprecated` wraps only `fget`. If you later add a setter or deleter with `@value.setter` / `@value.deleter`, those accessors are rebuilt from the plain `property` base and are **silently unprotected** — writes and deletes never warn. This is easy to introduce by habit, because the standard library puts `@property` outermost.
+The inner order `@property @deprecated` wraps only `fget`. If you later add a setter or deleter with `@value.setter` / `@value.deleter`, those accessors are rebuilt from the plain `property` base. They are **<u>silently unprotected</u>**: writes and deletes never warn.
 
-To catch this at definition time, import the strict `property` replacement. It raises `TypeError` the moment a getter already carrying `@deprecated` metadata is handed to it — before any instance is created:
+This is easy to introduce by habit, because the standard library puts `@property` outermost.
+
+To catch this at definition time, import the strict `property` replacement. It raises `TypeError` the moment a getter already carrying `@deprecated` metadata is handed to it — *before* any instance is created:
 
 ```python
 # phmdoctest:skip — TypeError raised at class-body time
@@ -150,7 +160,7 @@ class Config:
         return self._timeout
 ```
 
-The fix is to switch to the canonical outer order `@deprecated(...) @property`, which wraps every accessor and survives later setter/deleter additions. The outer order works unchanged with the strict `property`:
+The fix is to switch to the **canonical outer order** `@deprecated(...) @property`, which wraps every accessor and survives later setter/deleter additions. The outer order works unchanged with the strict `property`:
 
 ```python
 from deprecate import deprecated, property
@@ -171,11 +181,13 @@ The strict `property` is a subclass of the builtin, so `isinstance(obj, property
 
 !!! tip "Auditing existing code: the `inner_order_property` flag"
 
-    Even without the strict import, `find_deprecation_wrappers` flags every inner-order `@property`: each `DeprecationWrapperInfo` carries `inner_order_property=True` when the wrapper is a plain `property` whose `fget` is deprecation-wrapped. The flag fires for the getter-only shape too, because the canonical form is the outer order. CI pipelines can reject any result with this flag set to eliminate the silent write/delete gap across a whole package. See the [Audit guide](audit.md) for the full CI integration pattern.
+    Even without the strict import, `find_deprecation_wrappers` flags every inner-order `@property`. Each `DeprecationWrapperInfo` carries `inner_order_property=True` when the wrapper is a plain `property` whose `fget` is deprecation-wrapped. The flag fires for the getter-only shape too, because the canonical form is the outer order.
+
+    CI pipelines can reject any result with this flag set to eliminate the silent write/delete gap across a whole package. See the [Audit guide](../audit/index.md) for the full CI integration pattern.
 
 ### Deprecated property alias on a dataclass
 
-When a dataclass field is renamed, define a property with the old name that delegates to the new field in its accessor body. `@deprecated` adds a `FutureWarning` to each accessor — the delegation itself is plain Python in the method body, not something the library provides.
+When a dataclass field is renamed, define a property with the old name that delegates to the new field in its accessor body. `@deprecated` adds a `FutureWarning` to each accessor — the delegation itself is *plain Python* in the method body, not something the library provides.
 
 **Read-only alias (warns on read only):**
 
@@ -253,22 +265,20 @@ print(cfg.timeout_ms)  # prints 10_000
 
     Do **not** use the same name as an existing dataclass field for the deprecated property. The `@dataclass`-generated `__init__` performs `self.field = value`, which conflicts with a property descriptor of the same name. Use a different name for the deprecated alias and keep the dataclass field under its new name.
 
-The same pattern works on regular (non-dataclass) classes — replace field access with `self._attr` lookups in the accessor body. `@deprecated` only adds the warning in either case.
+The same pattern works on regular (non-dataclass) classes — replace field access with `self._attr` lookups in the accessor body. `@deprecated` *only* adds the warning in either case.
 
-!!! note "`target=<callable>` not supported on properties"
-
-    `@deprecated` rejects `target=<callable>` on a `property` with `TypeError`. Properties have three independent accessors (`fget`, `fset`, `fdel`); there is no single callable to forward to. Delegate in each accessor body as shown above.
+`@deprecated` rejects `target=<callable>`, `args_mapping`, `args_extra`, `TargetMode.ARGS_REMAP` / `True` and `TargetMode.ATTRS_REMAP` on a `property` with `TypeError`. Properties have three independent accessors (`fget`, `fset`, `fdel`); there is no single callable to forward to. Delegate in each accessor body as shown above.
 
 ## See also
 
-- [Use Cases overview](use-cases.md) — start here for a guided tour of all deprecation patterns
-- [Functions](functions.md) — function and method deprecation patterns
-- [Classes](classes.md) — class, Enum, dataclass, and instance deprecation
-- [Async](async.md) — async functions and async generators
-- [Advanced](advanced.md) — class/static methods and generator functions
-- [Audit Tools](audit.md) — enforce removal deadlines in CI
-- [Troubleshooting](../troubleshooting.md) — common errors and fixes
+- Start with [Use Cases overview](../usage/index.md) for a guided tour of all deprecation patterns.
+- [Functions](../usage/functions.md) covers function and method deprecation patterns.
+- [Classes](../usage/classes.md) covers class, Enum, dataclass, and instance deprecation.
+- [Async](../usage/async.md) covers async functions and async generators.
+- [Advanced](../usage/advanced.md) covers class/static methods and generator functions.
+- Use [Audit Tools](../audit/index.md) to enforce removal deadlines in CI.
+- [Troubleshooting](../troubleshooting.md) covers common errors and fixes.
 
 ______________________________________________________________________
 
-Next: [Async](async.md) — deprecating async functions and async generators.
+Next: [Async](../usage/async.md) — deprecating async functions and async generators.

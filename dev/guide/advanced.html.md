@@ -5,13 +5,21 @@ description: Advanced deprecation patterns — automatic docstring updates, inje
 
 # Advanced
 
-This page covers patterns that go beyond the basics: injecting a deprecation notice into the docstring at import time, supplying a fixed default for a new required argument, testing helpers, deprecating `@classmethod` and `@staticmethod` descriptors, and generator functions. For core function patterns see [Functions](functions.md); for async generators see [Async](async.md).
+This page covers patterns that go beyond the basics:
+
+- Inject a deprecation notice into the docstring at import time.
+- Supply a fixed default for a new required argument.
+- Use testing helpers.
+- Deprecate `@classmethod` and `@staticmethod` descriptors.
+- Deprecate generator functions.
+
+For core function patterns see [Functions](../usage/functions.md); for async generators see [Async](../usage/async.md).
 
 A callable target with an unreadable signature can be decorated successfully. Forwarding that needs its signature raises the original introspection error at call time, including keyword validation with no `args_mapping`. An empty call that needs no signature validation can still succeed.
 
 ## Automatic docstring updates
 
-Set `update_docstring=True` to inject a deprecation notice directly into the function's docstring at import time. The rendered API reference (Sphinx or MkDocs) always shows the deprecation status alongside the signature, with no manual upkeep. A class wrapped with `deprecated_class(update_docstring=True)` keeps `__doc__ = None` when it has no docstring; internal proxy documentation is never injected.
+Set `update_docstring=True` to inject a deprecation notice directly into the function's docstring *at import time*. The rendered API reference (Sphinx or MkDocs) always shows the deprecation status alongside the signature, with no manual upkeep. A class wrapped with `deprecated_class(update_docstring=True)` keeps `__doc__ = None` when it has no docstring; internal proxy documentation is **never injected**.
 
 !!! tip "See it live"
 
@@ -132,13 +140,14 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
-          extensions:
-            - deprecate.docstring.griffe_ext:RuntimeDocstrings
+          options:
+            extensions:
+              - deprecate.docstring.griffe_ext:RuntimeDocstrings
 ```
 
 ## Injecting new required arguments
 
-When the replacement function gains a new required parameter that the old API never had, use `args_extra` to inject a fixed default. This forwards calls without breaking existing callers while the deprecation notice tells them to migrate.
+When the replacement function gains a new required parameter that the old API never had, use `args_extra` to **inject a fixed default**. This forwards calls without breaking existing callers while the deprecation notice tells them to migrate.
 
 ```python
 from deprecate import deprecated, void
@@ -177,13 +186,21 @@ Sent to 'alice@example.com': 'Hello' [normal]
 
 </details>
 
-`args_extra` merges into kwargs after `args_mapping` is applied. It is used when `target` is a Callable or `TargetMode.ARGS_REMAP` (with `args_mapping`). For `TargetMode.NOTIFY`, it is not used for forwarding; supplying it also triggers a construction-time `UserWarning` when the decorator is applied.
+`args_extra` merges into kwargs *after* `args_mapping` is applied. It is used when `target` is a Callable or `TargetMode.ARGS_REMAP` (with `args_mapping`). For `TargetMode.NOTIFY`, it is not used for forwarding; supplying it also triggers a construction-time `UserWarning` when the decorator is applied.
 
 ## Suppressing `FutureWarning` in test fixtures
 
-In test setup code (fixtures, helpers, factory functions), you often need to call deprecated functions without flooding the output with `FutureWarning` noise. The first call to a deprecated function still emits its warning (default `num_warns=1`; subsequent calls are silent) — suppress that specific message session-wide with a scoped `filterwarnings` entry in `pyproject.toml` or `conftest.py`; see [Audit Tools → Suppressing warnings in test fixtures](audit.md#suppressing-warnings-in-test-fixtures) for the config snippets.
+In test setup code (fixtures, helpers, factory functions), you often need to call deprecated functions without flooding the output with `FutureWarning` noise. The first call still emits its warning (default `num_warns=1`; subsequent calls are silent).
 
-For assertions, pick the right tool: `pytest.warns` asserts a warning IS emitted; a `filterwarnings` ignore entry silences without any assertion; and [`assert_no_warnings`](audit.md#testing-deprecated-code) asserts that NO warning of the specified category escapes the block — so refactored code cannot silently regress into calling deprecated APIs. If the code unexpectedly starts emitting a different warning category, that still surfaces.
+Suppress that specific message session-wide with a scoped `filterwarnings` entry in `pyproject.toml` or `conftest.py`. See [Audit Tools → Suppressing warnings in test fixtures](../integrations/testing.md#suppressing-warnings-in-test-fixtures) for the config snippets.
+
+For assertions, pick the right tool:
+
+- `pytest.warns` asserts a warning **IS** emitted.
+- A `filterwarnings` ignore entry **silences** without any assertion.
+- [`assert_no_warnings`](../integrations/testing.md#testing-deprecated-code) asserts that **NO** warning of the specified category escapes the block.
+
+The last option prevents refactored code from silently regressing into calling deprecated APIs. If the code unexpectedly starts emitting a different warning category, that still surfaces.
 
 ```python
 from deprecate import deprecated, assert_no_warnings, void
@@ -238,7 +255,7 @@ Use `assert_no_warnings` in test assertions to verify that refactored code no lo
 
 ## Class methods and static methods
 
-`@deprecated` works with both `@classmethod` and `@staticmethod` in either decorator order — place `@deprecated` above or below the descriptor decorator and the deprecation warning fires correctly at call time either way.
+`@deprecated` works with both `@classmethod` and `@staticmethod` in either decorator order. Place it above or below the descriptor decorator; the deprecation warning fires correctly at *call time* either way.
 
 ```python
 from deprecate import deprecated
@@ -289,7 +306,7 @@ Both decorator orders produce `classmethod(deprecated_wrapper)` or `staticmethod
 
 ### Forwarding a static method to another static method in the same class
 
-When renaming a `@staticmethod` or `@classmethod` within the same class, pass the new method directly as `target=new_method` — no `.__func__` suffix needed. Inside the class body `new_method` is still the raw descriptor (not yet bound); pyDeprecate unwraps it automatically.
+When renaming a `@staticmethod` or `@classmethod` within the same class, **pass the new method directly** as `target=new_method` — no `.__func__` suffix needed. Inside the class body `new_method` is still the raw descriptor (not yet bound); pyDeprecate unwraps it automatically.
 
 ```python
 from deprecate import deprecated, void
@@ -355,12 +372,26 @@ print(Compute.surface(r=3.0))  # warns: FutureWarning
 
 </details>
 
-The same pattern works for `@classmethod`. Declare both the deprecated and the replacement as classmethods; the other combinations listed below are either rejected or accepted with caveats. The receiver may have any name on either side (`cls`, `klass`, `mcs`): the class the call is bound to, a subclass included, is forwarded into the replacement's own receiver parameter. When the two receivers have different names, a caller keyword passed through `**kwargs` that matches the replacement's receiver name raises before warning unless `args_mapping` renames or drops it; `""` keeps the name unchanged, so the collision still raises without spending the warning budget. A mismatch surfaces as `TypeError`, at a point that depends on the direction:
+The same pattern works for `@classmethod`. Declare both the deprecated and the replacement as classmethods. The other combinations listed below are either rejected or accepted with caveats.
 
-- a `classmethod` replacement with a source that has no leading positional parameter raises at decoration time, and so does a static source written `@deprecated(...)` above `@staticmethod`, because a static method never receives the class;
-- a later source parameter, an `args_extra` key or an `args_mapping` value that carries the replacement's receiver name raises at decoration time: the class is forwarded under that name, so the value would take its place. Rename the parameter, drop the `args_extra` key, or map the argument to another parameter; an `args_mapping` entry that renames the source's own receiver onto the replacement's (`args_mapping={"klass": "cls"}`) is allowed;
-- a `classmethod` replacement with a plain source, or a static source written `@staticmethod` above `@deprecated(...)`, decorates fine, because pyDeprecate cannot tell it from a classmethod; the source's first argument is forwarded as the replacement's class, so a call raises before any warning when that argument, or the default it falls back to when the call leaves it out, is not a class, and a class passed there or given as its default is forwarded as the receiver;
-- a `classmethod` source forwarding to a `staticmethod` replacement decorates fine and raises `` TypeError: Failed mapping of `old`, arguments not accepted by target: ['cls'] `` on the first call.
+The receiver may have any name on either side (`cls`, `klass`, `mcs`). The bound class, including a subclass, is forwarded into the replacement's own receiver parameter.
+
+**Receiver-name collisions.** With differently named receivers, a caller keyword passed through `**kwargs` can match the replacement's receiver name. This raises before warning unless `args_mapping` renames or drops it. `""` keeps the name unchanged, so the collision still raises without spending the warning budget.
+
+A mismatch surfaces as `TypeError`, at a point that depends on the direction:
+
+| Source forwarding to a `classmethod` replacement                                                             | Result                                                                                  |
+| ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| The source has no leading positional parameter.                                                              | It raises at decoration time.                                                           |
+| A static source has `@deprecated(...)` above `@staticmethod`.                                                | It raises at decoration time because a static method never receives the class.          |
+| A later source parameter, `args_extra` key, or `args_mapping` value carries the replacement's receiver name. | It raises at decoration time because the value would replace the forwarded class.       |
+| The source is plain, or static with `@staticmethod` above `@deprecated(...)`.                                | It decorates successfully because pyDeprecate cannot distinguish it from a classmethod. |
+
+For a receiver-name collision, rename the parameter, drop the `args_extra` key, or map the argument to another parameter. An entry renaming the source's own receiver onto the replacement's (`args_mapping={"klass": "cls"}`) is allowed.
+
+For the plain or outer-static source, its first argument is forwarded as the replacement's class. If omitted, its default is used. A non-class value raises before any warning; a class passed explicitly or supplied as the default is forwarded as the receiver.
+
+A `classmethod` source forwarding to a `staticmethod` replacement decorates successfully. The first call raises `` TypeError: Failed mapping of `old`, arguments not accepted by target: ['cls'] ``.
 
 ```python
 from deprecate import deprecated, void
@@ -393,9 +424,19 @@ print(Compute.surface(3.0))  # warns: FutureWarning
 
 ## Deprecating generator functions
 
-Generator functions — any function that contains `yield` — are fully supported by `@deprecated`. The wrapper kind follows the deprecated stub, so the stub itself must contain `yield`: a stub whose body is only `return void(...)` is a plain function, gets a plain-function wrapper and warns at call time even when its target is a generator. The wrapper is itself a generator function, so `inspect.isgeneratorfunction(wrapper)` stays `True` and calling it only creates the generator object: the deprecation warning fires when you **first iterate** the result (the first `next()`), not when you call the generator function. The rest of the call path waits for that step too: `skip_if` is evaluated and the arguments are bound and remapped only then, so a wrong number of arguments or a `Failed mapping` `TypeError` raises on the first `next()`, not at the call.
+Generator functions — any function that contains `yield` — are fully supported by `@deprecated`. The wrapper is itself a generator function, so `inspect.isgeneratorfunction(wrapper)` stays `True`. Calling it only creates the generator object; the deprecation warning fires when you **first iterate** the result (the first `next()`).
 
-Keeping the flag matters because frameworks decide how to run a callable from it. pytest, for example, runs a `yield` fixture with its setup and teardown only when `inspect.isgeneratorfunction` is `True`, so a deprecated `yield` fixture keeps working. The trade-off: a generator that is created but never iterated never warns, and the warning points at the line that iterates, which may be far from the line that called the deprecated function.
+!!! warning "Keep `yield` in the deprecated stub"
+
+    The wrapper kind follows the deprecated stub, so the stub itself <u>must contain</u> `yield`. A body containing only `return void(...)` is a plain function and gets a plain-function wrapper. It warns at call time even when its target is a generator.
+
+The rest of the call path also waits for that first step. *Only* then is `skip_if` evaluated and are arguments bound and remapped. A wrong number of arguments or a `Failed mapping` `TypeError` raises on the first `next()`, not at the call.
+
+Keeping the flag matters because frameworks decide how to run a callable from it. For example, pytest runs a `yield` fixture with setup and teardown only when `inspect.isgeneratorfunction` is `True`. A deprecated `yield` fixture therefore keeps working.
+
+!!! note "Lazy warning timing"
+
+    A generator that is created but never iterated **never warns**. The warning points at the line that iterates, which may be far from the line that called the deprecated function.
 
 ```python
 from deprecate import deprecated, void
@@ -421,7 +462,7 @@ gen = iter_ids(10, 3)
 
 # The warning fires here — on the first item
 print(list(gen))  # warns: FutureWarning
-# FutureWarning: The `iter_ids` was deprecated since v0.9 in favor of `generate_ids`.
+# FutureWarning: The `iter_ids` was deprecated since v0.9 in favor of `your_module.generate_ids`.
 #                It will be removed in v1.0.
 # [10, 11, 12]
 ```
@@ -517,20 +558,28 @@ print(list(old_range(1, 4)))
 
 !!! note "Warning deduplication and the generator wrapper"
 
-    The deprecated wrapper for a generator is itself a generator function. On its first step it runs the normal dispatch path once — warning, `num_warns` budget, argument remapping or forwarding, and an `as_exceptions()` error — and then delegates to the generator the source or target returns with `yield from`, so `send()`, `throw()`, `close()` and the return value pass through unchanged. Each iterated generator therefore spends the budget at most once, later steps emit no further warning, and a generator that is never iterated spends nothing. A target that returns a list or another iterable instead of a generator has its items yielded.
+    The deprecated wrapper for a generator is itself a generator function. On its first step it runs the normal dispatch path once:
+
+    - It handles the warning and `num_warns` budget.
+    - It remaps arguments or forwards the call.
+    - It handles an `as_exceptions()` error.
+
+    It then delegates with `yield from` to the generator returned by the source or target. `send()`, `throw()`, `close()` and the return value pass through unchanged.
+
+    Each iterated generator spends the budget **at most once**; later steps emit no further warning. A generator that is never iterated spends nothing. A target returning a list or another iterable instead of a generator has its items yielded.
 
 ## See also
 
-- [Use Cases overview](use-cases.md) — start here for a guided tour of all deprecation patterns
-- [Functions](functions.md) — core function deprecation patterns
-- [Classes](classes.md) — class, Enum, and dataclass deprecation
-- [Properties](properties.md) — `@property` and `@cached_property` deprecation
-- [Async](async.md) — async functions and async generators
-- [Customization](customization.md) — custom message templates and output streams
-- [void() Helper](void-helper.md) — when and why to use `void()` in the function body
-- [Audit Tools](audit.md) — enforce removal deadlines and detect deprecation chains in CI
-- [Troubleshooting](../troubleshooting.md) — common errors and fixes
+- Start with [Use Cases overview](../usage/index.md) for a guided tour of all deprecation patterns.
+- [Functions](../usage/functions.md) covers core function deprecation patterns.
+- [Classes](../usage/classes.md) covers class, Enum, and dataclass deprecation.
+- [Properties](../usage/properties.md) covers `@property` and `@cached_property` deprecation.
+- [Async](../usage/async.md) covers async functions and async generators.
+- [Customization](../usage/customization.md) covers custom message templates and output streams.
+- [void() Helper](../usage/void-helper.md) explains when and why to use `void()` in the function body.
+- Use [Audit Tools](../audit/index.md) to enforce removal deadlines and detect deprecation chains in CI.
+- [Troubleshooting](../troubleshooting.md) covers common errors and fixes.
 
 ______________________________________________________________________
 
-Next: [Customization](customization.md) — redirect deprecation output to a logger or use a custom message template.
+Next: [Customization](../usage/customization.md) — redirect deprecation output to a logger or use a custom message template.
