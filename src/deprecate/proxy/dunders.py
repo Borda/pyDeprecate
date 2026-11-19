@@ -30,6 +30,10 @@ def _coroutine_wrapper_type() -> type:
 
     The sample coroutine is closed before it starts, so creating it runs no code and leaves no unawaited coroutine.
 
+    Example:
+        >>> _coroutine_wrapper_type() is _COROUTINE_WRAPPER_TYPE
+        True
+
     """
     sample = _sample_coroutine()
     try:
@@ -47,6 +51,14 @@ def _exit_acquired(context: Any, *exc_info: Any) -> None:  # noqa: ANN401
 
     Whatever ``__exit__`` returns is ignored: the caller re-raises that error, so a suppressing context cannot hide it.
 
+    Example:
+        >>> class Context:
+        ...     def __exit__(self, *exc_info):
+        ...         print("exit", exc_info)
+        ...         return True
+        >>> _exit_acquired(Context(), None, None, None)
+        exit (None, None, None)
+
     """
     context.__exit__(*exc_info)
 
@@ -57,6 +69,10 @@ def _held_by(owner: Any) -> list[Any]:  # noqa: ANN401
     Depending on the Python version, :func:`gc.get_referents` reports an instance's attribute values directly or through
     its ``__dict__``, so both shapes are expanded. A deprecation proxy is followed down its source chain, so the object
     at the bottom of any stack of proxies counts as held by the outermost one.
+
+    Example:
+        >>> _held_by([1])
+        [[1], 1]
 
     """
     held: list[Any] = []
@@ -93,6 +109,16 @@ def _close_abandoned(acquired: Any, owner: Any, *exc_info: Any) -> None:  # noqa
         acquired: The awaitable or await iterator the wrapped object returned.
         owner: The object it was acquired from.
         exc_info: The delivery error's ``sys.exc_info()``, accepted for the release-callback signature and unused.
+
+    Example:
+        >>> async def work():
+        ...     pass
+        >>> fresh, borrowed = work(), work()
+        >>> _close_abandoned(fresh, object())
+        >>> _close_abandoned(borrowed, borrowed)
+        >>> fresh.cr_frame is None, borrowed.cr_frame is None
+        (True, False)
+        >>> borrowed.close()
 
     """
     kind = type(acquired)
@@ -195,7 +221,13 @@ for _method in (__enter__, __exit__, __aenter__, __aexit__, __aiter__, __anext__
 
 
 def _unwrap_operand(value: Any) -> Any:  # noqa: ANN401
-    """Return the active object behind a proxy operand, leaving non-proxy operands untouched."""
+    """Return the active object behind a proxy operand, leaving non-proxy operands untouched.
+
+    Example:
+        >>> _unwrap_operand(3)
+        3
+
+    """
     return _innermost_active(value)
 
 
@@ -207,6 +239,10 @@ def _make_binary_forward(op_name: str, *, warn: bool) -> Callable[..., Any]:
     unsupported-operand error. Proxy operands are unwrapped to their active object first. A warning operator resolves
     first: one ``skip_if`` decision selects the operand and the warning, and a fatal deprecation is refused only once
     the operator has produced a result.
+
+    Example:
+        >>> _make_binary_forward("__add__", warn=True).__qualname__
+        '_DeprecatedProxy.__add__'
 
     """
 
@@ -241,6 +277,10 @@ def _make_inplace_forward(op_name: str) -> Callable[..., Any]:
     the binary operator, which warns on its own. The mutation has already happened when the warning is delivered, so it
     stays if that delivery raises.
 
+    Example:
+        >>> _make_inplace_forward("__iadd__").__qualname__
+        '_DeprecatedProxy.__iadd__'
+
     """
     read_only_op = f"In-place operation '{op_name}'"
 
@@ -270,6 +310,10 @@ def _make_unary_forward(op_name: str, func: Callable[[Any], Any]) -> Callable[..
     lasting effect, which is why ``__next__`` (it consumes an item) is hand-written to warn first instead.  Every
     forward first passes :meth:`~deprecate.proxy._DeprecatedProxy._gate`, so a fatal deprecation never runs the wrapped
     object's hook (``__index__`` or ``__fspath__`` may run user code).
+
+    Example:
+        >>> _make_unary_forward("__neg__", abs).__qualname__
+        '_DeprecatedProxy.__neg__'
 
     """
 

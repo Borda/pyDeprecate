@@ -75,7 +75,13 @@ _MUTATING_METHOD_NAMES = frozenset(
 
 
 def _is_dunder(name: str) -> bool:
-    """Return whether *name* is a dunder attribute name (``__x__``) — introspection machinery, not user API."""
+    """Return whether *name* is a dunder attribute name (``__x__``) — introspection machinery, not user API.
+
+    Example:
+        >>> _is_dunder("__wrapped__"), _is_dunder("_private"), _is_dunder("__mangled")
+        (True, False, False)
+
+    """
     return name.startswith("__") and name.endswith("__")
 
 
@@ -714,6 +720,7 @@ class _DeprecatedProxy:
 
     def _guard_read_only_mutator(self, attr: Any, name: str) -> Any:  # noqa: ANN401
         """Return a guarded callable for standard mutators in read-only mode."""
+        # guard only a read-only proxy's standard collection mutator (``append``, ``update``, ...) that can be called
         if self._cfg.read_only and callable(attr) and name in _MUTATING_METHOD_NAMES:
 
             def _guarded_mutator(*args: Any, **kwargs: Any) -> None:  # noqa: ANN401
@@ -1016,6 +1023,8 @@ class _DeprecatedProxy:
         # validated as a misconfiguration at decoration time.
         if dep.target is TargetMode.ATTRS_REMAP:
             return cfg.obj(*args, **kwargs)
+        # take the per-argument path when only argument names are deprecated, or the class forwards to a callable
+        # replacement and renames some arguments on the way
         if dep.target is TargetMode.ARGS_REMAP or (callable(dep.target) and dep.args_mapping):
             return _proxy_call_mapped(self, dep, args, kwargs)
         return _proxy_call_global(self, dep, args, kwargs)
@@ -1298,6 +1307,13 @@ def _proxy_call_with_positional_split(
     *keyword_overflow* holds caller keywords named like a positional-only parameter of a *ctor* that declares
     ``**kwargs`` (see ``deprecate._dispatch._take_keyword_overflow``); they skip the split and reach *ctor* as keywords.
 
+    Example:
+        >>> facts = _CallFacts(target_positional_only=frozenset({"a"}), target_positional_only_order=("a", "b"))
+        >>> _proxy_call_with_positional_split(lambda *a, **k: (a, k), facts, (), {"a": 1, "b": 2})
+        ((1,), {'b': 2})
+        >>> _proxy_call_with_positional_split(lambda *a, **k: (a, k), _CallFacts(), (), {"a": 1})
+        ((), {'a': 1})
+
     """
     overflow = keyword_overflow or {}
     if facts.target_positional_only:
@@ -1357,6 +1373,8 @@ def _reconstruct_proxy(
     """
     # Every pickle uses the 0.14-compatible state, which omits call facts. Recover the target split from metadata
     # and source keyword binding from its signature, even when the target has no positional-only parameters.
+    # rebuild the facts when the call renames arguments, or when the payload lost a positional-only split that the
+    # frozen metadata still records
     if dep.args_mapping or (not cfg.facts.target_positional_only and dep.target_positional_only):
         signature = _read_call_facts(cfg.obj) if dep.args_mapping else _SigFacts()
         cfg.facts = replace(
@@ -1392,7 +1410,13 @@ _UNRESOLVED = object()
 
 
 def _innermost_source(obj: Any) -> Any:  # noqa: ANN401
-    """Return the object a (possibly stacked) proxy chain wraps, read without any attribute access that warns."""
+    """Return the object a (possibly stacked) proxy chain wraps, read without any attribute access that warns.
+
+    Example:
+        >>> _innermost_source("plain")
+        'plain'
+
+    """
     for source in _proxy_sources(obj):
         obj = source
     return obj
@@ -1482,6 +1506,13 @@ def _published_object(root: Any, qualname: str) -> Any:  # noqa: ANN401
     ``__getattr__`` or a deprecated module's attribute hook. A proxy met on the way (a nested class inside a deprecated
     host) is unwrapped to its class first; the last part is returned as found, so the caller can tell the class itself
     from a proxy that took over its name.
+
+    Example:
+        >>> inner = types.SimpleNamespace(leaf=1)
+        >>> _published_object(types.SimpleNamespace(inner=inner), "inner.leaf")
+        1
+        >>> _published_object(inner, "missing") is _UNRESOLVED
+        True
 
     """
     found = root
@@ -1812,6 +1843,7 @@ def _build_proxy_warn_msg(
     source_path = _proxy_source_path(cfg.obj, dep.name)
     versions = {"deprecated_in": dep.deprecated_in, "remove_in": dep.remove_in}
 
+    # a per-argument warning for an argument that the call-level ``args_mapping`` renames
     if arg_name is not None and args_mapping and arg_name in args_mapping:
         new_arg = args_mapping[arg_name]
         return _format_deprecation_message(
@@ -1822,6 +1854,7 @@ def _build_proxy_warn_msg(
             argument_map=_render_argument_map({arg_name: new_arg}),
             **versions,
         )
+    # an attribute access (budget key ``__attr__:<name>``) on a proxy that deprecates specific attributes
     if arg_name is not None and arg_name.startswith("__attr__:") and dep.attrs_mapping is not None:
         # Keep the prefixed budget key in the caller; only the displayed name drops the attribute namespace.
         attr_name = arg_name[len("__attr__:") :]
@@ -1908,6 +1941,10 @@ def _binds_as_method(obj: Any) -> bool:  # noqa: ANN401
     3.13 and binds on 3.14, method descriptors reject foreign instances, and a callable whose binding the proxy cannot
     predict is served unbound on every Python version. Cython-style binding callables are not bound either.
 
+    Example:
+        >>> _binds_as_method(lambda: 0), _binds_as_method(len), _binds_as_method(functools.partial(int))
+        (True, False, False)
+
     """
     # ``type()`` rather than ``isinstance`` for the function: a proxy reports its wrapped object's class through
     # ``__class__``, so a plain proxy over a function would pass ``isinstance(obj, types.FunctionType)``.
@@ -1919,6 +1956,10 @@ def _proxy_type_for(obj: Any) -> type[_DeprecatedProxy]:  # noqa: ANN401
 
     Uses :func:`_binds_as_method`, the same test :meth:`_BindingDeprecatedProxy.__get__` applies, so the proxy type and
     its binding behaviour cannot disagree.
+
+    Example:
+        >>> _proxy_type_for(lambda: 0).__name__, _proxy_type_for(len).__name__
+        ('_BindingDeprecatedProxy', '_DeprecatedProxy')
 
     """
     if _binds_as_method(obj):
@@ -2024,6 +2065,16 @@ def _protocol_entries(kind: type) -> dict[str, bool]:
         ``True`` for a defined dunder, ``False`` for one disabled by a ``None`` entry; a dunder no class in the MRO
         names is absent from the mapping.
 
+    Example:
+        >>> class Sized:
+        ...     def __len__(self):
+        ...         return 0
+        ...
+        ...     __iter__ = None
+        >>> entries = _protocol_entries(Sized)
+        >>> entries["__len__"], entries["__iter__"], "__call__" in entries
+        (True, False, False)
+
     """
     entries: dict[str, bool] = {}
     forwards = _PROTOCOL_FORWARDS.keys()
@@ -2042,6 +2093,14 @@ def _serves_by_fallback(entries: dict[str, bool], name: str) -> bool:
     type disables the dunder it would fall back to with a ``None`` entry. Reversal needs both ``__len__`` and
     ``__getitem__``, so either one disabled or missing leaves ``reversed()`` unserved.
 
+    Example:
+        >>> _serves_by_fallback({"__getitem__": True}, "__iter__")
+        True
+        >>> _serves_by_fallback({"__getitem__": True}, "__reversed__")
+        False
+        >>> _serves_by_fallback({"__iter__": False, "__getitem__": True}, "__contains__")
+        False
+
     """
     if name in entries or name not in ("__contains__", "__iter__", "__reversed__"):
         return False
@@ -2051,7 +2110,15 @@ def _serves_by_fallback(entries: dict[str, bool], name: str) -> bool:
 
 
 def _supports_beyond_type(value: Any, forward: _ProtocolForward) -> bool:  # noqa: ANN401
-    """Return whether a proxy serving *value* needs *forward* although the type of *value* does not define it."""
+    """Return whether a proxy serving *value* needs *forward* although the type of *value* does not define it.
+
+    Example:
+        >>> _supports_beyond_type("text", _ProtocolForward(len, native_types=(str, bytes)))
+        True
+        >>> _supports_beyond_type(list, _ProtocolForward(len, class_hook="__class_getitem__"))
+        True
+
+    """
     kind = type(value)
     if forward.native_types and issubclass(kind, forward.native_types):
         return True
@@ -2066,6 +2133,10 @@ def _subscripts_by_class_hook(value: Any, entries: dict[str, bool]) -> bool:  # 
     Args:
         value: A served object.
         entries: The :func:`_protocol_entries` of ``type(value)``.
+
+    Example:
+        >>> _subscripts_by_class_hook(list, {}), _subscripts_by_class_hook([], {"__getitem__": True})
+        (True, False)
 
     """
     forward = _PROTOCOL_FORWARDS_BEYOND_TYPE.get("__getitem__")

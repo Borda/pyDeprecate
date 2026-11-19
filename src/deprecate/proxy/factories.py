@@ -327,6 +327,7 @@ def deprecated_class(
             cls_name = cls_config.name
         else:
             cls_name = cls.__name__
+        # nudge the author when the notice would be shown (a stream is set) yet nothing names the deprecation version
         if stream is not None and not deprecated_in and not message_template:
             _warn_missing_deprecated_in(f"`@deprecated_class` on `{cls_name}`")
         proxy = _DeprecatedProxy(
@@ -491,6 +492,7 @@ def deprecated_instance(
     message_template = _resolve_message_template_alias(message_template, template_mgs)
     _reject_instance_target(target)
     resolved_name = name or type(obj).__name__
+    # nudge the author when the notice would be shown (a stream is set) yet nothing names the deprecation version
     if stream is not None and not deprecated_in and not message_template:
         _warn_missing_deprecated_in(f"`deprecated_instance()` on `{resolved_name}`")
     return _proxy_type_for(obj)(
