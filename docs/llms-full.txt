@@ -12,10 +12,10 @@ pyDeprecate is a Python deprecation decorator library for API migration. It prov
 | Import name | `deprecate` |
 | Install | `pip install pyDeprecate` |
 | Import | `from deprecate import deprecated` |
-| CLI | `pydeprecate` uses only the standard library since v0.15. The `[cli]` extra is an empty alias kept for compatibility. Before v0.15 the CLI needs `[cli]`. |
+| CLI | `pydeprecate` uses only the standard library since v0.15. It needs no `cli` extra. Before v0.15 the CLI needs `[cli]`. |
 | Runtime dependencies | There are none. |
 | Optional audit extra | `pip install 'pyDeprecate[audit]'` |
-| Optional CLI audit extra | Use `pip install 'pyDeprecate[audit,cli]'` for `pydeprecate expiry`, `pydeprecate policy`, and `pydeprecate all`. |
+| Optional audit extra | Use `pip install 'pyDeprecate[audit]'` for `pydeprecate expiry`, `pydeprecate policy`, and `pydeprecate all`. |
 
 ## Coding-Agent Plugin
 
@@ -26,7 +26,7 @@ pyDeprecate is a Python deprecation decorator library for API migration. It prov
     - A `sunset` request (implementing a deprecation) requires package/module scope plus `deprecated_in` and `remove_in`. `prune` requests require scope plus target release only.
     - Example requests: `Sunset old_func in package.module, deprecated_in=1.4, remove_in=2.0.` and `Prune compatibility due by target release 2.0 from package.module.`
 - Preview is read-only. Removal requires an explicit release deadline: `remove_in <= target release` under PEP 440. Also include a `remove_in` whose base release equals an explicitly requested RC target (`2.0rc1` for `remove_in="2.0"`) only when the user is preparing that final release. It preserves surviving functions/classes for argument/attribute compatibility, and reports incomplete scans as unresolved.
-- Use the consumer environment's existing `pyDeprecate`. Python audits need `[audit]`, while CLI audits need `[audit,cli]`. The plugin adds no server, hook, runtime dependency, or pip dependency.
+- Use the consumer environment's existing `pyDeprecate`. Python and CLI audits both need `[audit]`. The plugin adds no server, hook, runtime dependency, or pip dependency.
 - Plugin source: `plugins/pydeprecate/` with separate host manifests and shared `skills/sunset/` and `skills/prune/` skills.
 - For adoption, ask: `Scan src/acme for deprecation decorators, warnings, aliases, and shims; suggest supported pyDeprecate conversions without editing.` The scan is read-only, verifies installed or explicitly identified release support, and reports `convert`, `keep`, or `needs decision`. Do not force dependencies or convert operational warnings. PEP 702 static-checker behavior is not equivalent merely by matching runtime metadata.
 
@@ -687,7 +687,7 @@ Reading `pyproject.toml` needs a TOML parser: built in on Python 3.11+, the `tom
         | `exit-zero` | The default is `false`; it maps to `--exit-zero`. It is rejected with exit `2` for `status`. It also switches off a `strict = true` from `pyproject.toml`. |
         | `fail-on-gap` | The default is `false`, since v0.16; it maps to `--strict`. It is rejected with exit `2` together with `exit-zero` or for `status`. |
         | `sarif` | The default is `false`, since v0.16; it maps to `--report-sarif`. It is rejected for `status`. |
-        | `install` | The default is `true`: it pip-installs `pyDeprecate[cli,audit]` from the action's own ref, replacing any installed version for the rest of the job. Use `false` when the job already installs the pinned pyDeprecate or has no pip, e.g. a uv venv. |
+        | `install` | The default is `true`: it pip-installs `pyDeprecate[audit]` from the action's own ref, replacing any installed version for the rest of the job. Use `false` when the job already installs the pinned pyDeprecate or has no pip, e.g. a uv venv. |
         | `summary` | The default is `false`. Append the markdown deprecation status table of the gate's own scan to the job summary. Read it from the report the CLI writes with `--report-json`. It covers exactly what the gate scanned however `path` and `args` name the package. |
     - Summary failures only warn and preserve the gate result.
     - No summary is produced on CLI exit `2` or `3`.
@@ -710,7 +710,7 @@ Reading `pyproject.toml` needs a TOML parser: built in on Python 3.11+, the `tom
     - `language: system` is spelled `unsupported` since pre-commit 4.4. Keep `system`, which still works, because `unsupported` fails on older pre-commit.
     - The shipped remote hook uses `repo: https://github.com/Borda/pyDeprecate`, since v0.15.0. There is one hook id per subcommand: `pydeprecate-check`, `pydeprecate-policy`, `pydeprecate-expiry`, `pydeprecate-chains` and `pydeprecate-all`, plus `pydeprecate` as an alias of `pydeprecate-check`. The subcommand is in the hook `entry`, so `args` carries only flags and the path, e.g. `args: [--exit-zero]`.
     - With no path the scan picks the single package under `src/`, then at the root. The hook runs in an isolated environment without the user's runtime dependencies. A submodule that fails to import is skipped with a warning and the hook still passes.
-    - A user `additional_dependencies` list replaces the hook's own, so start it with the manifest's quoted `"pyDeprecate[cli,audit]"` entry. These are the package's own `cli` and `audit` extras, which pip resolves to the hook's own checkout. Then append yours.
+    - A user `additional_dependencies` list replaces the hook's own, so start it with the manifest's quoted `"pyDeprecate[audit]"` entry. This is the package's own `audit` extra, which pip resolves to the hook's own checkout. Then append yours.
     - The CLI never takes file paths. The hook scans the whole package.
     - On a repository root holding two or more top-level packages the default scan fails with a `contains multiple packages` error, so pass the package path in `args`, e.g. `args: [pkg]` (src-layout and single-package roots work without it).
     - Flags may precede the path (`check --exit-zero src/pkg`). Boolean flags take `true`/`false`/`1`/`0` (case-insensitive, `--flag value` or `--flag=value`; negate with `--no-recursive`; the older `--norecursive` spelling still works) and any other value exits `2`. Every positional is a path (since v0.16, several are audited in one run).

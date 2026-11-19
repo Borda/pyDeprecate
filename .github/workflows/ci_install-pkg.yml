@@ -80,10 +80,10 @@ jobs:
           pip list
           python -c "import deprecate as pkg; print(f'version: {pkg.__version__}')"
 
-      - name: 🖥️ Smoke-test console script (cli extra)
+      - name: 🖥️ Smoke-test console script
         working-directory: dist
         run: |
-          pip install "${{ env.PKG_WHEEL }}[audit,cli]" --force-reinstall
+          pip install "${{ env.PKG_WHEEL }}[audit]" --force-reinstall
           pydeprecate --help
 
       - name: 🐶 Dogfood — audit our own deprecations

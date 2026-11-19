@@ -18,7 +18,7 @@ Retire only compatibility due in the requested release. An expired record identi
    - Report stale editable-install metadata; validate capabilities against loaded source.
    - Before importing the consumer package, assess whether its import side effects can be contained as described in step 4.
 3. Consult the [agent guide](https://borda.github.io/pyDeprecate/llms.txt) and installed public API signatures.
-   - Only when the step 4 import-safety condition is met, start from the lifecycle table: `python -m deprecate status <package> --version "<target_release>"` (requires `[audit,cli]`) lists every wrapper with its `Current Status`.
+   - Only when the step 4 import-safety condition is met, start from the lifecycle table: `python -m deprecate status <package> --version "<target_release>"` (requires `[audit]`, plus `[cli]` before v0.15) lists every wrapper with its `Current Status`.
    - The path argument takes an importable module name or a directory, never a file.
    - Candidates are rows marked `💥 Past Removal Date`.
    - Rows marked `🔔 Remove Before Release` are due only when the target release is the RC of that `remove_in` base and the user is preparing that final release.
@@ -100,7 +100,7 @@ Update active docs, imports, exports and tests. Preserve historical changelog en
   - For a same-base RC target, check the final base release (`"2.0"` for target `2.0rc1`) using expiry only when its input is safe to scan.
   - Alternatively, compare the static or source-only inventory with PEP 440 ordering.
   - When imports are safe, rerunning `python -m deprecate status` at the RC target can instead confirm no pruned symbol still shows `🔔 Remove Before Release`.
-  - Python expiry requires `[audit]`; CLI expiry requires `[audit,cli]` (the `[cli]` extra is empty since v0.15, so `[audit]` suffices there).
+  - Python and CLI expiry require `[audit]`; before v0.15 the CLI also needs `[cli]`.
 - Zero exit or an empty list is insufficient.
   - Missing audit dependencies can skip checks; malformed deadlines and import failures can omit candidates.
   - Report these as incomplete coverage.

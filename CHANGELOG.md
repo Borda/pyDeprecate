@@ -43,6 +43,10 @@
 - **`validate_deprecation_expiry(<module path>)` without a version surfaces the package's real import error.** The module path is now imported before the version lookup, so a package whose own import fails raises its actual exception instead of "Could not determine version". A degenerate module path such as an empty name raises importlib's own error. ([#262](https://github.com/Borda/pyDeprecate/pull/262))
 - **Unparsed matrix columns are ordered by their displayed header text.** Version strings that are not PEP 440 releases come after the parsed releases, now sorted by the `v`-prefixed header as rendered instead of the raw string, so columns such as `next` and `vlegacy` swap order (`vlegacy | vnext`). A committed matrix table that contains such columns re-renders with the new order. ([#262](https://github.com/Borda/pyDeprecate/pull/262))
 
+### Removed
+
+- **The empty `cli` extra is removed.** The `pydeprecate` command has needed no dependency since v0.15, so `pip install 'pyDeprecate[audit]'` now covers every command. `pip install 'pyDeprecate[cli]'` still installs the package, with pip's warning that the extra does not exist; the hooks manifest and the GitHub Action install `pyDeprecate[audit]`. ([#269](https://github.com/Borda/pyDeprecate/pull/269))
+
 ## [0.15.0] — 2026-11-09 — Scoped fatal deprecations, a dependency-free CLI, & CI integrations
 
 ### Added

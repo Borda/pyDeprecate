@@ -641,7 +641,7 @@ class TestActionInstall:
         requirement = pip_calls[0][-1]
         assert code == 0, capfd.readouterr().out
         assert pip_calls[0][:4] == [sys.executable, "-m", "pip", "install"]
-        assert requirement.startswith("pyDeprecate[cli,audit] @ file://")
+        assert requirement.startswith("pyDeprecate[audit] @ file://")
         assert requirement.endswith("/my%20action")
         assert " " not in requirement.split("@ ", 1)[1]
 
@@ -660,7 +660,7 @@ class TestActionInstall:
         monkeypatch.delenv("GITHUB_ACTION_PATH", raising=False)
         code = action_runner.main()
         assert code == 0, capfd.readouterr().out
-        assert pip_calls[0][-1] == f"pyDeprecate[cli,audit] @ {_REPO_ROOT.resolve().as_uri()}"
+        assert pip_calls[0][-1] == f"pyDeprecate[audit] @ {_REPO_ROOT.resolve().as_uri()}"
 
 
 class TestActionSummary:

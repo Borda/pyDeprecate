@@ -10,10 +10,10 @@ The `pydeprecate` CLI runs all four [audit checks](audit.md) directly from the c
 ## Installation
 
 ```bash
-pip install 'pyDeprecate[audit,cli]'
+pip install 'pyDeprecate[audit]'
 ```
 
-Start with `[audit,cli]` unless you are certain you will never use `expiry`, `policy`, or `all`. The `[audit]` extra pulls in `packaging`.
+Start with `[audit]` unless you are certain you will never use `expiry`, `policy`, or `all`. The `[audit]` extra pulls in `packaging`.
 
 | Check                                         | When it needs `packaging`                                                                                                                                                 |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -67,7 +67,7 @@ pydeprecate status tests --version 1.2
 
 === "expiry"
 
-    This subcommand checks whether any deprecated wrappers have passed their `remove_in` deadline using [`validate_deprecation_expiry()`](audit-policy.md#enforcing-removal-deadlines). It requires the `[audit]` extra, included in `[audit,cli]`.
+    This subcommand checks whether any deprecated wrappers have passed their `remove_in` deadline using [`validate_deprecation_expiry()`](audit-policy.md#enforcing-removal-deadlines). It requires the `[audit]` extra.
 
     ```bash
     # explicit version
@@ -87,10 +87,10 @@ pydeprecate status tests --version 1.2
 
     This subcommand checks whether each deprecation was *scheduled* responsibly, using [`validate_deprecation_policy()`](audit-policy.md#enforcing-a-deprecation-policy). Every violation message is prefixed with the slug of the rule it broke. `policy` never needs a package version, so it takes no `--version` flag.
 
-    | Rule               | Default         | Dependency                                                  |
-    | ------------------ | --------------- | ----------------------------------------------------------- |
-    | `min-grace`        | The rule is on. | It requires the `[audit]` extra, included in `[audit,cli]`. |
-    | `message-required` | The rule is on. | It works without the extra.                                 |
+    | Rule               | Default         | Dependency                       |
+    | ------------------ | --------------- | -------------------------------- |
+    | `min-grace`        | The rule is on. | It requires the `[audit]` extra. |
+    | `message-required` | The rule is on. | It works without the extra.      |
 
     ```bash
     # default policy: three-minor grace window on a clean release boundary, guidance required

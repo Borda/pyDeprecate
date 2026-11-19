@@ -89,11 +89,11 @@ Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards 
 
 Choose the install that matches your workflow.
 
-| Workflow                     | Command                                | Includes                                                                                                                                                                                    |
-| ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runtime deprecation wrappers | `pip install pyDeprecate`              | `@deprecated`, `@deprecated_class`, `deprecated_instance`, docstring helpers, and most audit metadata helpers                                                                               |
-| CI deadline checks           | `pip install 'pyDeprecate[audit]'`     | Adds `packaging` for PEP 440 version comparison in `validate_deprecation_expiry()` and `validate_deprecation_policy()`                                                                      |
-| Command-line audit workflows | `pip install 'pyDeprecate[audit,cli]'` | Adds `packaging` version support for `pydeprecate expiry`, `pydeprecate policy`, and `pydeprecate all`; the CLI itself needs no dependency (`cli` is an empty extra kept for compatibility) |
+| Workflow                     | Command                            | Includes                                                                                                                                   |
+| ---------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Runtime deprecation wrappers | `pip install pyDeprecate`          | `@deprecated`, `@deprecated_class`, `deprecated_instance`, docstring helpers, and most audit metadata helpers                              |
+| CI deadline checks           | `pip install 'pyDeprecate[audit]'` | Adds `packaging` for PEP 440 version comparison in `validate_deprecation_expiry()` and `validate_deprecation_policy()`                     |
+| Command-line audit workflows | `pip install 'pyDeprecate[audit]'` | Adds `packaging` version support for `pydeprecate expiry`, `pydeprecate policy`, and `pydeprecate all`; the CLI itself needs no dependency |
 
 ```bash
 pip install pyDeprecate
@@ -109,11 +109,11 @@ pip install 'pyDeprecate[audit]'
 
     The base install gives you `@deprecated`, `@deprecated_class`, `deprecated_instance`, and all other audit functions. Only `validate_deprecation_expiry()` and `validate_deprecation_policy()` need the extra. They use `packaging` for PEP 440 version comparison.
 
-!!! tip "Use `[audit,cli]` for command-line audit workflows"
+!!! tip "Use `[audit]` for command-line audit workflows"
 
-    The `pydeprecate` command itself needs no extra. The empty `[cli]` extra preserves existing install commands. `pydeprecate expiry`, `pydeprecate policy`, and the expiry/policy phases of `pydeprecate all` need `[audit]`.
+    The `pydeprecate` command itself needs no extra. Before v0.15 it also needed the `cli` extra. `pydeprecate expiry`, `pydeprecate policy`, and the expiry/policy phases of `pydeprecate all` need `[audit]`.
 
-    Start with `pip install 'pyDeprecate[audit,cli]'` unless you only need Python API calls.
+    Start with `pip install 'pyDeprecate[audit]'` unless you only need Python API calls.
 
 ## Comparison with other tools
 
@@ -151,7 +151,7 @@ Recent PyPI download statistics show broad production use; see pepy.tech for cur
 | Python versions              | Project metadata currently supports Python 3.9+; Borda-maintained development policy targets Python 3.10+ because Python 3.9 reached end of life in October 2025. |
 | Runtime dependencies         | None.                                                                                                                                                             |
 | Optional audit extra         | `packaging` (plus `tomli` on Python < 3.11 for `pyproject.toml` version detection).                                                                               |
-| Optional CLI extra           | None — the CLI uses only the standard library; `cli` is an empty extra kept so `pip install 'pyDeprecate[cli]'` keeps working.                                    |
+| Optional CLI extra           | None — the CLI uses only the standard library. Before v0.15 it needed the `cli` extra.                                                                            |
 | Docs engines                 | Sphinx and MkDocs compatible.                                                                                                                                     |
 | Type checker static warnings | Prefer `warnings.deprecated` for Python 3.13+ static-checker-only cases.                                                                                          |
 

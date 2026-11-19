@@ -2633,11 +2633,11 @@ The scan imports your package. Submodules with missing dependencies are skipped 
 Choose a setup matching your audit needs:
 
 - Run a local hook (`repo: local`, `language: system`, `entry: pydeprecate check`) so the scan uses your development environment — the recommended setup for any package with runtime dependencies.
-- **Use the remote hook with dependencies.** List your package's dependencies in `additional_dependencies`. This replaces the hook's own list, so start with `"pyDeprecate[cli,audit]"` and append yours.
+- **Use the remote hook with dependencies.** List your package's dependencies in `additional_dependencies`. This replaces the hook's own list, so start with `"pyDeprecate[audit]"` and append yours.
 
 !!! warning "Retain the hook's extras"
 
-    Pip resolves the `cli` and `audit` extras to the hook's own checkout. Without `audit`, missing `packaging` causes `expiry` and `min-grace` checks to warn and skip instead of failing. Without `tomli` on Python 3.9–3.10, `[tool.pydeprecate]` settings are ignored.
+    Pip resolves the `audit` extra to the hook's own checkout. Without `audit`, missing `packaging` causes `expiry` and `min-grace` checks to warn and skip instead of failing. Without `tomli` on Python 3.9–3.10, `[tool.pydeprecate]` settings are ignored.
 
 - For removal deadlines and policy rules only, use the import-free `pydeprecate-expiry-static` and `pydeprecate-policy-static` hooks, which need none of your dependencies (from `v0.16.0`).
 

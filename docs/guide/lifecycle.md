@@ -111,7 +111,7 @@ See [Testing](testing.md) for pytest patterns, warning budgets, and `assert_no_w
 
 Run the same audits locally and in CI before each release.
 
-1. Install `pyDeprecate[audit,cli]` in the audit environment.
+1. Install `pyDeprecate[audit]` in the audit environment.
 2. Run `pydeprecate expiry --version 0.4 <package-path>` while the summation wrapper is still supported.
 3. Run `pydeprecate policy <package-path>` to enforce your configured grace period and metadata requirements.
 4. Configure pre-commit hooks or the GitHub Action to repeat the checks automatically.

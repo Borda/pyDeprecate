@@ -94,7 +94,7 @@ Apply the policy when filling the contract:
 
 Present the derived versions with the rule and source behind each before the first edit. The user confirms or overrides them.
 
-After editing, run `pydeprecate policy <path>` (requires `pyDeprecate[audit,cli]`, since v0.13) or `validate_deprecation_policy(module, min_grace="0.3", message_required=True)` (since v0.13) with the table's values; map `min-grace = false` to `min_grace=None`, since the Python API rejects the boolean false value. The function never reads `pyproject.toml`. Expect zero violations.
+After editing, run `pydeprecate policy <path>` (requires `pyDeprecate[audit]`, plus `[cli]` before v0.15; since v0.13) or `validate_deprecation_policy(module, min_grace="0.3", message_required=True)` (since v0.13) with the table's values; map `min-grace = false` to `min_grace=None`, since the Python API rejects the boolean false value. The function never reads `pyproject.toml`. Expect zero violations.
 
 If the consumer package cannot be imported in the available environment, check whether `pydeprecate policy --help` lists `--static` (since v0.16). When it does, run `pydeprecate policy --static <path>` as a fallback. The shipped `pydeprecate-policy-static` and `pydeprecate-expiry-static` pre-commit hooks (since v0.16) use the same static scans.
 
@@ -191,7 +191,7 @@ To list symbols deprecated with that decorator alone, use `find_deprecation_wrap
   - Invalid/conflicting inputs retain intended behavior.
   - Exercise affected descriptor/async forms.
 - Warning counters are stateful (default one warning); use the installed version's supported test utilities or isolated test setup, not test ordering.
-- Run relevant tests, lint/types and available wrapper/mapping audits, plus the policy check from the section above. CLI usage needs `pyDeprecate[audit,cli]`; Python expiry and policy helpers need `[audit]`. Verify commands against the loaded version; the `pydeprecate policy` subcommand exists since v0.13 only. Follow the project's dependency workflow if extras are missing.
+- Run relevant tests, lint/types and available wrapper/mapping audits, plus the policy check from the section above. CLI usage needs `pyDeprecate[audit]` (plus `[cli]` before v0.15); Python expiry and policy helpers need `[audit]`. Verify commands against the loaded version; the `pydeprecate policy` subcommand exists since v0.13 only. Follow the project's dependency workflow if extras are missing.
 - When the package's import fails or must not run, audit from source.
   - `deprecate.audit.find_deprecation_wrappers_static` returns a frozen `StaticScanResult` (both since v0.16, like `pydeprecate policy --static`).
   - Older releases have no import-free audit, so run the import-mode checks where dependencies are installed.

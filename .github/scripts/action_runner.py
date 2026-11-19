@@ -5,7 +5,7 @@ at the ref the workflow pinned in ``uses:``. Inputs arrive as ``PYDEPRECATE_ACTI
 interpolated into script text), and the script:
 
 1. validates the inputs, failing with exit code ``2`` and an ``::error`` annotation on a bad value,
-2. optionally installs ``pyDeprecate[cli,audit]`` from that same checkout into the job's current Python, so the
+2. optionally installs ``pyDeprecate[audit]`` from that same checkout into the job's current Python, so the
    ``uses:`` ref pins the version — the same binding the pre-commit hook manifest uses,
 3. runs ``python -m deprecate <subcommand> [path...] [args...] --report-json=<file>`` and returns its exit code
    unchanged (the ``path`` input holds one path per line),
@@ -40,7 +40,7 @@ from typing import Any, NamedTuple
 #: CLI subcommands the action accepts; mirrors the ``cmd_*`` functions of ``deprecate._cli.commands``.
 SUBCOMMANDS = ("check", "expiry", "policy", "chains", "all", "status")
 #: Extras installed with the package — the same ones ``.pre-commit-hooks.yaml`` requests.
-INSTALL_EXTRAS = ("cli", "audit")
+INSTALL_EXTRAS = ("audit",)
 #: Prefix of the environment variables ``action.yml`` maps each input to.
 ENV_PREFIX = "PYDEPRECATE_ACTION_"
 #: Input name (as spelled in ``action.yml``) -> default used when the variable is unset, empty or whitespace-only.
@@ -392,7 +392,7 @@ def cli_support(python: str) -> CliSupport:
 
 
 def install_package(action_path: Path, python: str, budget: AnnotationBudget | None = None) -> int:
-    """Install ``pyDeprecate[cli,audit]`` from the action checkout into the current interpreter; return pip's status.
+    """Install ``pyDeprecate[audit]`` from the action checkout into the current interpreter; return pip's status.
 
     A pyDeprecate of another version that the job had installed before is reported once pip has replaced it, by
     comparing the installed metadata versions before and after the install. Its annotations are counted in ``budget``.
@@ -411,7 +411,7 @@ def install_package(action_path: Path, python: str, budget: AnnotationBudget | N
         annotate(
             "error",
             f"pip install of pyDeprecate failed (exit {pip.description}). If this Python has no pip (e.g. a uv venv)"
-            " or is externally managed, install 'pyDeprecate[audit,cli]' in an earlier step and set `install: false`",
+            " or is externally managed, install 'pyDeprecate[audit]' in an earlier step and set `install: false`",
             budget,
         )
         return pip.code

@@ -89,10 +89,10 @@ Choose the installation for your workflow:
 | Runtime wrappers                    | `pip install pyDeprecate`                                           | Decorators, proxies, docstring helpers, and most audit metadata helpers. |
 | Runtime wrappers with conda         | `conda install -c conda-forge pydeprecate`                          | The same runtime package from conda-forge.                               |
 | Removal deadlines and policy checks | `pip install 'pyDeprecate[audit]'`                                  | PEP 440 version comparison through `packaging`.                          |
-| Command-line audits                 | `pip install 'pyDeprecate[audit,cli]'`                              | Version-aware audit commands and the CLI.                                |
+| Command-line audits                 | `pip install 'pyDeprecate[audit]'`                                  | Version-aware audit commands and the CLI.                                |
 | Latest development version          | `pip install https://github.com/Borda/pyDeprecate/archive/main.zip` | Unreleased changes from the default branch.                              |
 
-The CLI itself uses only the standard library. The `[cli]` extra is empty and retained for compatibility. See [installation details](https://borda.github.io/pyDeprecate/stable/getting-started.html#installation) for the full package and extras reference.
+The CLI itself uses only the standard library; `[audit]` adds `packaging` for the version-aware commands. See [installation details](https://borda.github.io/pyDeprecate/stable/getting-started.html#installation) for the full package and extras reference.
 
 ## 🚀 Quick Start
 
@@ -596,7 +596,7 @@ Audit wrappers before release to catch invalid configuration and wrappers that o
 ### ⏰ Check from the command line
 
 ```bash
-pip install 'pyDeprecate[audit,cli]'
+pip install 'pyDeprecate[audit]'
 pydeprecate check path/to/your/package                    # invalid wrapper configuration
 pydeprecate expiry path/to/your/package --version 2.0.0   # wrappers at or past their remove_in version
 pydeprecate status path/to/your/package                   # deprecation status table

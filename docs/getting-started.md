@@ -27,11 +27,11 @@ pyDeprecate requires **Python 3.9 or later** and has zero runtime dependencies. 
 
 Choose the install that matches the workflow you need:
 
-| Workflow                     | Command                                | Includes                                                                                                                                                                                    |
-| ---------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runtime deprecation wrappers | `pip install pyDeprecate`              | `@deprecated`, `@deprecated_class`, `deprecated_instance`, docstring helpers, and most audit metadata helpers                                                                               |
-| CI deadline checks           | `pip install 'pyDeprecate[audit]'`     | Adds `packaging` for PEP 440 version comparison in `validate_deprecation_expiry()` and `validate_deprecation_policy()`                                                                      |
-| Command-line audit workflows | `pip install 'pyDeprecate[audit,cli]'` | Adds `packaging` version support for `pydeprecate expiry`, `pydeprecate policy`, and `pydeprecate all`; the CLI itself needs no dependency (`cli` is an empty extra kept for compatibility) |
+| Workflow                     | Command                            | Includes                                                                                                                                   |
+| ---------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Runtime deprecation wrappers | `pip install pyDeprecate`          | `@deprecated`, `@deprecated_class`, `deprecated_instance`, docstring helpers, and most audit metadata helpers                              |
+| CI deadline checks           | `pip install 'pyDeprecate[audit]'` | Adds `packaging` for PEP 440 version comparison in `validate_deprecation_expiry()` and `validate_deprecation_policy()`                     |
+| Command-line audit workflows | `pip install 'pyDeprecate[audit]'` | Adds `packaging` version support for `pydeprecate expiry`, `pydeprecate policy`, and `pydeprecate all`; the CLI itself needs no dependency |
 
 Base install from PyPI:
 
@@ -54,7 +54,7 @@ pip install 'pyDeprecate[audit]'
 For command-line audit workflows:
 
 ```bash
-pip install 'pyDeprecate[audit,cli]'
+pip install 'pyDeprecate[audit]'
 ```
 
 ## Quick Start

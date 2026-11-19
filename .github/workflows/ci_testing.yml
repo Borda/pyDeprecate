@@ -44,7 +44,7 @@ jobs:
 
       - name: 📦 Install requirements
         run: |
-          pip install ".[audit,cli]" -r tests/requirements.txt
+          pip install ".[audit]" -r tests/requirements.txt
           pip list
         shell: bash
 

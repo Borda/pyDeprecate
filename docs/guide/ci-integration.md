@@ -46,7 +46,7 @@ def test_deprecated_wrappers_are_valid():
 Use your project's release convention rather than assuming the policy defaults fit.
 
 1. Set the release numbers in [`[tool.pydeprecate.policy]`](audit-policy.md#enforcing-a-deprecation-policy).
-2. Install your project and `pyDeprecate[audit,cli]` in CI.
+2. Install your project and `pyDeprecate[audit]` in CI.
 3. Run the CLI as its own CI step (since v0.16):
 
 The table is the single source of truth. The CLI step enforces it without test code to maintain.
@@ -98,7 +98,7 @@ A [pre-commit](https://pre-commit.com/) hook gives local feedback before you pus
 
 Use a local hook in your development environment when your package has runtime dependencies.
 
-Install `pip install 'pyDeprecate[audit,cli]'` in the same environment as your tests. The hook uses that environment's `pydeprecate` CLI, so every submodule imports as it does at runtime:
+Install `pip install 'pyDeprecate[audit]'` in the same environment as your tests. The hook uses that environment's `pydeprecate` CLI, so every submodule imports as it does at runtime:
 
 ```yaml
 # .pre-commit-config.yaml
@@ -134,7 +134,7 @@ pre-commit installs the hook into an isolated environment. It contains pyDepreca
 
 !!! warning "Replacing hook dependencies"
 
-    `additional_dependencies` replaces the hook's own dependency list. Start with `"pyDeprecate[cli,audit]"`, then append your package's runtime dependencies. pip resolves that entry to the hook's own checkout, including its `cli` and `audit` extras.
+    `additional_dependencies` replaces the hook's own dependency list. Start with `"pyDeprecate[audit]"`, then append your package's runtime dependencies. pip resolves that entry to the hook's own checkout, including its `audit` extra.
 
     Omitting that entry leaves `pydeprecate` without its CLI dependencies. Python 3.9–3.10 also cannot read `[tool.pydeprecate]` from `pyproject.toml`.
 
@@ -145,7 +145,7 @@ repos:
     rev: v0.15.0
     hooks:
       - id: pydeprecate-check
-        additional_dependencies: ["pyDeprecate[cli,audit]", numpy, requests] # the hook's own entry first, then your package's runtime dependencies
+        additional_dependencies: ["pyDeprecate[audit]", numpy, requests] # the hook's own entry first, then your package's runtime dependencies
 ```
 
 !!! warning "A missing dependency can pass silently"
@@ -271,7 +271,7 @@ See the [CLI Reference](cli.md) for every flag and exit code.
 
 ```bash
 # Install CLI + audit extras (audit needed for expiry checks)
-pip install 'pyDeprecate[audit,cli]'
+pip install 'pyDeprecate[audit]'
 
 # check — exits 1 on invalid arg mappings, misconfigured targets or inner-order properties
 pydeprecate check src/your_package
@@ -358,7 +358,7 @@ With `v0.15.0`, which has no `--gate`, run the policy as a second step: `subcomm
 | `args`        | empty   | Extra CLI flags, split with shell-style quoting, e.g. `--exclude='mypackage.tests,*._legacy*' --version 2.0`. Backslashes are escape characters, so quote Windows paths or use `/`.                                                                                                                                                                                                                         |
 | `fail-on-gap` | `false` | Fail the step when any part of the audit did not run (`--strict`, since v0.16), such as a module that could not be imported; not valid with `exit-zero` or `status`; `exit-zero: true` also switches off a `strict = true` from `pyproject.toml`, so an advisory step passes. With `install: false` and an older pyDeprecate the CLI rejects the option with exit code `2`.                                 |
 | `exit-zero`   | `false` | Report findings without failing the step (`--exit-zero`); not valid with `status`.                                                                                                                                                                                                                                                                                                                          |
-| `install`     | `true`  | Install `pyDeprecate[cli,audit]` from the action's own ref into the job's Python.                                                                                                                                                                                                                                                                                                                           |
+| `install`     | `true`  | Install `pyDeprecate[audit]` from the action's own ref into the job's Python.                                                                                                                                                                                                                                                                                                                               |
 | `summary`     | `false` | Append the markdown deprecation status table of the gate's own scan to the job summary, read from the report the CLI writes with `--report-json`, so it covers exactly what the gate scanned however `path` and `args` name the package. Summary failures only warn and preserve the gate result. No summary on CLI exit `2` or `3`.                                                                        |
 | `sarif`       | `false` | Also write the findings as a SARIF 2.1.0 file (`--report-sarif`, since v0.16) and publish its path as the `sarif-file` output; not valid with `status`.                                                                                                                                                                                                                                                     |
 
@@ -432,7 +432,7 @@ permissions:
 
     This replaces the job's existing pyDeprecate version for every later step. The action warns when it replaces a version.
 
-    Pin the action to your project's pyDeprecate release. Alternatively, install `pyDeprecate[audit,cli]` yourself and set `install: false`.
+    Pin the action to your project's pyDeprecate release. Alternatively, install `pyDeprecate[audit]` yourself and set `install: false`.
 
     Also set `install: false` where pip is unavailable, such as a uv-managed virtual environment.
 

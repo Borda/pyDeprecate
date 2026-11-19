@@ -37,7 +37,7 @@ Preview remains read-only. A removal plan requires an explicit release deadline:
 
     A plan also includes a `remove_in` whose base release equals an explicitly requested RC target (`2.0rc1` for `remove_in="2.0"`). This applies only when the user is preparing that final release.
 
-The plan keeps surviving functions or classes available for argument/attribute compatibility, and leaves incomplete scans unresolved. Use the consumer environment's existing `pyDeprecate`; Python audits need `[audit]`, while CLI audits need `[audit,cli]`.
+The plan keeps surviving functions or classes available for argument/attribute compatibility, and leaves incomplete scans unresolved. Use the consumer environment's existing `pyDeprecate`; Python and CLI audits both need `[audit]`.
 
 The plugin source lives under `plugins/pydeprecate/`: `.codex-plugin/plugin.json`, `.claude-plugin/plugin.json`, `skills/sunset/SKILL.md`, and `skills/prune/SKILL.md`.
 
