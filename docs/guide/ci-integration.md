@@ -60,7 +60,7 @@ pydeprecate all --gate=policy src/mypackage
 
     Without `--gate=policy`, `pydeprecate all` prints policy violations as `[WARNING]` without failing. Set `gate = ["policy"]` in `[tool.pydeprecate]` to make policy enforcement the project default.
 
-    On v0.15 and older, run `pydeprecate all` and a separate `pydeprecate policy src/mypackage` step.
+    Before v0.16, run `pydeprecate all` and a separate `pydeprecate policy src/mypackage` step.
 
     A one-off override needs no config edit. `pydeprecate policy src/mypackage --min-grace=0.3` overrides the table for that run only.
 
@@ -119,7 +119,7 @@ ci:
 
 ### Import-mode remote hook
 
-For packages without third-party import dependencies, use the repository's hook manifest (available from `v0.15.0`):
+For packages without third-party import dependencies, use the repository's hook manifest (since `v0.15.0`):
 
 ```yaml
 # .pre-commit-config.yaml
@@ -164,7 +164,7 @@ repos:
 
 !!! warning "Release availability"
 
-    These hooks are available from `v0.16.0`, the upcoming release, not yet tagged. The following recipe fails until that release is published.
+    These hooks are available since `v0.16.0`, the upcoming release, not yet tagged. The following recipe fails until that release is published.
 
 ```yaml
 # .pre-commit-config.yaml
@@ -307,7 +307,7 @@ pydeprecate check src/your_package --exit-zero
 
 ## GitHub Action
 
-pyDeprecate ships a composite GitHub Action that runs the CLI as one workflow step (available from `v0.15.0`). It uses the job's own Python, like a local pre-commit hook.
+pyDeprecate ships a composite GitHub Action that runs the CLI as one workflow step (since `v0.15.0`). It uses the job's own Python, like a local pre-commit hook.
 
 The scan imports your package from the checkout, so the package itself needs no installation. Every module's runtime dependencies must still be importable.
 

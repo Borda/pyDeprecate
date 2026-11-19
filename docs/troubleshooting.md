@@ -609,7 +609,7 @@ Before v0.8, two patterns produced spurious `TypeError` raises from the guard:
 - **Decorators rewriting `__qualname__`.** A decorator setting `fn.__qualname__ = "OtherClass.method"` before `@deprecated` made the guard infer the wrong owner. Since v0.8, the guard reads `__qualname__` from the enclosing class-body frame, which Python sets before decorators run.
 - **Metaclass-generated classes.** `type("Name", bases, ns)` and similar patterns can produce `"FakeOwner.method"` qualnames for methods outside `FakeOwner`. Since v0.8, the guard checks that the qualname's class name exists in module globals. If it does not, the guard skips the check.
 
-If you are on v0.8+ and still seeing an unexpected `TypeError` from the cross-class guard, open an issue with a minimal reproducer.
+If you are on v0.8 or newer and still seeing an unexpected `TypeError` from the cross-class guard, open an issue with a minimal reproducer.
 
 ### UserWarning at decoration time: unsupported stacking combination
 
@@ -1043,8 +1043,8 @@ Before v0.6.0, applying `@deprecated` directly to a class replaced the class obj
 Symptoms of the old behaviour:
 
 ```python
-# phmdoctest:skip — shows pre-v0.6 behaviour; current code uses a proxy and no longer produces these errors
-# --- Old broken pattern (pre-v0.6) ---
+# phmdoctest:skip — shows behaviour before v0.6; current code uses a proxy and no longer produces these errors
+# --- Old broken pattern (before v0.6) ---
 from deprecate import deprecated
 
 
@@ -2385,7 +2385,7 @@ The helper is `deprecate.proxy._rebuild_class_instance`, `_rebuild_class_instanc
 
 !!! warning "Older releases cannot load these payloads"
 
-    pyDeprecate v0.14 and earlier lack these helpers and cannot load such payloads.
+    Before v0.15, pyDeprecate lacks these helpers and cannot load such payloads.
 
 - **Removing the deprecation breaks loading.** The helpers rebuild only a class whose name a deprecation proxy holds. Once the deprecation is gone and the name points at the plain class again, loading raises `AttributeError: Cannot rebuild the pickled instance: ... is not a class deprecated in place`.
 
@@ -2455,10 +2455,10 @@ No. `all` treats policy violations as advisory by default because its policy def
 
 The defaults are `min_grace="0.3"` and `message_required=True`. Violations are printed for visibility but do not contribute to `all`'s exit code unless you opt in.
 
-| Version     | Make policy violations fail `all`                                                                 |
-| ----------- | ------------------------------------------------------------------------------------------------- |
-| Since v0.16 | Use `pydeprecate all --gate=policy src/mypackage` or `gate = ["policy"]` in `[tool.pydeprecate]`. |
-| On v0.15    | Add a separate `policy` step, as shown below.                                                     |
+| Version      | Make policy violations fail `all`                                                                 |
+| ------------ | ------------------------------------------------------------------------------------------------- |
+| Since v0.16  | Use `pydeprecate all --gate=policy src/mypackage` or `gate = ["policy"]` in `[tool.pydeprecate]`. |
+| Before v0.16 | Add a separate `policy` step, as shown below.                                                     |
 
 The opt-in makes `all` exit `1` on policy violations from that same scan. Without it, these findings make `all` exit `1`:
 
@@ -2472,7 +2472,7 @@ The opt-in makes `all` exit `1` on policy violations from that same scan. Withou
 
     An unreadable or unparsable nearest `pyproject.toml`, or malformed `[tool.pydeprecate.policy]` value, still exits `2` inside `all`. The message is `Cannot read <path>: <err>`. This failure is checked before the chains check runs.
 
-On v0.15, or to keep policy gating separate from `all`, give `pydeprecate policy` its own CI step.
+Before v0.16, or to keep policy gating separate from `all`, give `pydeprecate policy` its own CI step.
 
 | Exit code | Meaning                    |
 | --------- | -------------------------- |
@@ -2645,7 +2645,7 @@ The [audit guide](guide/ci-integration.md#pre-commit-integration) contains the h
 
 ### Can pydeprecate audit a package whose dependencies are not installed?
 
-Yes, for removal deadlines and policy rules. From `v0.16.0`, `pydeprecate expiry --static` and `pydeprecate policy --static` read source with `ast` without importing your package.
+Yes, for removal deadlines and policy rules. Since `v0.16.0`, `pydeprecate expiry --static` and `pydeprecate policy --static` read source with `ast` without importing your package.
 
 **Q:** Can pydeprecate audit a package whose dependencies are not installed?
 

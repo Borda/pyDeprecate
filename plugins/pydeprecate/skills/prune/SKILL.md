@@ -104,8 +104,8 @@ Update active docs, imports, exports and tests. Preserve historical changelog en
 - Zero exit or an empty list is insufficient.
   - Missing audit dependencies can skip checks; malformed deadlines and import failures can omit candidates.
   - Report these as incomplete coverage.
-  - On v0.16 and newer run CLI gates with `--strict` so a skipped check fails instead of passing.
-  - On v0.15, read every `pydeprecate gap:` line.
+  - Since v0.16 run CLI gates with `--strict` so a skipped check fails instead of passing.
+  - Before v0.16, read every `pydeprecate gap:` line.
   - Before v0.15, inspect free-form skipped-scan, import, version and packaging diagnostics.
   - Never use `--exit-zero`, add `--ignore`/`--baseline` entries (since v0.16), postpone `remove_in`, suppress scan warnings or change versions to manufacture success.
 - Run the consumer's relevant tests, lint/types and docs checks. Report removed, retained and unresolved items, target release, scan coverage and exact verification. Claim complete cleanup only for the verified scope.

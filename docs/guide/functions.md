@@ -386,9 +386,9 @@ print(my_func(value=42, num_workers=4))
 
 Only `None` drops an argument. A mapped value of `""` (empty string) keeps the argument under its old name. It is passed through to the function unchanged, and the deprecation notice still fires.
 
-!!! note "Changed from v0.14"
+!!! note "Changed in v0.15"
 
-    `deprecated_class` proxies have always behaved this way; `@deprecated` now matches them. This changed from v0.14, where `@deprecated` dropped an argument mapped to `""` just like one mapped to `None`. If you relied on that, map the argument to `None` instead.
+    `deprecated_class` proxies have always behaved this way; `@deprecated` now matches them. This changed in v0.15; before it, `@deprecated` dropped an argument mapped to `""` just like one mapped to `None`. If you relied on that, map the argument to `None` instead.
 
 ## `TargetMode.NOTIFY` vs `TargetMode.ARGS_REMAP` vs `target=<callable>` — key differences
 

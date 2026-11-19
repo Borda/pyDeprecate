@@ -102,7 +102,7 @@ A static scan reports recognized unresolved forms as gaps without failing. It ca
 
 Report these coverage limits and run the import-mode check when the dependencies are available. If the package cannot be imported and `pydeprecate policy --help` does not list `--static`, report that the static fallback is unavailable. In that case, also report that the policy could not be machine-checked.
 
-On a release older than v0.13 report that the policy was applied by hand and could not be machine-checked.
+Before v0.13 report that the policy was applied by hand and could not be machine-checked.
 
 ## Choose the smallest compatible form
 
@@ -128,7 +128,7 @@ A generator never iterated never warns; tests must wrap the iteration in `pytest
 
 Preserve unrelated decorators and future deprecation layers. Check `skip_if`: it can execute the original body instead of forwarding.
 
-A deprecation that is past polite warning can refuse the call instead. `as_exception=True` (since v0.14; no equivalent on v0.12-v0.13) raises `DeprecatedError` carrying the same message. It never invokes the target and never runs the source body.
+A deprecation that is past polite warning can refuse the call instead. `as_exception=True` (since v0.14; no equivalent before) raises `DeprecatedError` carrying the same message. It never invokes the target and never runs the source body.
 
 Use it as the warn -> raise -> delete middle step, one release before removal. Record in the changelog that the symbol now raises.
 
@@ -181,7 +181,7 @@ When the user also wants an editor strikethrough or a mypy/pyright gate, stack a
 
 Over `deprecated_class` both mypy and pyright flag the alias, and before v0.14 the marker leaked onto the replacement class.
 
-To list symbols deprecated with that decorator alone, use `find_deprecation_wrappers(..., include_pep702=True)` (since v0.14; no equivalent on v0.12-v0.13). Those rows carry no versions and are the ones with `row.pep702_message is not None`. Keep them out of expiry and policy decisions.
+To list symbols deprecated with that decorator alone, use `find_deprecation_wrappers(..., include_pep702=True)` (since v0.14; no equivalent before). Those rows carry no versions and are the ones with `row.pep702_message is not None`. Keep them out of expiry and policy decisions.
 
 ## Verify and hand off
 

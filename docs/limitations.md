@@ -82,7 +82,7 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
     A method the type gains afterwards does not reach that proxy. Examples include a `__call__` patched in later or a magic method set on a `Mock` after wrapping. As a result, `callable(obj)` can be `True` while `callable(proxy)` is `False`.
 
-    Up to v0.14 every proxy forwarded every protocol. Finish setting up the object before you wrap it, or wrap it again after changing its type.
+    Before v0.15 every proxy forwarded every protocol. Finish setting up the object before you wrap it, or wrap it again after changing its type.
 
 !!! warning
 

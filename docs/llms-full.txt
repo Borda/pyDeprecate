@@ -12,7 +12,7 @@ pyDeprecate is a Python deprecation decorator library for API migration. It prov
 | Import name | `deprecate` |
 | Install | `pip install pyDeprecate` |
 | Import | `from deprecate import deprecated` |
-| CLI | `pydeprecate` uses only the standard library since v0.15. The `[cli]` extra is an empty alias kept for compatibility. On v0.14 and older the CLI needs `[cli]`. |
+| CLI | `pydeprecate` uses only the standard library since v0.15. The `[cli]` extra is an empty alias kept for compatibility. Before v0.15 the CLI needs `[cli]`. |
 | Runtime dependencies | There are none. |
 | Optional audit extra | `pip install 'pyDeprecate[audit]'` |
 | Optional CLI audit extra | Use `pip install 'pyDeprecate[audit,cli]'` for `pydeprecate expiry`, `pydeprecate policy`, and `pydeprecate all`. |
@@ -416,7 +416,7 @@ from deprecate import validate_deprecation_policy
 violations = validate_deprecation_policy("my_package")
 ```
 
-CLI equivalent — `pydeprecate all --gate=policy src/` (since v0.16) gates on it from the one `all` scan. Plain `pydeprecate all` runs this check in advisory mode only, so on v0.15 it must be its own step:
+CLI equivalent — `pydeprecate all --gate=policy src/` (since v0.16) gates on it from the one `all` scan. Plain `pydeprecate all` runs this check in advisory mode only, so before v0.16 it must be its own step:
 
 ```bash
 pydeprecate policy src/ --min-grace=0.3 --message-required=True
@@ -539,7 +539,7 @@ Reading `pyproject.toml` needs a TOML parser: built in on Python 3.11+, the `tom
     - This is available since v0.16. On older releases wrap the replacement object itself: `deprecated_instance(new_obj, name="OLD_NAME", ...)`.
 - `args_mapping` value semantics: a string renames the argument, `None` drops it (the notice still fires). The value `""` (any other falsy non-`None` value) keeps the argument under its old name. It is passed through unchanged and still warns.
     - This is the same for `@deprecated` and `deprecated_class` proxies.
-    - Behaviour change from v0.14: under `@deprecated` an `""` value used to drop the argument like `None`. To drop, write `None` explicitly.
+    - Behaviour change in v0.15: before it, under `@deprecated` an `""` value dropped the argument like `None`. To drop, write `None` explicitly.
 - `validate_mapping_compatibility(module)` scans a module or package for `deprecated_class` and `deprecated_instance` proxies. It finds those whose `args_mapping` remaps a deprecated name to a `POSITIONAL_ONLY` parameter of a constructor, function or callable object.
     - Such configurations forward the remapped values positionally to the called object (a constructor, a function or a callable object) at call time. This works for required positional-only params, frozen dataclasses, and classes with `__post_init__` logic, provided every earlier positional-only parameter is also supplied. If a later positional-only value is given while an earlier one is absent, the call raises `TypeError`.
     - Supply the earlier parameters, or use a thin adapter.
@@ -628,10 +628,10 @@ Reading `pyproject.toml` needs a TOML parser: built in on Python 3.11+, the `tom
     - `--strict` (since v0.16) also exits `1` when the run recorded any `pydeprecate gap:` line, on every subcommand but `status`. Such gaps include a module not imported, an unresolved version, or missing `packaging`. The config equivalent is `strict = true` in `[tool.pydeprecate]`; `--no-strict` overrides it.
     - Typed together with `--exit-zero`, `--strict` exits `2`. `--exit-zero` alone overrides a `strict = true` from `[tool.pydeprecate]` (one stderr note).
     - Generate `--strict` for CI gates that must not pass on a partial audit.
-    - On v0.14 and older a misconfigured target or inner-order property did not fail `check`, and a crash exited `1`.
+    - Before v0.15 a misconfigured target or inner-order property did not fail `check`, and a crash exited `1`.
 - **`pydeprecate all` gates on the policy only with `--gate=policy`**: by default `all` runs the policy check in **advisory** mode. Violations are printed as `[WARNING]` but never change `all`'s exit code, because the policy defaults encode a project convention rather than a universal rule.
     - Generated CI configs that must fail on policy violations use one `pydeprecate all --gate=policy <path>` step. The flag `--gate` is available since v0.16. It is comma-separated over `check`, `expiry`, `policy`, `chains`, and additive; only `policy` changes anything.
-    - The config equivalent is `gate = ["policy"]` in `[tool.pydeprecate]`. An unknown check exits `2`. On v0.15 emit a separate `pydeprecate policy <path>` step instead.
+    - The config equivalent is `gate = ["policy"]` in `[tool.pydeprecate]`. An unknown check exits `2`. Before v0.16 emit a separate `pydeprecate policy <path>` step instead.
     - Available flags include `--no-recursive`, `--exit-zero`, plus one per rule (`--min-grace=0.3`, `--message-required=False`; `--min-grace=None` disables the window).
     - Each rule resolves as flag → `[tool.pydeprecate.policy]` in the nearest `pyproject.toml` → built-in default. Lookup covers the scanned path's directory + 2 parents, never a bare module name. Keys are the rule slugs.
     - The value of `min-grace` is a unit table `{ minor = 3 }`, a quoted dotted delta, or `false` to disable. The value of `message-required` is a boolean. The `Policy:` header names each value's source.
@@ -664,7 +664,7 @@ Reading `pyproject.toml` needs a TOML parser: built in on Python 3.11+, the `tom
     | Option | Meaning |
     |---|---|
     | `--ignore 'rule:module:symbol'` | Use `module:symbol` for every rule. Entries accept `fnmatch` globs, are comma-separated, and are repeatable. The config equivalent is `ignore = [...]` in `[tool.pydeprecate]`. |
-    | `--baseline FILE` | Use an earlier `--report-json` file with a `findings` list, i.e. 0.16+, matched by finding id. Only ids its own baseline suppressed carry over from `suppressed`. The config equivalent is `baseline = "path"` relative to `pyproject.toml`. |
+    | `--baseline FILE` | Use an earlier `--report-json` file with a `findings` list, i.e. since v0.16, matched by finding id. Only ids its own baseline suppressed carry over from `suppressed`. The config equivalent is `baseline = "path"` relative to `pyproject.toml`. |
 
     A comma always splits ignore entries, so write a character class without one (`[ao]`, never `[a,o]`).
     - Suppressed findings are not printed, counted or gated on. The report lists them under `suppressed`.
@@ -676,7 +676,7 @@ Reading `pyproject.toml` needs a TOML parser: built in on Python 3.11+, the `tom
     - A wrapper file outside that root gets an absolute `file:` URI code scanning cannot show, with a stderr advisory: scan the checkout, not an installed copy.
     - In the Action: `sarif: true` and upload `steps.<id>.outputs.sarif-file` with `github/codeql-action/upload-sarif` (`sarif_file:` input) under `if: always()`.
     - Give the job `security-events: write`, keep `contents: read` for checkout, and add `actions: read` for a private repository.
-- **GitHub Action: `uses: Borda/pyDeprecate@<tag>` after the project install** (from v0.15.0): a composite action (root `action.yml`) that runs the CLI in the job's current Python. It never sets up Python, so generate `actions/setup-python` plus an install of the user's package and its runtime dependencies before it. Otherwise, unimportable submodules are skipped with a warning and the step still passes.
+- **GitHub Action: `uses: Borda/pyDeprecate@<tag>` after the project install** (since v0.15.0): a composite action (root `action.yml`) that runs the CLI in the job's current Python. It never sets up Python, so generate `actions/setup-python` plus an install of the user's package and its runtime dependencies before it. Otherwise, unimportable submodules are skipped with a warning and the step still passes.
     - Inputs follow this mapping:
 
         | Input | Contract |
@@ -700,7 +700,7 @@ Reading `pyproject.toml` needs a TOML parser: built in on Python 3.11+, the `tom
         | `report-json` | This is the path of a copy of the run's report. |
         | `sarif-file` | This is the SARIF file path when `sarif: true`, else empty. |
     - The step exits with the CLI's code. The exceptions are: a `path` starting with `-` exits `2`, a failed install returns pip's exit code, and a CLI start failure returns `1`. It raises one warning annotation per kind of gap the CLI recorded (submodules not audited, version not resolved, ...).
-    - Both come from the CLI's `--report-json FILE` (every subcommand, from v0.15.0): a JSON record with `schema`, `table` and `gaps` (`kind`, `detail`, `hint`), written on exit `0` or `1` only. Generate it for other CI systems instead of parsing stderr.
+    - Both come from the CLI's `--report-json FILE` (every subcommand, since v0.15.0): a JSON record with `schema`, `table` and `gaps` (`kind`, `detail`, `hint`), written on exit `0` or `1` only. Generate it for other CI systems instead of parsing stderr.
     - There is no fail-on-warning input — never generate `fail_on_warning`.
     - To gate on the policy too, emit one step with `args: --gate=policy` (since v0.16). For a `v0.15.0` ref emit two steps: `all` (policy advisory) and `subcommand: policy` with `install: false`.
     - The `path` input takes several paths, one per line (since v0.16).
@@ -708,7 +708,7 @@ Reading `pyproject.toml` needs a TOML parser: built in on Python 3.11+, the `tom
 - **pre-commit hook: `repo: local` + `language: system` by default**. The scan imports the scanned package, so generate a local hook running `pydeprecate check` in the project's own environment. Append the package path only when it is not under `src/`.
     - Set `pass_filenames: false`, `types: [python]`, `require_serial: true`, plus `ci: skip: [pydeprecate]`.
     - `language: system` is spelled `unsupported` since pre-commit 4.4. Keep `system`, which still works, because `unsupported` fails on older pre-commit.
-    - The shipped remote hook uses `repo: https://github.com/Borda/pyDeprecate`, from v0.15.0. There is one hook id per subcommand: `pydeprecate-check`, `pydeprecate-policy`, `pydeprecate-expiry`, `pydeprecate-chains` and `pydeprecate-all`, plus `pydeprecate` as an alias of `pydeprecate-check`. The subcommand is in the hook `entry`, so `args` carries only flags and the path, e.g. `args: [--exit-zero]`.
+    - The shipped remote hook uses `repo: https://github.com/Borda/pyDeprecate`, since v0.15.0. There is one hook id per subcommand: `pydeprecate-check`, `pydeprecate-policy`, `pydeprecate-expiry`, `pydeprecate-chains` and `pydeprecate-all`, plus `pydeprecate` as an alias of `pydeprecate-check`. The subcommand is in the hook `entry`, so `args` carries only flags and the path, e.g. `args: [--exit-zero]`.
     - With no path the scan picks the single package under `src/`, then at the root. The hook runs in an isolated environment without the user's runtime dependencies. A submodule that fails to import is skipped with a warning and the hook still passes.
     - A user `additional_dependencies` list replaces the hook's own, so start it with the manifest's quoted `"pyDeprecate[cli,audit]"` entry. These are the package's own `cli` and `audit` extras, which pip resolves to the hook's own checkout. Then append yours.
     - The CLI never takes file paths. The hook scans the whole package.
@@ -717,7 +717,7 @@ Reading `pyproject.toml` needs a TOML parser: built in on Python 3.11+, the `tom
     - On `expiry`, `all` and `status`, there is a special case for a second of exactly two positionals. One that names no path or findable module and parses as a version is still read as the version. This is deprecated with a stderr notice until v1.0 — generate `--version` instead.
     - Passing both exits `2`. Operands after a `--` separator are always paths, never the version. An unknown option exits `2`.
     - To gate on the policy, generate one `pydeprecate-all` hook with `args: [--gate=policy]` (since v0.16) rather than a second `pydeprecate-policy` hook.
-    - For a package with runtime dependencies that cannot be installed in the hook environment, generate the import-free hooks `pydeprecate-expiry-static` and `pydeprecate-policy-static` instead (from v0.16.0; same as `args: [--static]` on `pydeprecate-expiry`/`pydeprecate-policy`). Never use them for `check`, `chains` or `all`, which have no static mode. Keep `pydeprecate check` in a local hook or in CI for configuration checks and chains.
+    - For a package with runtime dependencies that cannot be installed in the hook environment, generate the import-free hooks `pydeprecate-expiry-static` and `pydeprecate-policy-static` instead (since v0.16.0; same as `args: [--static]` on `pydeprecate-expiry`/`pydeprecate-policy`). Never use them for `check`, `chains` or `all`, which have no static mode. Keep `pydeprecate check` in a local hook or in CI for configuration checks and chains.
 - **Several paths in one run (since v0.16)**: `pydeprecate <subcommand> path_a path_b` checks every path before the first import.
     - Any usage error on any path exits `2` with nothing scanned. The exception is a missing submodule `pkg.nosuch` of an importable package, found when its path is reached.
     - Two paths importing as the same top-level name from different places exit `2`. A plain directory counts the bare name of each top-level file its `exclude` keeps.
@@ -730,7 +730,7 @@ Reading `pyproject.toml` needs a TOML parser: built in on Python 3.11+, the `tom
     - Shared imports can initialize once per worker. Live parent-only monkeypatches, custom import finders and `sys.modules` state are not inherited.
     - A single retained path runs in the calling process, while `--static` reads source without importing it or starting these workers. A typed `--version` applies to every path. `--exit-zero` is run-wide.
     - One exit code covers all paths. Each finding and gap in `--report-json` carries its `path` (in `--report-sarif` each result, with `run.properties.paths`), the report's `paths`/`versions` list every path. The field `table` joins one table per path under `### <package>` headings when there are several.
-    - On v0.15, generate one command per path.
+    - Before v0.16, generate one command per path.
 - **`--static` — import-free `expiry` and `policy` (since v0.16)**: `pydeprecate expiry --static <path>` and `pydeprecate policy --static <path>` read the source with `ast`. Nothing from the package is imported or executed (version and `--report-json` table included; the report gets `"mode": "static"`).
     - Recognized wrappers with resolvable settings can be checked. Supported settings include: a literal, a module-level name bound once to a literal, or a module-level dict literal splatted with `**` and never changed afterwards.
     - Recognized unresolved values or shapes produce a `pydeprecate gap: not statically resolvable: <file>:<line>: <reason>` stderr line. These include the following:
