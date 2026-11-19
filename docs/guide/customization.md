@@ -7,7 +7,7 @@ description: Customize pyDeprecate deprecation messages with built-in templates 
 
 ## Deprecation Messages and Templates
 
-pyDeprecate picks a deprecation message template automatically based on how you configured the decorator. Override it with `message_template` when the defaults do not fit.
+pyDeprecate picks a deprecation message template automatically based on how you configured the decorator. Override it with `message_template` *when* the defaults do not fit.
 
 ### Default templates
 
@@ -25,7 +25,7 @@ The selection logic is:
 2. If `TargetMode.ARGS_REMAP` and the caller passes a deprecated argument from `args_mapping` → `TEMPLATE_WARNING_ARGUMENTS`
 3. If `TargetMode.NOTIFY` → `TEMPLATE_WARNING_NO_TARGET`
 
-When you provide `message_template`, your custom template replaces whichever default would have been chosen.
+When you provide `message_template`, your custom template **replaces** whichever default would have been chosen.
 
 ### Placeholder variables
 
@@ -115,11 +115,11 @@ print(train(lr=0.001))
 
 ## Deprecation Output Sink (`stream`)
 
-`stream` controls where deprecation messages go. It accepts a callable that can receive the warning message, or `None` to silence output entirely.
+`stream` controls *where* deprecation messages go. It accepts a callable that can receive the warning message, or `None` to silence output entirely.
 
 pyDeprecate probes the callable signature to see whether it can also receive `stacklevel`. If that signature cannot be inspected, it calls the stream with the message only. In that fallback, a custom stream that forwards to `warnings.warn` cannot receive pyDeprecate's caller stack level.
 
-The stream runs exactly once per warning — a `TypeError` it raises is never retried — so the decision is made from its signature before the call:
+The stream runs **exactly once** per warning — a `TypeError` it raises is never retried — so the decision is made from its signature before the call:
 
 | Stream signature                                                           | Call                                       |
 | -------------------------------------------------------------------------- | ------------------------------------------ |
@@ -140,7 +140,7 @@ By default, `stream` is `functools.partial(warnings.warn, category=FutureWarning
 
 - Deprecation notices appear as `FutureWarning`, visible by default in scripts and interactive sessions.
 - Standard warning filters apply — suppress with `warnings.filterwarnings("ignore", category=FutureWarning)` when needed.
-- The warning points at your line that calls the deprecated API, not at pyDeprecate's wrapper code.
+- The warning points at **your line** that calls the deprecated API, not at pyDeprecate's wrapper code.
 
 The location is measured when the warning fires, skipping every frame inside the `deprecate` package. Module-scoped warning filters and `-W error` tracebacks therefore name your code.
 
@@ -150,11 +150,11 @@ The location is measured when the warning fires, skipping every frame inside the
 
 ### Silencing deprecation output entirely
 
-Pass `stream=None` to disable all deprecation output for a specific function. Call forwarding still works — only the message is suppressed. This is useful for internal wrappers that exist solely for backwards compatibility without user-facing noise.
+Pass `stream=None` to disable all deprecation output for a specific function. Call forwarding still works — *only* the message is suppressed. This is useful for internal wrappers that exist solely for backwards compatibility without user-facing noise.
 
 !!! warning "Testing gotcha: `stream=None` suppresses `FutureWarning`"
 
-    When `stream=None` is set, no `FutureWarning` is emitted, so `pytest.warns(FutureWarning)` will fail. Test the call-forwarding result directly instead of asserting the warning. See [Testing Deprecated Code](testing.md#testing-deprecated-code) for patterns.
+    When `stream=None` is set, <u>no `FutureWarning` is emitted</u>, so `pytest.warns(FutureWarning)` will fail. Test the call-forwarding result directly instead of asserting the warning. See [Testing Deprecated Code](testing.md#testing-deprecated-code) for patterns.
 
 ```python
 from deprecate import deprecated
@@ -184,7 +184,7 @@ print(_compute_raw(5))
 
 ### Redirecting to a logger
 
-Pass `logging.warning` (or any logging level method) to route deprecation messages through Python's logging system. This plugs straight into your existing log aggregation, filtering, and formatting.
+Pass `logging.warning` (or any logging level method) to route deprecation messages through **Python's logging system**. This plugs straight into your existing log aggregation, filtering, and formatting.
 
 ```python
 import logging
@@ -226,9 +226,9 @@ print(process_batch([3, 1, 2]))
 
 Pick the log level that matches the urgency:
 
-- `logging.warning` — standard choice; visible in default configs
-- `logging.error` — critical deprecations nearing removal deadline
-- `logging.info` — low-priority deprecations during early migration
+- `logging.warning` — **standard choice**; visible in default configs
+- `logging.error` — **critical deprecations** nearing removal deadline
+- `logging.info` — **low-priority** deprecations during early migration
 
 !!! tip "Combine `num_warns=-1` with `stream=logging.warning` for migration tracking"
 
@@ -236,7 +236,7 @@ Pick the log level that matches the urgency:
 
 ### Using `print` for simple console output
 
-Use `print` for quick debugging or scripts where you want immediate stdout output without the warnings module:
+Use `print` for quick debugging or scripts where you want immediate stdout output *without* the warnings module:
 
 ```python
 from deprecate import deprecated
@@ -275,7 +275,7 @@ Hello, World!
 
 ### Custom stream callable
 
-Any callable accepting the message as a single string argument works. One that also declares `stacklevel` or `**kwargs` is additionally passed `stacklevel=` and must accept or drop it. See [Deprecation Output Sink](#deprecation-output-sink-stream).
+Any callable accepting the message as **a single string argument** works. One that also declares `stacklevel` or `**kwargs` is additionally passed `stacklevel=` and must accept or drop it. See [Deprecation Output Sink](#deprecation-output-sink-stream).
 
 This example collects deprecation messages into a list for later processing:
 

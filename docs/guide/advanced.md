@@ -19,7 +19,7 @@ A callable target with an unreadable signature can be decorated successfully. Fo
 
 ## Automatic docstring updates
 
-Set `update_docstring=True` to inject a deprecation notice directly into the function's docstring at import time. The rendered API reference (Sphinx or MkDocs) always shows the deprecation status alongside the signature, with no manual upkeep. A class wrapped with `deprecated_class(update_docstring=True)` keeps `__doc__ = None` when it has no docstring; internal proxy documentation is never injected.
+Set `update_docstring=True` to inject a deprecation notice directly into the function's docstring *at import time*. The rendered API reference (Sphinx or MkDocs) always shows the deprecation status alongside the signature, with no manual upkeep. A class wrapped with `deprecated_class(update_docstring=True)` keeps `__doc__ = None` when it has no docstring; internal proxy documentation is **never injected**.
 
 !!! tip "See it live"
 
@@ -146,7 +146,7 @@ plugins:
 
 ## Injecting new required arguments
 
-When the replacement function gains a new required parameter that the old API never had, use `args_extra` to inject a fixed default. This forwards calls without breaking existing callers while the deprecation notice tells them to migrate.
+When the replacement function gains a new required parameter that the old API never had, use `args_extra` to **inject a fixed default**. This forwards calls without breaking existing callers while the deprecation notice tells them to migrate.
 
 ```python
 from deprecate import deprecated, void
@@ -185,7 +185,7 @@ Sent to 'alice@example.com': 'Hello' [normal]
 
 </details>
 
-`args_extra` merges into kwargs after `args_mapping` is applied. It is used when `target` is a Callable or `TargetMode.ARGS_REMAP` (with `args_mapping`). For `TargetMode.NOTIFY`, it is not used for forwarding; supplying it also triggers a construction-time `UserWarning` when the decorator is applied.
+`args_extra` merges into kwargs *after* `args_mapping` is applied. It is used when `target` is a Callable or `TargetMode.ARGS_REMAP` (with `args_mapping`). For `TargetMode.NOTIFY`, it is not used for forwarding; supplying it also triggers a construction-time `UserWarning` when the decorator is applied.
 
 ## Suppressing `FutureWarning` in test fixtures
 
@@ -195,9 +195,9 @@ Suppress that specific message session-wide with a scoped `filterwarnings` entry
 
 For assertions, pick the right tool:
 
-- `pytest.warns` asserts a warning IS emitted.
-- A `filterwarnings` ignore entry silences without any assertion.
-- [`assert_no_warnings`](testing.md#testing-deprecated-code) asserts that NO warning of the specified category escapes the block.
+- `pytest.warns` asserts a warning **IS** emitted.
+- A `filterwarnings` ignore entry **silences** without any assertion.
+- [`assert_no_warnings`](testing.md#testing-deprecated-code) asserts that **NO** warning of the specified category escapes the block.
 
 The last option prevents refactored code from silently regressing into calling deprecated APIs. If the code unexpectedly starts emitting a different warning category, that still surfaces.
 
@@ -254,7 +254,7 @@ Use `assert_no_warnings` in test assertions to verify that refactored code no lo
 
 ## Class methods and static methods
 
-`@deprecated` works with both `@classmethod` and `@staticmethod` in either decorator order. Place it above or below the descriptor decorator; the deprecation warning fires correctly at call time either way.
+`@deprecated` works with both `@classmethod` and `@staticmethod` in either decorator order. Place it above or below the descriptor decorator; the deprecation warning fires correctly at *call time* either way.
 
 ```python
 from deprecate import deprecated
@@ -305,7 +305,7 @@ Both decorator orders produce `classmethod(deprecated_wrapper)` or `staticmethod
 
 ### Forwarding a static method to another static method in the same class
 
-When renaming a `@staticmethod` or `@classmethod` within the same class, pass the new method directly as `target=new_method` — no `.__func__` suffix needed. Inside the class body `new_method` is still the raw descriptor (not yet bound); pyDeprecate unwraps it automatically.
+When renaming a `@staticmethod` or `@classmethod` within the same class, **pass the new method directly** as `target=new_method` — no `.__func__` suffix needed. Inside the class body `new_method` is still the raw descriptor (not yet bound); pyDeprecate unwraps it automatically.
 
 ```python
 from deprecate import deprecated, void
@@ -429,15 +429,15 @@ Generator functions — any function that contains `yield` — are fully support
 
 !!! warning "Keep `yield` in the deprecated stub"
 
-    The wrapper kind follows the deprecated stub, so the stub itself must contain `yield`. A body containing only `return void(...)` is a plain function and gets a plain-function wrapper. It warns at call time even when its target is a generator.
+    The wrapper kind follows the deprecated stub, so the stub itself <u>must contain</u> `yield`. A body containing only `return void(...)` is a plain function and gets a plain-function wrapper. It warns at call time even when its target is a generator.
 
-The rest of the call path also waits for that first step. Only then is `skip_if` evaluated and are arguments bound and remapped. A wrong number of arguments or a `Failed mapping` `TypeError` raises on the first `next()`, not at the call.
+The rest of the call path also waits for that first step. *Only* then is `skip_if` evaluated and are arguments bound and remapped. A wrong number of arguments or a `Failed mapping` `TypeError` raises on the first `next()`, not at the call.
 
 Keeping the flag matters because frameworks decide how to run a callable from it. For example, pytest runs a `yield` fixture with setup and teardown only when `inspect.isgeneratorfunction` is `True`. A deprecated `yield` fixture therefore keeps working.
 
 !!! note "Lazy warning timing"
 
-    A generator that is created but never iterated never warns. The warning points at the line that iterates, which may be far from the line that called the deprecated function.
+    A generator that is created but never iterated **never warns**. The warning points at the line that iterates, which may be far from the line that called the deprecated function.
 
 ```python
 from deprecate import deprecated, void
@@ -567,7 +567,7 @@ print(list(old_range(1, 4)))
 
     It then delegates with `yield from` to the generator returned by the source or target. `send()`, `throw()`, `close()` and the return value pass through unchanged.
 
-    Each iterated generator spends the budget at most once; later steps emit no further warning. A generator that is never iterated spends nothing. A target returning a list or another iterable instead of a generator has its items yielded.
+    Each iterated generator spends the budget **at most once**; later steps emit no further warning. A generator that is never iterated spends nothing. A target returning a list or another iterable instead of a generator has its items yielded.
 
 ## See also
 

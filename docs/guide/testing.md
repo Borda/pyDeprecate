@@ -5,9 +5,9 @@ description: "Test deprecation warnings, warning budgets, and warning suppressio
 
 # Testing Deprecated Code
 
-`assert_no_warnings` fails if a specified warning category is raised inside its context block. Pair it with `pytest.warns` to test both the presence and absence of deprecation notices.
+`assert_no_warnings` **fails if a specified warning category is raised** inside its context block. Pair it with `pytest.warns` to test both the *presence* and *absence* of deprecation notices.
 
-`num_warns` defaults to `1`, limiting the deprecation message to one emission per function lifetime.
+`num_warns` defaults to `1`, limiting the deprecation message to **one emission** per function lifetime.
 
 The first test checks that the warning appears. The third checks the default silence on subsequent calls.
 
@@ -74,7 +74,7 @@ Warning tests passed
 
 </details>
 
-Use these warning budgets to test repeated calls:
+Use these *warning budgets* to test repeated calls:
 
 | Setting        | Behavior              | Use                                                    |
 | -------------- | --------------------- | ------------------------------------------------------ |
@@ -118,9 +118,9 @@ print(predict_batch(1))
 
 ### Suppressing warnings in test fixtures
 
-A deprecated call in test setup still emits its first `FutureWarning`. This includes fixtures, factory helpers, and shared utilities. With default `num_warns=1`, subsequent calls are silent.
+A deprecated call in test setup **still emits** its first `FutureWarning`. This includes fixtures, factory helpers, and shared utilities. With default `num_warns=1`, subsequent calls are silent.
 
-To exercise forwarding with clean pytest output, suppress the specific message at test-session level in `pyproject.toml`:
+To exercise forwarding with clean pytest output, suppress the *specific message* at test-session level in `pyproject.toml`:
 
 ```toml
 [tool.pytest.ini_options]
@@ -140,7 +140,7 @@ warnings.filterwarnings("ignore", message="The `create_session` was deprecated",
 
 !!! warning "Keep filters specific"
 
-    Filter the deprecation message rather than the entire `FutureWarning` category. Unrelated deprecations from dependencies must remain visible.
+    Filter the deprecation message rather than the entire `FutureWarning` category. Unrelated deprecations from dependencies <u>must remain visible</u>.
 
 ```python
 from deprecate import deprecated, assert_no_warnings, void
@@ -193,7 +193,7 @@ print(clean_session)
 
 !!! note "Substring matching"
 
-    `assert_no_warnings` accepts a substring through `match`. It checks the captured warnings' message content. You can forbid one specific deprecation while allowing unrelated warnings.
+    `assert_no_warnings` accepts a substring through `match`. It checks the captured warnings' message content. You can forbid **one specific deprecation** while allowing unrelated warnings.
 
 ## See also
 

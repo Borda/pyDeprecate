@@ -11,9 +11,9 @@ This page covers deprecation of `async def` functions and async generator functi
 
 `@deprecated` works on `async def` functions natively. The wrapper produced is itself `async def`, so `inspect.iscoroutinefunction(wrapper)` returns `True` and callers can `await` it as expected.
 
-All three TargetModes work with async functions. The deprecation warning fires when the coroutine is awaited, because the warning logic runs inside the `async def` body. Calling the wrapper only creates the coroutine.
+All three TargetModes work with async functions. The deprecation warning fires **when the coroutine is awaited**, because the warning logic runs inside the `async def` body. Calling the wrapper only creates the coroutine.
 
-Plain sync wrappers warn at call time. Generator and async generator wrappers also defer execution, waiting for the first `next()` / `async for` step.
+Plain sync wrappers warn at *call time*. Generator and async generator wrappers also defer execution, waiting for the first `next()` / `async for` step.
 
 **`TargetMode.NOTIFY` — warn and keep the async body:**
 
@@ -102,7 +102,7 @@ b'https://example.com'
 
 !!! warning "Concurrent coroutines and warning counts"
 
-    Warning-budget reservations are protected by a per-wrapper lock. An async wrapper reserves its callable or per-argument budget before its first `await`. Concurrent coroutines sharing the wrapper therefore cannot race while reserving those counters.
+    Warning-budget reservations are protected by a per-wrapper lock. An async wrapper reserves its callable or per-argument budget **before its first `await`**. Concurrent coroutines sharing the wrapper therefore cannot race while reserving those counters.
 
     `num_warns` is a separate budget for each deprecated argument. Warnings for several deprecated arguments do not share one overall limit.
 
@@ -200,7 +200,7 @@ asyncio.run(main())
 
     As for the undecorated function, `inspect.isasyncgenfunction(wrapper)` returns `True` and `inspect.iscoroutinefunction(wrapper)` returns `False`. Frameworks that branch on these flags — a pytest-asyncio `yield` fixture, for one — run the deprecated function exactly like the original.
 
-    Calling `wrapper(...)` runs no code. The deprecation warning, the `num_warns` budget and an `as_exceptions()` error all come on the first `async for` step. An async generator that is never iterated never warns.
+    Calling `wrapper(...)` runs **no code**. The deprecation warning, the `num_warns` budget and an `as_exceptions()` error all come on the *first* `async for` step. An async generator that is never iterated <u>never warns</u>.
 
     `asend()`, `athrow()` and `aclose()` reach the inner async generator.
 

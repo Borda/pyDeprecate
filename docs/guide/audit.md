@@ -36,7 +36,7 @@ Audit tools catch four common problems before they reach users:
 
     Since v0.13, `__deprecated__` holds a PEP 702-conformant message string instead of the `DeprecationConfig` object. PEP-702-aware tooling, including IDE hover, `pyright`, and `mypy`, can read this string correctly.
 
-    The config object moved to `__deprecation_config__`. Read it through the public `get_deprecation_config(obj)` helper rather than either attribute directly:
+    The config object moved to `__deprecation_config__`. Read it through the public **`get_deprecation_config(obj)`** helper rather than either attribute directly:
 
     | Before v0.13                                         | v0.13+                                       |
     | ---------------------------------------------------- | -------------------------------------------- |
@@ -48,7 +48,7 @@ Audit tools catch four common problems before they reach users:
 
 ## Scanning from Python without importing
 
-Use `deprecate.audit.find_deprecation_wrappers_static()` (since v0.16) for source-only discovery through `ast`, without importing or executing the scanned package.
+Use `deprecate.audit.find_deprecation_wrappers_static()` (since v0.16) for **source-only discovery** through `ast`, without importing or executing the scanned package.
 
 This helps when:
 
@@ -60,7 +60,7 @@ Pass a package directory, a Python module file, a plain directory, or a top-leve
 
 !!! note "Discovery scope"
 
-    Dotted module names are refused because locating them would import their parents. Package submodules are read recursively by default. Plain directories include only top-level Python files.
+    Dotted module names are **refused** because locating them would import their parents. Package submodules are read recursively by default. Plain directories include only top-level Python files.
 
     Set `recursive`, `include_members`, and module-name `exclude` globs on the scan itself.
 
@@ -123,13 +123,13 @@ Policy violations: 9
 
     Supply `current_version` explicitly when that version is unavailable. Otherwise, expiry raises `ImportError`, while the table shows unknown status.
 
-    Policy checks only settings resolved for each rule. It never reads `pyproject.toml` policy settings.
+    Policy checks only settings resolved for each rule. It *never* reads `pyproject.toml` policy settings.
 
     Leave consumer `recursive` and `include_members` at their defaults. Passing `False` with a completed result raises `ValueError`.
 
 !!! warning "Source rows are approximations"
 
-    Always read `.gaps`, even when `.wrappers` or validator results are empty. A gap marks incomplete coverage. Some dynamic forms are invisible without a gap.
+    **Always** read `.gaps`, even when `.wrappers` or validator results are empty. A gap marks incomplete coverage. Some dynamic forms are invisible without a gap.
 
     Row targets are stand-ins. Calling `row.deprecated_info.target()` when it is a synthetic target raises `TypeError`.
 
@@ -217,7 +217,7 @@ Both functions return `DeprecationWrapperInfo` dataclasses.
     | `source_positional_only`, `source_positional_only_order`, `source_var_positional_prefix` | They cache source positional information.     |
     | `target_all_param_names`, `target_accepts_var_positional`, `target_accepts_var_keyword`  | They cache accepted target parameters.        |
 
-    These eight fields will leave `DeprecationConfig` in v1.0. Do not read them in audit or CI code.
+    These eight fields will leave `DeprecationConfig` in v1.0. Do **not** read them in audit or CI code.
 
 ### Validating a single function
 
@@ -301,7 +301,7 @@ Their keyword-only `exclude` argument accepts glob patterns over full dotted mod
 
 !!! note "Exclusion behavior"
 
-    The scan never imports a matching package or descends into it. Another module may still import it, but its wrappers are filtered either way. No wrapper reported under a matching module is returned.
+    The scan *never* imports a matching package or descends into it. Another module may still import it, but its wrappers are filtered either way. No wrapper reported under a matching module is returned.
 
     Use exclusions to omit test fixtures or a frozen legacy tree from every audit. The CLI reads the same list from `--exclude` or `[tool.pydeprecate]` in `pyproject.toml`. See [project configuration](cli.md#project-configuration-in-pyprojecttoml).
 
@@ -316,7 +316,7 @@ Every CLI subcommand accepts the matching `--no-include-members` flag.
 
 !!! warning "Recursive scans execute imports"
 
-    Recursive scans import every submodule, so module-level side effects run. Any import exception, not just `ImportError`, skips the submodule. Module-level `sys.exit()` also skips it.
+    Recursive scans import every submodule, so <u>module-level side effects run</u>. Any import exception, not just `ImportError`, skips the submodule. Module-level `sys.exit()` also skips it.
 
     The scan emits `UserWarning: audit: skipped <module>: <exception>` and continues. One broken submodule cannot abort the whole CI gate.
 
@@ -440,7 +440,7 @@ Self-references: 0
 
 ### PEP 702-only deprecations
 
-The default scan skips symbols deprecated only with `warnings.deprecated` or `typing_extensions.deprecated`. They carry no pyDeprecate metadata. This preserves `check`, `expiry`, and `policy` results when projects mix both decorators.
+The default scan **skips** symbols deprecated only with `warnings.deprecated` or `typing_extensions.deprecated`. They carry no pyDeprecate metadata. This preserves `check`, `expiry`, and `policy` results when projects mix both decorators.
 
 Pass `include_pep702=True` to include these symbols:
 
@@ -525,7 +525,7 @@ See the [CLI Reference](cli.md) for flags and exit codes. See [Enforcing the pol
 
 ## Detecting Deprecation Chains
 
-A chain forms when a deprecated wrapper targets another deprecated function. Callers receive two notices, and the intermediate hop adds no value.
+A *chain* forms when a deprecated wrapper targets another deprecated function. Callers receive **two notices**, and the intermediate hop adds no value.
 
 `validate_deprecation_chains()` scans a module or package for chains using metadata alone. It requires no source-code inspection.
 
@@ -651,7 +651,7 @@ Use `recursive=False` to restrict scanning to the top-level module only, which c
 
 !!! note "Advisory finding"
 
-    This finding makes configurations visible for deliberate review. It does not indicate a failure.
+    This finding makes configurations visible for deliberate review. It does **not** indicate a failure.
 
 ### The problem: POSITIONAL_ONLY remap target
 
@@ -737,9 +737,9 @@ The function accepts the same `module`, `recursive`, and `include_members` argum
 
 !!! note "CI reporting"
 
-    A positional-only mapping is not a defect: the wrapper forwards remapped values positionally and works correctly. Expiry and chain findings can indicate defects.
+    A positional-only mapping is **not a defect**: the wrapper forwards remapped values positionally and works correctly. Expiry and chain findings can indicate defects.
 
-    Prefer `pydeprecate check` for advisory CI reporting. Positional-only mappings produce advisory warnings with exit `0`. Only hard configuration errors, such as invalid argument mappings, cause exit `1`.
+    Prefer `pydeprecate check` for advisory CI reporting. Positional-only mappings produce advisory warnings with exit `0`. *Only* hard configuration errors, such as invalid argument mappings, cause exit `1`.
 
     See the [CLI Reference](cli.md) for flags and exit codes.
 

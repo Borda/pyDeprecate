@@ -5,11 +5,11 @@ description: Expose runtime deprecation notices in Sphinx autodoc and MkDocs API
 
 # API documentation integration
 
-Enable `update_docstring=True` to include migration notices in API documentation. Then configure the documentation engine to read those runtime docstrings.
+Enable `update_docstring=True` to include migration notices in API documentation. Then **configure the documentation engine** to read those *runtime* docstrings.
 
 ## Update docstrings
 
-The decorator updates an existing docstring at decoration time; it does not wait for a deprecated call.
+The decorator updates an existing docstring at *decoration time*; it does **not** wait for a deprecated call.
 
 ```python
 from deprecate import deprecated, void
@@ -46,7 +46,7 @@ Add invoice line quantities.
 
 </details>
 
-The option is named `update_docstring` and defaults to `False` on `deprecated` and `deprecated_class`. The notice includes the removal version when supplied, and a replacement reference when `target` is callable.
+The option is named `update_docstring` and **defaults to `False`** on `deprecated` and `deprecated_class`. The notice includes the removal version when supplied, and a replacement reference when `target` is callable.
 
 | `docstring_style`  | Injected format                                        |
 | ------------------ | ------------------------------------------------------ |
@@ -64,7 +64,7 @@ Automatic selection checks these signals in order:
 
 !!! note "Choose explicitly when needed"
 
-    An explicit `docstring_style` bypasses automatic detection. Unsupported values raise `ValueError` at decoration time, even with `update_docstring=False`.
+    An explicit `docstring_style` **bypasses automatic detection**. Unsupported values raise `ValueError` at decoration time, even with `update_docstring=False`.
 
 ## Sphinx
 
@@ -90,7 +90,7 @@ autodoc_default_options = {
 - Document functions with `autofunction` and classes with `autoclass`.
 - Install Sphinx and make pyDeprecate and the documented package importable in the build environment.
 
-Autodoc reads function docstrings at runtime. The bundled extension handles the proxies returned by `deprecated_class`, which otherwise appear as aliases without their injected notices.
+Autodoc reads function docstrings *at runtime*. The bundled extension handles the proxies returned by `deprecated_class`, which otherwise appear as aliases without their injected notices.
 
 It uses the wrapped class for signature and member inspection, while retaining the proxy's updated docstring. The rendered class entry therefore includes the deprecation notice instead of only an “alias of” description.
 
@@ -125,7 +125,7 @@ Use `update_docstring=True` and `docstring_style="mkdocs"` on decorated APIs to 
 
     The decorator's `docstring_style="mkdocs"` selects the injected notice format. The handler's `docstring_style: google` selects how mkdocstrings parses the surrounding docstring.
 
-Griffe normally reads docstrings from the source syntax tree, which does not contain decoration-time changes. `RuntimeDocstrings` imports the documented module and replaces matching function, class, and method docstrings with their runtime values.
+Griffe normally reads docstrings from the *source syntax tree*, which does not contain decoration-time changes. `RuntimeDocstrings` imports the documented module and replaces matching function, class, and method docstrings with their runtime values.
 
 1. Install `mkdocstrings[python]` and pyDeprecate in the documentation environment.
 2. Set `paths` to the documented source location and make its runtime dependencies available.
@@ -134,7 +134,7 @@ Griffe normally reads docstrings from the source syntax tree, which does not con
 
 !!! warning "Runtime imports"
 
-    The Griffe extension executes module imports during the build. It leaves docstrings unchanged when its import attempts fail with `ImportError`. Other import-time exceptions can fail the build.
+    The Griffe extension <u>executes module imports</u> during the build. It leaves docstrings unchanged when its import attempts fail with `ImportError`. Other import-time exceptions can fail the build.
 
 See the repository's [MkDocs demo](https://github.com/Borda/pyDeprecate/blob/main/demo-docs/mkdocs/mkdocs.yml) for a complete configuration.
 
@@ -147,6 +147,6 @@ See the repository's [MkDocs demo](https://github.com/Borda/pyDeprecate/blob/mai
 
 !!! note "Existing text is required"
 
-    `update_docstring=True` leaves a missing or empty docstring unchanged. The Griffe extension also requires an existing static docstring and deprecation metadata. It does not create documentation for undocumented objects.
+    `update_docstring=True` leaves a missing or empty docstring **unchanged**. The Griffe extension also requires an existing static docstring and deprecation metadata. It does not create documentation for undocumented objects.
 
 See [Functions](functions.md) for argument migrations, [Classes](classes.md) for proxy behavior, and [Advanced](advanced.md#automatic-docstring-updates) for more docstring examples.

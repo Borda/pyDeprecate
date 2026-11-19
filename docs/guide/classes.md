@@ -50,7 +50,7 @@ ok
 
 </details>
 
-Prefer `@deprecated_class()` directly for classes, Enums, and dataclasses. It produces the same result without a dispatch notice and exposes proxy-only options such as `attrs_mapping`. The rest of this page uses that explicit form.
+Prefer `@deprecated_class()` directly for classes, Enums, and dataclasses. It produces the same result *without* a dispatch notice and exposes proxy-only options such as `attrs_mapping`. The rest of this page uses that explicit form.
 
 ## Class deprecation
 
@@ -58,9 +58,9 @@ Prefer `@deprecated_class()` directly for classes, Enums, and dataclasses. It pr
 
 Choose one of three common patterns:
 
-- Rename a method with `@deprecated(target=execute)` on the old name; calls forward to the replacement.
-- Decorate `__init__` to warn at instantiation, optionally forwarding construction to a successor class.
-- Rename or retire only some attributes of a class that stays: `@deprecated_class(attrs_mapping={"old": "new"}, ...)` warns on the listed names and redirects them; see [Attributes](attributes.md).
+- **Rename a method** with `@deprecated(target=execute)` on the old name; calls forward to the replacement.
+- **Decorate** `__init__` to warn at instantiation, optionally forwarding construction to a successor class.
+- **Rename or retire only some attributes** of a class that stays: `@deprecated_class(attrs_mapping={"old": "new"}, ...)` warns on the listed names and redirects them; see [Attributes](attributes.md).
 
 Rename a method within a class:
 
@@ -154,7 +154,7 @@ efg
 
 ## Constants and instances
 
-`deprecated_instance` wraps module-level dicts, lists, and custom objects in a transparent proxy. Attribute, item, and call access emit a deprecation notice. Use `read_only=True` to prevent mutation through the deprecated alias.
+`deprecated_instance` wraps module-level dicts, lists, and custom objects in a *transparent proxy*. Attribute, item, and call access emit a deprecation notice. Use `read_only=True` to prevent mutation through the deprecated alias.
 
 The proxy carries only protocols supported by the wrapped object:
 
@@ -166,9 +166,9 @@ Arithmetic, unary, and conversion operators forward to the wrapped object. Data-
 
 !!! note "When operations consume warnings"
 
-    Synchronous operations warn only after success. A subscript miss (`KeyError`) or another failed operation emits nothing and preserves the `num_warns` budget.
+    Synchronous operations warn *only after* success. A subscript miss (`KeyError`) or another failed operation emits nothing and preserves the `num_warns` budget.
 
-    `next()` warns before advancing the wrapped iterator. An exhausted `next()` (`StopIteration`) still warns and spends the budget. A warning raised as an error consumes no item.
+    `next()` warns *before* advancing the wrapped iterator. An exhausted `next()` (`StopIteration`) still warns and spends the budget. A warning raised as an error consumes no item.
 
     `__await__` and `__anext__` warn when obtaining the underlying awaitable, before it runs. Later rejection or async exhaustion still consumes the warning budget. Calls also warn before execution, like `@deprecated`.
 
@@ -186,7 +186,7 @@ In-place operators (`+=`, `-=`, etc.) return the active object's result rather t
 
 !!! warning "Right-hand operands"
 
-    Python cannot fall back to the proxy when the left-operand type raises `TypeError` directly, as with `"prefix" + proxy_str` for `str`. Put the proxy on the left or wrap the value in a container. See [Troubleshooting](../troubleshooting.md#do-arithmetic-and-operator-protocol-methods-emit-deprecation-notices-on-deprecated_instance-proxies) for details.
+    Python cannot fall back to the proxy when the left-operand type raises `TypeError` directly, as with `"prefix" + proxy_str` for `str`. **Put the proxy on the left** or wrap the value in a container. See [Troubleshooting](../troubleshooting.md#do-arithmetic-and-operator-protocol-methods-emit-deprecation-notices-on-deprecated_instance-proxies) for details.
 
 !!! note "Context-entry cleanup"
 
@@ -224,7 +224,7 @@ Deprecated proxies survive `copy.copy()` and `copy.deepcopy()` round-trips. Copi
 
     Nested mutable values remain shared after a shallow copy. `copy.deepcopy` can provide independence when the objects support it.
 
-Plain-object `deprecated_instance` proxies, including dicts, lists, and custom objects, are fully picklable.
+Plain-object `deprecated_instance` proxies, including dicts, lists, and custom objects, are *fully* picklable.
 
 !!! warning "Pickling class aliases"
 
@@ -304,17 +304,17 @@ print(RETRY_DEFAULTS["timeout"])  # warns: FutureWarning
 
 </details>
 
-Operations through the old name follow the replacement. `isinstance` and hashing use it, and writes land on it.
+Operations through the old name **follow the replacement**. `isinstance` and hashing use it, and writes land on it.
 
 !!! warning "Replacement type compatibility"
 
     Proxy protocols combine those of the source and replacement, because `skip_if` can serve the source. A function replaced by a dict still reports `callable(proxy)` as `True`, although calling it raises `TypeError`.
 
-    Keep the replacement's type unchanged or use a subclass unless the type change is intended. A tuple constant replaced by a list becomes unhashable immediately when the deprecation ships.
+    Keep the replacement's type unchanged or use a subclass unless the type change is intended. A tuple constant replaced by a list becomes <u>unhashable immediately</u> when the deprecation ships.
 
     `target=True`, `target=False`, `TargetMode.AUTO`, and modules raise `TypeError`. Redirect modules with [`deprecated_module`](modules.md).
 
-`attrs_mapping` deprecates only the listed attribute spellings of an object, the same way it does on a class proxy. Every other attribute stays silent. The mapping covers attributes, not the keys of a mapping object:
+`attrs_mapping` deprecates only the listed attribute spellings of an object, the same way it does on a class proxy. Every other attribute **stays silent**. The mapping covers attributes, *not* the keys of a mapping object:
 
 ```python
 from deprecate import deprecated_instance
@@ -346,8 +346,8 @@ teal
 
 On callable objects, `args_mapping` renames keyword arguments. Values renamed onto positional-only parameters are passed positionally.
 
-- Without `target`, calls warn only when an old name is used.
-- With a callable `target`, every call warns because calling the old name is itself deprecated.
+- Without `target`, calls warn *only when* an old name is used.
+- With a callable `target`, **every call** warns because calling the old name is itself deprecated.
 
 !!! warning "Unused call options"
 
@@ -439,7 +439,7 @@ True
 
 `deprecated_class()` and `deprecated_instance()` accept `skip_if`: a `bool` or zero-argument callable returning `bool`, evaluated at access time.
 
-While the condition evaluates `True`, the proxy serves the wrapped source unchanged:
+While the condition evaluates `True`, the proxy serves the **wrapped source unchanged**:
 
 - Warnings and `attrs_mapping` redirects are disabled.
 - `args_mapping`, `args_extra`, `target` forwarding, and `read_only` enforcement are disabled.
@@ -489,7 +489,7 @@ legacy-stored
 
 </details>
 
-Once the condition flips to `False`, the very next access warns and forwards to the target as usual — no re-decoration required.
+Once the condition flips to `False`, the *very next* access warns and forwards to the target as usual — no re-decoration required.
 
 ## Type annotations and static analysis
 
@@ -561,7 +561,7 @@ Every proxy carries two attributes that let static tooling see through it to the
 | `__wrapped__`   | the source class or object | `inspect.unwrap`, Sphinx autodoc, griffe/mkdocstrings, IDEs       |
 | `__signature__` | the source's signature     | `inspect.signature` and anything that does not walk `__wrapped__` |
 
-Reading either attribute has no side effects or deprecation notices. Documentation builds and IDE hovers stay quiet:
+Reading either attribute has **no side effects** or deprecation notices. Documentation builds and IDE hovers stay quiet:
 
 ```python
 import inspect
@@ -656,7 +656,7 @@ False
 
 `as_exception=True` works on `deprecated_class()` and `deprecated_instance()` as on callable forms. See [Fatal deprecations](functions.md#fatal-deprecations) for the full contract.
 
-Operations that would warn raise `DeprecatedError` instead:
+**Operations that would warn** raise `DeprecatedError` instead:
 
 - Instantiation, warning-producing attribute reads, item access, and calls become fatal.
 - Data-use arithmetic and conversion dunders become fatal.
@@ -664,7 +664,7 @@ Operations that would warn raise `DeprecatedError` instead:
 
 Ordinary attribute writes and access outside an active `attrs_mapping` stay silent. Constructor-only `TargetMode.ARGS_REMAP` does not make attribute access fatal.
 
-Structural probes remain silent: `isinstance`, `issubclass`, `repr`, `str`, equality, ordering, and `len` never warned.
+**Structural probes** remain silent: `isinstance`, `issubclass`, `repr`, `str`, equality, ordering, and `len` never warned.
 
 !!! note "Fatal attribute probes"
 
@@ -674,7 +674,7 @@ Structural probes remain silent: `isinstance`, `issubclass`, `repr`, `str`, equa
 
 !!! warning "Fatal deprecation is not an authorization boundary"
 
-    Without `attrs_mapping`, attribute lookup resolves the value before reaching the fatal warning path. A property getter or descriptor can therefore produce side effects before `DeprecatedError`.
+    Without `attrs_mapping`, attribute lookup resolves the value before reaching the fatal warning path. A property getter or descriptor can therefore produce <u>side effects before `DeprecatedError`</u>.
 
     If the getter raises its own exception, that exception propagates first. Mapped attribute reads reach the fatal path before resolving the mapped descriptor.
 

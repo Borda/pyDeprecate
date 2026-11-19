@@ -9,17 +9,17 @@ description: Deprecating an entire Python module — in-place warn intercepting 
 
 Three patterns are supported:
 
-- Mode 1 warns in place without moving any code.
-- Mode 2 redirects attribute access to a replacement module.
-- Mode 3 exposes a deprecated module name as a package attribute.
+- **Mode 1** warns in place without moving any code.
+- **Mode 2** redirects attribute access to a replacement module.
+- **Mode 3** exposes a deprecated module name as a package attribute.
 
 For deprecating individual functions see [Functions](functions.md); for classes see [Classes](classes.md).
 
 ## When to use `deprecated_module()`
 
-Reach for `deprecated_module()` when a module is being replaced or renamed. Every attribute access on the old name invokes the configured warning path automatically.
+Reach for `deprecated_module()` when a module is being replaced or renamed. **Every attribute access** on the old name invokes the configured warning path automatically.
 
-Place the call at the bottom of the file being deprecated. It reassigns the module's `__class__` to an intercepting wrapper and attaches `__deprecation_config__` metadata. This lets [`find_deprecation_wrappers()`](audit.md) discover it.
+Place the call **at the bottom** of the file being deprecated. It reassigns the module's `__class__` to an intercepting wrapper and attaches `__deprecation_config__` metadata. This lets [`find_deprecation_wrappers()`](audit.md) discover it.
 
 ## Mode 1 — in-place warn
 
@@ -66,7 +66,7 @@ deprecated_module(
 
 ## Mode 2 — redirect to a replacement module
 
-Use this when you rename an entire module. Attribute lookups missing from the old module's `__dict__` are forwarded to `new_calculator`, so callers get both a warning and the correct value. Real attributes already defined in the old module (functions, constants) are served from its `__dict__` directly; they warn but are not forwarded.
+Use this when you rename an entire module. Attribute lookups missing from the old module's `__dict__` are forwarded to `new_calculator`, so callers get both a warning and the correct value. Real attributes already defined in the old module (functions, constants) are served from its `__dict__` directly; they warn but are **not forwarded**.
 
 !!! note "Redirect cycles"
 
@@ -159,7 +159,7 @@ deprecated_module(
 | A positive `N`     | It delivers exactly `N` warnings. |
 | `-1` (the default) | It delivers on every access.      |
 
-The counter is one budget shared across every attribute name on the module. There is no per-attribute counter the way `deprecated_class`'s `attrs_mapping` gets one.
+The counter is **one budget shared** across every attribute name on the module. There is no per-attribute counter the way `deprecated_class`'s `attrs_mapping` gets one.
 
 `-1` avoids budget locking but still performs metadata lookup and warning handling. Use a finite budget for a worker service whose custom stream or warning filter would otherwise record repeated accesses.
 
@@ -171,7 +171,7 @@ The counter is one budget shared across every attribute name on the module. Ther
 
 ## Star imports also warn
 
-Star imports (`from old_calculator import *`) still trigger the deprecation warning. CPython's `IMPORT_STAR` bytecode calls `getattr(module, name)` for each public name being pulled in. That call routes through the same `__getattribute__` interception installed by `deprecated_module()`.
+Star imports (`from old_calculator import *`) **still trigger** the deprecation warning. CPython's `IMPORT_STAR` bytecode calls `getattr(module, name)` for each public name being pulled in. That call routes through the same `__getattribute__` interception installed by `deprecated_module()`.
 
 A `FutureWarning` therefore fires once per pulled-in public name, exactly as it would for `old_calculator.add(1, 2)`. A PEP 562 module-level `__getattr__` hook fires only for missing names. Star imports can invoke it for dynamic names listed in `__all__`, but not for existing attributes.
 
@@ -194,9 +194,9 @@ module_items = [r for r in deprecated_items if r.api_type == "module"]
 
 !!! warning "Tools that walk module attributes"
 
-    A module is the broadest surface this feature covers, so expect the blast radius to match. Tools that walk module attributes stop at a fatal module rather than skipping it. This includes pytest collection, Sphinx autodoc, `pickle`, and `copy`.
+    A module is the broadest surface this feature covers, so expect the blast radius to match. Tools that walk module attributes <u>stop at a fatal module</u> rather than skipping it. This includes pytest collection, Sphinx autodoc, `pickle`, and `copy`.
 
-pyDeprecate's own audit is unaffected. `find_deprecation_wrappers()` and the `pydeprecate` CLI read the module's `__dict__` rather than going through attribute access. A fatal module therefore still appears in discovery and reports like any other.
+pyDeprecate's own audit is **unaffected**. `find_deprecation_wrappers()` and the `pydeprecate` CLI read the module's `__dict__` rather than going through attribute access. A fatal module therefore still appears in discovery and reports like any other.
 
 ## See also
 

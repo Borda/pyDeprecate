@@ -9,7 +9,7 @@ This page covers deprecation of `@property` and `@cached_property` descriptors: 
 
 ## Properties and cached properties
 
-`@deprecated` works with `@property` and `@cached_property`. The decorator only adds a `FutureWarning` at access time; it does **not** forward reads or writes to another property.
+`@deprecated` works with `@property` and `@cached_property`. The decorator *only* adds a `FutureWarning` at access time; it does **not** forward reads or writes to another property.
 
 | Order                                                                                     | Accessors that warn                                                                             |
 | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -54,8 +54,8 @@ The `FutureWarning` fires on **attribute access** (`obj.timeout`), not on a call
 
     For `@cached_property`, subsequent accesses return the cached value without emitting another warning. The cache is filled after the first read. While that value remains cached, later reads of the same object do not reach pyDeprecate. Deleting the cached attribute makes the next read invoke the descriptor again, which can warn when the budget allows.
 
-    - With `num_warns=-1`, each new object warns once, on its first access.
-    - The default `num_warns=1` budget is shared by all objects, so only the first object to read the property warns.
+    - With `num_warns=-1`, **each new object** warns once, on its first access.
+    - The default `num_warns=1` budget is **shared by all objects**, so only the first object to read the property warns.
 
 !!! tip "Decorator order for getter-only properties"
 
@@ -63,7 +63,7 @@ The `FutureWarning` fires on **attribute access** (`obj.timeout`), not on a call
 
 ### Deprecating a property with a setter or deleter
 
-When the property being deprecated has a setter or deleter, all three accessors (`fget`, `fset`, `fdel`) are wrapped automatically — each fires a `FutureWarning`. Both the chain-style decorator pattern and the explicit construction pattern work:
+When the property being deprecated has a setter or deleter, all three accessors (`fget`, `fset`, `fdel`) are **wrapped automatically** — each fires a `FutureWarning`. Both the chain-style decorator pattern and the explicit construction pattern work:
 
 ```python
 from deprecate import deprecated
@@ -144,11 +144,11 @@ class Config:
 
 ### Strict mode: `from deprecate import property`
 
-The inner order `@property @deprecated` wraps only `fget`. If you later add a setter or deleter with `@value.setter` / `@value.deleter`, those accessors are rebuilt from the plain `property` base. They are **silently unprotected**: writes and deletes never warn.
+The inner order `@property @deprecated` wraps only `fget`. If you later add a setter or deleter with `@value.setter` / `@value.deleter`, those accessors are rebuilt from the plain `property` base. They are **<u>silently unprotected</u>**: writes and deletes never warn.
 
 This is easy to introduce by habit, because the standard library puts `@property` outermost.
 
-To catch this at definition time, import the strict `property` replacement. It raises `TypeError` the moment a getter already carrying `@deprecated` metadata is handed to it — before any instance is created:
+To catch this at definition time, import the strict `property` replacement. It raises `TypeError` the moment a getter already carrying `@deprecated` metadata is handed to it — *before* any instance is created:
 
 ```python
 # phmdoctest:skip — TypeError raised at class-body time
@@ -166,7 +166,7 @@ class Config:
         return self._timeout
 ```
 
-The fix is to switch to the canonical outer order `@deprecated(...) @property`, which wraps every accessor and survives later setter/deleter additions. The outer order works unchanged with the strict `property`:
+The fix is to switch to the **canonical outer order** `@deprecated(...) @property`, which wraps every accessor and survives later setter/deleter additions. The outer order works unchanged with the strict `property`:
 
 ```python
 from deprecate import deprecated, property
@@ -193,7 +193,7 @@ The strict `property` is a subclass of the builtin, so `isinstance(obj, property
 
 ### Deprecated property alias on a dataclass
 
-When a dataclass field is renamed, define a property with the old name that delegates to the new field in its accessor body. `@deprecated` adds a `FutureWarning` to each accessor — the delegation itself is plain Python in the method body, not something the library provides.
+When a dataclass field is renamed, define a property with the old name that delegates to the new field in its accessor body. `@deprecated` adds a `FutureWarning` to each accessor — the delegation itself is *plain Python* in the method body, not something the library provides.
 
 **Read-only alias (warns on read only):**
 
@@ -271,7 +271,7 @@ print(cfg.timeout_ms)  # prints 10_000
 
     Do **not** use the same name as an existing dataclass field for the deprecated property. The `@dataclass`-generated `__init__` performs `self.field = value`, which conflicts with a property descriptor of the same name. Use a different name for the deprecated alias and keep the dataclass field under its new name.
 
-The same pattern works on regular (non-dataclass) classes — replace field access with `self._attr` lookups in the accessor body. `@deprecated` only adds the warning in either case.
+The same pattern works on regular (non-dataclass) classes — replace field access with `self._attr` lookups in the accessor body. `@deprecated` *only* adds the warning in either case.
 
 !!! note "`target=<callable>` not supported on properties"
 

@@ -51,7 +51,7 @@ This page holds the canonical comparison table.
 
 !!! warning "A warning is not an exception"
 
-    `deprecation.UnsupportedWarning` is a `DeprecationWarning` subclass. It becomes an exception only when warning filters escalate it.
+    `deprecation.UnsupportedWarning` is a `DeprecationWarning` subclass. It becomes an exception *only* when warning filters escalate it.
 
     The version comparison happens at decoration time. See the [implementation](https://github.com/briancurtin/deprecation/blob/master/deprecation.py).
 
@@ -81,7 +81,7 @@ Hook completed
 
 ## Use `warnings.deprecated` when
 
-Use PEP 702 for static checker visibility when runtime behavior does not need to change.
+Use PEP 702 for **static checker visibility** when runtime behavior does not need to change.
 
 ```python
 from typing_extensions import deprecated
@@ -112,11 +112,11 @@ print(addition(1, 2))
 
     `warnings.deprecated` is in the standard library on Python 3.13+. Use the [`typing_extensions.deprecated` backport](https://typing-extensions.readthedocs.io/en/latest/#deprecated) on earlier versions. With `category=None`, the decorator returns the original object, adding no per-call wrapper overhead.
 
-    Suppressing the warning through a filter does not remove that wrapper. See [PEP 702](https://peps.python.org/pep-0702/#runtime-behavior).
+    Suppressing the warning through a filter does **not** remove that wrapper. See [PEP 702](https://peps.python.org/pep-0702/#runtime-behavior).
 
 ## Use pyDeprecate when
 
-Use pyDeprecate when old callers must keep working while receiving a deprecation warning.
+Use pyDeprecate when old callers must **keep working** while receiving a deprecation warning.
 
 ```python
 from deprecate import deprecated
@@ -141,11 +141,11 @@ print(addition(1, 2))  # warns: FutureWarning
 
 !!! note "Decorator and assignment forms"
 
-    These examples wrap imported collection functions to keep them executable. In your library, apply the same configuration as `@deprecated(...)` above the deprecated definition. Forwarding bypasses the source body.
+    These examples wrap imported collection functions to keep them executable. In your library, apply the same configuration as `@deprecated(...)` above the deprecated definition. Forwarding <u>bypasses the source body</u>.
 
 ## Migrating from warnings.warn
 
-Replace manual forwarding boilerplate with a single decorator.
+Replace manual forwarding boilerplate with a **single decorator**.
 
 ### Before
 
@@ -257,7 +257,7 @@ print(addition(1, 2))  # warns: FutureWarning
 
 !!! warning "Migration differences"
 
-    Rename `removed_in` to `remove_in`. pyDeprecate defaults to `FutureWarning`. It does not use `current_version` to switch warning classes.
+    Rename `removed_in` to `remove_in`. pyDeprecate defaults to `FutureWarning`. It does **not** use `current_version` to switch warning classes.
 
     Use [fatal mode](#turning-the-warning-into-an-error-at-a-chosen-version) or [CI expiry checks](audit-policy.md#enforcing-removal-deadlines) for enforcement. Enable `update_docstring=True` if you need injected notices.
 
@@ -355,7 +355,7 @@ The `increment_value` was deprecated since v1.0. It will be removed in v2.0.
 
 </details>
 
-With plain `warnings.warn`, add an explicit `raise` or configure warning filters to escalate it. pyDeprecate's `as_exception=True` raises `DeprecatedError` before executing the source or target.
+With plain `warnings.warn`, add an explicit `raise` or configure warning filters to escalate it. pyDeprecate's `as_exception=True` raises `DeprecatedError` *before* executing the source or target.
 
 As a release-time backstop, `pydeprecate expiry` in CI exits `1` when a wrapper is past its `remove_in` deadline. See [Fatal deprecations](functions.md#fatal-deprecations) for the full behaviour.
 
@@ -384,7 +384,7 @@ Make deprecated usage fail in callers' CI so they can replace affected calls bef
 
     pyDeprecate uses `FutureWarning` by default. Use `error::DeprecationWarning` for tools emitting that category. These filters affect Python warnings, not custom logging streams or silent wrappers.
 
-    Only executed paths can reveal deprecated calls. See [Python warning filters](https://docs.python.org/3/library/warnings.html#the-warnings-filter) and [pytest warning configuration](https://docs.pytest.org/en/stable/how-to/capture-warnings.html#controlling-warnings).
+    *Only* executed paths can reveal deprecated calls. See [Python warning filters](https://docs.python.org/3/library/warnings.html#the-warnings-filter) and [pytest warning configuration](https://docs.pytest.org/en/stable/how-to/capture-warnings.html#controlling-warnings).
 
 ## Other tools
 
@@ -422,13 +422,13 @@ print(result)
 
 ## Decision guide
 
-- Use `warnings.warn` when you only need an internal warning without forwarding or CI audits.
-- Use `warnings.deprecated` on Python 3.13+ when you only need static checker visibility.
-- Use pyDeprecate when public callers need runtime compatibility.
-- Use pyDeprecate for `async def` functions, generator functions, or async generators.
-- Use `TargetMode.ARGS_REMAP` for argument renames or dropped argument compatibility.
-- Use `deprecated_class` or `deprecated_instance` for class, constant, or object alias compatibility.
-- Use pyDeprecate audit tools for removal deadline checks in CI.
+- Use **`warnings.warn`** when you only need an internal warning without forwarding or CI audits.
+- Use **`warnings.deprecated`** on Python 3.13+ when you only need static checker visibility.
+- Use **pyDeprecate** when public callers need runtime compatibility.
+- Use **pyDeprecate** for `async def` functions, generator functions, or async generators.
+- Use **`TargetMode.ARGS_REMAP`** for argument renames or dropped argument compatibility.
+- Use **`deprecated_class`** or **`deprecated_instance`** for class, constant, or object alias compatibility.
+- Use **pyDeprecate audit tools** for removal deadline checks in CI.
 
 ## Fair strengths in alternative tools worth considering
 

@@ -7,7 +7,7 @@ description: "Wire deprecation audits into pytest, pre-commit hooks, and GitHub 
 
 ## pytest integration
 
-Add a test that fails the suite when any deprecated wrapper has an invalid configuration. Wrong argument names are hard errors; identity mappings are worth a warning.
+Add a test that fails the suite when any deprecated wrapper has an invalid configuration. Wrong argument names are **hard errors**; identity mappings are worth a warning.
 
 ```python
 import warnings
@@ -49,7 +49,7 @@ Use your project's release convention rather than assuming the policy defaults f
 2. Install your project and `pyDeprecate[audit]` in CI.
 3. Run the CLI as its own CI step (since v0.16):
 
-The table is the single source of truth. The CLI step enforces it without test code to maintain.
+The table is the **single source of truth**. The CLI step enforces it without test code to maintain.
 
 ```bash
 # audit everything in one scan; reads [tool.pydeprecate.policy] and exits 1 on a violation too
@@ -58,7 +58,7 @@ pydeprecate all --gate=policy src/mypackage
 
 !!! note "Policy gate defaults and older releases"
 
-    Without `--gate=policy`, `pydeprecate all` prints policy violations as `[WARNING]` without failing. Set `gate = ["policy"]` in `[tool.pydeprecate]` to make policy enforcement the project default.
+    Without `--gate=policy`, `pydeprecate all` prints policy violations as `[WARNING]` **without failing**. Set `gate = ["policy"]` in `[tool.pydeprecate]` to make policy enforcement the project default.
 
     Before v0.16, run `pydeprecate all` and a separate `pydeprecate policy src/mypackage` step.
 
@@ -78,11 +78,11 @@ Pass every package to one command: `pydeprecate all --gate=policy packages/core/
 
 !!! warning "Paths are checked before imports"
 
-    A typo or broken `pyproject.toml` in any package fails the run with exit `2` before scanning. A missing submodule of an importable package, such as `pkg.nosuch`, is found only when its path is reached.
+    A typo or broken `pyproject.toml` in any package fails the run with exit `2` *before* scanning. A missing submodule of an importable package, such as `pkg.nosuch`, is found only when its path is reached.
 
 !!! note "Process and import isolation"
 
-    Packages sharing the same top-level import name need separate runs. Multiple paths remaining after deduplication use separate Python workers for import-mode scans. A shared import may initialize once in each worker.
+    Packages sharing the same top-level import name need **separate runs**. Multiple paths remaining after deduplication use separate Python workers for import-mode scans. A shared import may initialize once in each worker.
 
     One retained path runs in the calling process. `--static` reads source without importing packages or starting workers. See [Several paths in one run](cli.md#several-paths-in-one-run).
 
@@ -92,7 +92,7 @@ A [pre-commit](https://pre-commit.com/) hook gives local feedback before you pus
 
 !!! note "Choose an import environment"
 
-    The scan imports your package to read wrappers. Your package and its runtime dependencies must be importable in the hook's environment. This determines which recipe fits.
+    The scan imports your package to read wrappers. Your package and its runtime dependencies must be *importable* in the hook's environment. This determines which recipe fits.
 
 ### Local hook
 
@@ -130,11 +130,11 @@ repos:
       - id: pydeprecate-check # finds the package under src/; add `args: [mypkg]` for any other location
 ```
 
-pre-commit installs the hook into an isolated environment. It contains pyDeprecate and CLI dependencies, but none of your package's runtime dependencies.
+pre-commit installs the hook into an *isolated environment*. It contains pyDeprecate and CLI dependencies, but none of your package's runtime dependencies.
 
 !!! warning "Replacing hook dependencies"
 
-    `additional_dependencies` replaces the hook's own dependency list. Start with `"pyDeprecate[audit]"`, then append your package's runtime dependencies. pip resolves that entry to the hook's own checkout, including its `audit` extra.
+    `additional_dependencies` *replaces* the hook's own dependency list. Start with `"pyDeprecate[audit]"`, then append your package's runtime dependencies. pip resolves that entry to the hook's own checkout, including its `audit` extra.
 
     Omitting that entry leaves `pydeprecate` without its CLI dependencies. Python 3.9–3.10 also cannot read `[tool.pydeprecate]` from `pyproject.toml`.
 
@@ -152,7 +152,7 @@ repos:
 
     A failed submodule import emits `UserWarning: audit: skipped <module>`. The scan skips that module and continues. See [Troubleshooting](../troubleshooting.md).
 
-    pre-commit hides output from passing hooks. A missing dependency can therefore leave modules unaudited without a visible failure.
+    pre-commit hides output from passing hooks. A missing dependency can therefore leave modules unaudited <u>without a visible failure</u>.
 
     Prefer the local hook when your package has runtime dependencies. Pin `rev` to the pyDeprecate release your project depends on.
 
@@ -190,7 +190,7 @@ The static hooks check removal deadlines and policy rules for recognized wrapper
 
     Both local hooks and import-mode remote hooks import your package. Import-time code runs with your user's permissions.
 
-    Run untrusted checkouts, including fork pull requests in CI, without secrets or privileged credentials. An isolated dependency environment does not make that code trustworthy.
+    Run untrusted checkouts, including fork pull requests in CI, **without secrets** or privileged credentials. An isolated dependency environment does not make that code trustworthy.
 
 Run a configured hook on demand using its ID:
 
@@ -213,7 +213,7 @@ pre-commit run pydeprecate --all-files
 
 ### Hook scope and configuration
 
-The hook ignores staged filenames and scans the whole package each time. Import-mode discovery resolves wrappers through importable modules, never individual files.
+The hook ignores staged filenames and scans the **whole package** each time. Import-mode discovery resolves wrappers through importable modules, never individual files.
 
 | Repository layout                                         | Default discovery without a path in `args`                                                                    |
 | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
@@ -303,13 +303,13 @@ pydeprecate check src/your_package --exit-zero
 | `2`       | A malformed setting: `--exclude`, `strict`, `gate`, or for `policy` a rule value, from a flag or from `[tool.pydeprecate]`; a typed `--strict` with `--exit-zero` |
 | `3`       | The audit did not run: the scanned package cannot be imported, or an internal CLI error                                                                           |
 
-`--exit-zero` turns exit `1` into `0` and never masks `2` or `3`.
+`--exit-zero` turns exit `1` into `0` and *never* masks `2` or `3`.
 
 ## GitHub Action
 
 pyDeprecate ships a composite GitHub Action that runs the CLI as one workflow step (since `v0.15.0`). It uses the job's own Python, like a local pre-commit hook.
 
-The scan imports your package from the checkout, so the package itself needs no installation. Every module's runtime dependencies must still be importable.
+The scan imports your package from the checkout, so the package itself needs **no installation**. Every module's runtime dependencies must still be *importable*.
 
 1. Set up Python.
 2. Install the runtime dependencies. Installing the project is the simplest approach.
@@ -376,7 +376,7 @@ The step returns the CLI's exit code. Exit `3` also produces an error annotation
 
     The action has no static input. Pass `--static` through `args` with `subcommand: expiry` or `policy`. See [Static mode](cli.md#static-mode).
 
-    A failing run adds an error annotation to the pull request's checks. The CLI has no "fail on warning" mode. Advisory findings, such as identity mappings, never fail the step.
+    A failing run adds an error annotation to the pull request's checks. The CLI has no "fail on warning" mode. Advisory findings, such as identity mappings, *never* fail the step.
 
     Set `exit-zero: true` to report hard errors without blocking while clearing a backlog. Set `fail-on-gap: true` to fail on incomplete audits. Every gap the run annotates then also fails it.
 
@@ -430,7 +430,7 @@ permissions:
 
     With `install: true` (the default), the action installs pyDeprecate from its own commit. Thus, `@v0.15.0` audits with 0.15.0.
 
-    This replaces the job's existing pyDeprecate version for every later step. The action warns when it replaces a version.
+    This **replaces** the job's existing pyDeprecate version for every later step. The action warns when it replaces a version.
 
     Pin the action to your project's pyDeprecate release. Alternatively, install `pyDeprecate[audit]` yourself and set `install: false`.
 
@@ -446,7 +446,7 @@ permissions:
 
 !!! warning "Import-time code runs with job permissions"
 
-    The action imports your package and executes its import-time code, exactly like the CLI. Never use `pull_request_target` with a checkout of the pull request's head. Untrusted code would receive the base repository's secrets and write token.
+    The action imports your package and executes its import-time code, exactly like the CLI. <u>Never</u> use `pull_request_target` with a checkout of the pull request's head. Untrusted code would receive the base repository's secrets and write token.
 
     Workflow commands printed during the scan are ignored only while the CLI runs. Descendant-process output after the CLI exits is not fenced by `stop-commands`.
 

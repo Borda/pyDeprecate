@@ -9,7 +9,7 @@ Use selective attribute deprecation when only particular names need migration; s
 
 ## Selective attribute deprecation
 
-Use `attrs_mapping` on `deprecated_class()` to deprecate selected attribute names while leaving all others silent. It covers renames, spelling corrections such as `color` → `colour`, and individual warn-only notices.
+Use `attrs_mapping` on `deprecated_class()` to deprecate **selected attribute names** while leaving all others silent. It covers renames, spelling corrections such as `color` → `colour`, and individual warn-only notices.
 
 Mapping keys are deprecated attribute names:
 
@@ -18,7 +18,7 @@ Mapping keys are deprecated attribute names:
 | A canonical name string | Reads, writes, and deletes warn and redirect against the active class. |
 | `None`                  | Access warns without renaming the attribute.                           |
 
-Unlisted attributes stay silent.
+Unlisted attributes **stay silent**.
 
 !!! note "Mapping validation"
 
@@ -26,7 +26,7 @@ Unlisted attributes stay silent.
 
 ### Decorator syntax — attribute rename
 
-Apply `@deprecated_class(attrs_mapping=...)` at class definition time. Only the attribute names listed as keys emit a `FutureWarning`; all others pass through silently:
+Apply `@deprecated_class(attrs_mapping=...)` at class definition time. *Only* the attribute names listed as keys emit a `FutureWarning`; all others pass through silently:
 
 ```python
 from deprecate import deprecated_class
@@ -64,7 +64,7 @@ red
 
 </details>
 
-The wrapper form is equivalent to decorator syntax. Use it for existing classes or to apply deprecation outside the class definition:
+The *wrapper form* is equivalent to decorator syntax. Use it for existing classes or to apply deprecation outside the class definition:
 
 ```python
 from deprecate import deprecated_class
@@ -102,7 +102,7 @@ red
 
 ### Reads, writes, and deletes all redirect
 
-The `attrs_mapping` interception applies to all three access modes. Writing to a deprecated attribute alias warns and sets the canonical attribute instead:
+The `attrs_mapping` interception applies to **all three** access modes. Writing to a deprecated attribute alias warns and sets the canonical attribute instead:
 
 ```python
 from deprecate import deprecated_class
@@ -138,7 +138,7 @@ blue
 
 ### Warn-only with `None` redirect
 
-Map a deprecated attribute to `None` to emit a warning on access without renaming anything. The attribute is fetched by its original name on the active class after the warning fires. Use this when an attribute is going away with no replacement:
+Map a deprecated attribute to `None` to emit a warning on access *without renaming* anything. The attribute is fetched by its original name on the active class after the warning fires. Use this when an attribute is **going away with no replacement**:
 
 ```python
 from deprecate import deprecated_class
@@ -175,7 +175,7 @@ print(DeprecatedWidget.size)  # 42 — no second warning
 
 ### Per-attribute independent warning budgets
 
-Each deprecated attribute name has an independent warning counter. With `num_warns=1`, the default, two different deprecated aliases each warn once. This produces two warnings rather than sharing one budget:
+Each deprecated attribute name has an **independent warning counter**. With `num_warns=1`, the default, two different deprecated aliases each warn once. This produces two warnings rather than sharing one budget:
 
 ```python
 from deprecate import deprecated_class
@@ -263,7 +263,7 @@ True
 
 ### Explicit `TargetMode.ATTRS_REMAP` form
 
-Passing `attrs_mapping` alone auto-resolves to `TargetMode.ATTRS_REMAP`. Explicitly passing `target=TargetMode.ATTRS_REMAP` with `attrs_mapping` has identical behavior. The explicit form makes intent visible at the call site:
+Passing `attrs_mapping` alone auto-resolves to `TargetMode.ATTRS_REMAP`. Explicitly passing `target=TargetMode.ATTRS_REMAP` with `attrs_mapping` has *identical* behavior. The explicit form makes intent visible at the call site:
 
 ```python
 from deprecate import TargetMode, deprecated_class
@@ -307,11 +307,11 @@ red
 
 !!! note "Explicit modes stay explicit"
 
-    Explicit configuration is never silently rewritten; auto-resolution fills in only an omitted `target`. For blanket per-access warnings plus selective attribute renaming, stack two `deprecated_class()` layers. See [Nested proxy wrappers](#nested-proxy-wrappers).
+    Explicit configuration is *never* silently rewritten; auto-resolution fills in only an omitted `target`. For blanket per-access warnings plus selective attribute renaming, stack two `deprecated_class()` layers. See [Nested proxy wrappers](#nested-proxy-wrappers).
 
 !!! warning "Proxy-only mode"
 
-    `TargetMode.ATTRS_REMAP` works only with proxies. `@deprecated(target=TargetMode.ATTRS_REMAP)` raises `TypeError` at decoration time for every source: functions, methods, properties, and classes.
+    `TargetMode.ATTRS_REMAP` works **only with proxies**. `@deprecated(target=TargetMode.ATTRS_REMAP)` raises `TypeError` at decoration time for every source: functions, methods, properties, and classes.
 
     The front door cannot expose `attrs_mapping`, so this mode could never redirect anything there. The error points to `deprecated_class(attrs_mapping=...)`, or `deprecated_instance(obj, attrs_mapping=...)` for objects.
 
@@ -368,17 +368,17 @@ Instantiation also forwards to `Config`: `LegacyConfig(lr=0.05)` returns a `Conf
 
 !!! note "Returned instances"
 
-    Here, `attrs_mapping` applies only to class-level attribute access on the proxy. It does not apply to the returned instance.
+    Here, `attrs_mapping` applies only to class-level attribute access on the proxy. It does not apply to <u>the returned instance</u>.
 
 ### Dataclass field renames
 
-For dataclasses, `deprecated_class(attrs_mapping=...)` automatically covers two surfaces. Accessing mapped class attributes through the proxy and passing constructor kwargs (`DC(old_field=5)`) can emit `FutureWarning`. Returned instances are not wrapped, so their attribute reads are not remapped.
+For dataclasses, `deprecated_class(attrs_mapping=...)` automatically covers two surfaces. Accessing mapped class attributes through the proxy and passing constructor kwargs (`DC(old_field=5)`) can emit `FutureWarning`. Returned instances are **not wrapped**, so their attribute reads are not remapped.
 
 The auto-expansion copies entries targeting dataclass fields from `attrs_mapping` into `args_mapping`. Pure field renames therefore need no separate `args_mapping`.
 
 !!! note "Explicit argument mappings win"
 
-    Auto-expansion never overwrites entries already supplied in an explicit `args_mapping`.
+    Auto-expansion *never* overwrites entries already supplied in an explicit `args_mapping`.
 
 ```python
 from dataclasses import dataclass
@@ -422,7 +422,7 @@ This supports required positional-only parameters, frozen or immutable classes, 
 
 ### Combining attribute and argument deprecation
 
-The mappings operate on separate surfaces:
+The mappings operate on *separate* surfaces:
 
 | Mapping         | Intercepted surface                                                                   |
 | --------------- | ------------------------------------------------------------------------------------- |
@@ -477,7 +477,7 @@ print(default_epochs)  # value from NewTrainer.epochs
 
 </details>
 
-Attribute and argument warning budgets are independent; exhausting one does not affect the other. Each deprecated name has its own counter. With `num_warns=1`, the default, every old name warns once before becoming silent.
+Attribute and argument warning budgets are **independent**; exhausting one does not affect the other. Each deprecated name has its own counter. With `num_warns=1`, the default, every old name warns once before becoming silent.
 
 #### Mixed redirect and warn-only entries
 
@@ -541,7 +541,7 @@ False
 
 !!! note "Warn-only validation"
 
-    At decoration time, every `None`-value key must exist on at least one class. Define `cuda` on `LegacyModel`, or on `Model` if retaining it in the new API.
+    At decoration time, every `None`-value key **must exist** on at least one class. Define `cuda` on `LegacyModel`, or on `Model` if retaining it in the new API.
 
 !!! note "Audit tip — mapping compatibility"
 
@@ -553,9 +553,9 @@ False
 
 #### Stacking `deprecated_class()` for multi-version deprecations
 
-Use one `deprecated_class()` call when all attributes and arguments share a `deprecated_in`/`remove_in` pair. This simplest form keeps both mappings together.
+**Use one** `deprecated_class()` call when all attributes and arguments share a `deprecated_in`/`remove_in` pair. This simplest form keeps both mappings together.
 
-Stack two `@deprecated_class()` decorators when attributes deprecated in different releases need separate version pairs. For example, `steps` renamed in v0.8 and `lr` renamed in v1.0 each need their own removal deadline.
+**Stack two** `@deprecated_class()` decorators when attributes deprecated in *different* releases need separate version pairs. For example, `steps` renamed in v0.8 and `lr` renamed in v1.0 each need their own removal deadline.
 
 ```python
 from deprecate import deprecated_class
@@ -599,11 +599,11 @@ True
 
 </details>
 
-Each proxy layer carries its own `deprecated_in`/`remove_in` pair. `LegacyConfig.lr` uses the v1.0 deprecation, while `LegacyConfig.steps` uses the earlier v0.8 deprecation. Instance reads are not intercepted.
+Each proxy layer carries its own `deprecated_in`/`remove_in` pair. `LegacyConfig.lr` uses the v1.0 deprecation, while `LegacyConfig.steps` uses the earlier v0.8 deprecation. Instance reads are **not intercepted**.
 
 Stacking supports `isinstance()` and `issubclass()` through the proxy chain. Instantiation fires at most one global warning.
 
-`ATTRS_REMAP` layers never warn on instantiation. Two stacked layers warn only on attribute access, using each layer's version pair for its keys.
+`ATTRS_REMAP` layers **never warn on instantiation**. Two stacked layers warn only on attribute access, using each layer's version pair for its keys.
 
 ### Chained redirect
 
@@ -619,7 +619,7 @@ Stacking supports `isinstance()` and `issubclass()` through the proxy chain. Ins
 
 !!! note "Static redirect targets"
 
-    Every non-`None` redirect target in a chain must be a static class attribute. Below, `num_steps` must exist on the class because `num_iters` redirects to it:
+    Every non-`None` redirect target in a chain must be a <u>static class attribute</u>. Below, `num_steps` must exist on the class because `num_iters` redirects to it:
 
 ```python
 from deprecate import deprecated_class
@@ -661,11 +661,11 @@ print(val3)
 
 </details>
 
-Each deprecated name in the chain fires exactly one warning per access (not two). The resolution is a single lookup hop: `proxy.num_iters` warns for `num_iters` and then reads `TrainLoop.num_steps` directly, which at the class level holds the same value as `max_steps`.
+Each deprecated name in the chain fires **exactly one** warning per access (not two). The resolution is a single lookup hop: `proxy.num_iters` warns for `num_iters` and then reads `TrainLoop.num_steps` directly, which at the class level holds the same value as `max_steps`.
 
 ### Nested proxy wrappers
 
-A `deprecated_class` proxy can wrap another `deprecated_class` proxy. The inner proxy handles selective attribute deprecation; the outer proxy adds a blanket class-level deprecation warning on every access regardless of attribute name. The two warning budgets are independent.
+A `deprecated_class` proxy can wrap another `deprecated_class` proxy. The inner proxy handles selective attribute deprecation; the outer proxy adds a *blanket* class-level deprecation warning on every access regardless of attribute name. The two warning budgets are independent.
 
 ```python
 from deprecate import deprecated_class

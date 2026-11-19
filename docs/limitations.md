@@ -4,13 +4,15 @@ description: Known limitations and non-goals of pyDeprecate — async, proxies, 
 
 # Limitations and non-goals
 
-pyDeprecate favours a small API over covering every corner of Python. This page lists the corners it deliberately does not cover, so you can recognise them before they surprise you.
+pyDeprecate keeps its API small on purpose, and within that API it covers functions, classes, properties, modules, async code and CI audits. This page lists the corners where behaviour differs from what you might first expect, so you can plan around them instead of being surprised.
 
-Each entry states the behaviour in one or two sentences. It links to the section with the details and the workaround.
+Each entry states the behaviour in one or two sentences. It links to the section with the details and, in almost every case, a workaround.
+
+Do you have a real project where one of these gets in the way? These boundaries are design choices, not dead ends. [Open an issue](https://github.com/Borda/pyDeprecate/issues) with a small example: a practical use case is exactly how they get revisited.
 
 ## Async and generators
 
-!!! warning
+!!! note
 
     **Callable objects with `async def __call__` are not detected as coroutine functions.**
 
@@ -18,13 +20,13 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
     Define a thin `async def` that awaits the object and decorate that. See [functools.partial and callable wrappers](troubleshooting.md#why-cant-i-decorate-a-functoolspartial-or-callable-wrapper).
 
-!!! warning
+!!! note
 
     **Async and sync targets are not interchangeable in both directions.**
 
     An `async def` source may forward to a sync target, which is called directly without being awaited. A sync source whose target is a coroutine function raises `TypeError` on the first call, because a sync wrapper cannot await it. Declare the source `async def`.
 
-!!! warning
+!!! note
 
     **A `@types.coroutine` generator keeps the plain wrapper.**
 
@@ -32,7 +34,7 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
     The warning fires at the call rather than on the first step. `inspect.isgeneratorfunction` reports `False` for the wrapper.
 
-!!! warning
+!!! note
 
     **A deprecated generator raises its argument errors on the first step, not at the call.**
 
@@ -40,7 +42,7 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
     That arity `TypeError` uses pyDeprecate's own wording and raises on the first `next()` or `async for` step. A `Failed mapping` error from a forwarding target also raises at that step. See [Deprecating generator functions](guide/advanced.md#deprecating-generator-functions).
 
-!!! warning
+!!! note
 
     **Cycle detection is lazy.**
 
@@ -52,19 +54,19 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
 ## Proxies (`deprecated_instance`, `deprecated_class`)
 
-!!! warning
+!!! note
 
     **Item writes never warn.**
 
     `proxy["key"] = value` and `del proxy["key"]` pass through silently, like attribute writes, and they honour `skip_if`. With `read_only=True` they raise `AttributeError` unless `skip_if` is active. See [deprecated_instance](guide/classes.md).
 
-!!! warning
+!!! note
 
     **`read_only` covers only the standard mutators.**
 
     Besides writes through the proxy, it blocks the collection methods `append`, `clear`, `discard`, `extend`, `insert`, `pop`, `remove`, `setdefault`, `update` and `add`. A custom method such as `register()` or `reload()` still mutates the wrapped object. See [read_only troubleshooting](troubleshooting.md#my-object-mutated-despite-read_onlytrue).
 
-!!! warning
+!!! note
 
     **A proxy over a `str` or `bytes` value claims `os.PathLike`.**
 
@@ -74,7 +76,7 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
     Check the type of the unwrapped object when you use one of those two checks as a guard.
 
-!!! warning
+!!! note
 
     **A proxy's protocols are fixed when it is created.**
 
@@ -84,7 +86,7 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
     Before v0.15 every proxy forwarded every protocol. Finish setting up the object before you wrap it, or wrap it again after changing its type.
 
-!!! warning
+!!! note
 
     **A class proxy cannot be pickled by reference when it replaces the class's own name.**
 
@@ -100,7 +102,7 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
     `deprecated_instance` proxies pickle fine. See [copy, deepcopy and pickle](troubleshooting.md#does-the-deprecation-survive-copy-deepcopy-and-pickle).
 
-!!! warning
+!!! note
 
     **Pickled instances of a class deprecated in place load only while the deprecation is in place.**
 
@@ -114,7 +116,7 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
     Re-pickling while the proxy still holds the name writes helper-dependent payloads again. See [loading pickled instances](troubleshooting.md#what-do-pickled-instances-of-a-class-deprecated-in-place-need-to-load).
 
-!!! warning
+!!! note
 
     **The class of a proxy cannot be pickled.**
 
@@ -122,7 +124,7 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
     Before v0.15, pyDeprecate pickled the proxy class by reference. Pickling the proxy itself is unaffected. To detect a proxy, check `isinstance(obj, DeprecationProxy)` rather than storing or pickling its class.
 
-!!! warning
+!!! note
 
     **A replacement object changes type checks at once.**
 
@@ -130,19 +132,19 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
     Keep the replacement the same type as the old object, or a subclass. See [Serving a replacement object](guide/classes.md#serving-a-replacement-object).
 
-!!! warning
+!!! note
 
     **`attrs_mapping` on an instance covers attributes, not keys.**
 
     `deprecated_instance(settings, attrs_mapping={"old": "new"})` redirects `settings.old`; a deprecated key of a dict (`settings["old"]`) cannot be renamed through the proxy.
 
-!!! warning
+!!! note
 
     **A `bool`, `None` or a module cannot be a replacement object.**
 
     `target=None` means no replacement; `target=True`, `target=False` and a module raise `TypeError`. To replace a `bool` constant, wrap the new value itself (`deprecated_instance(NEW_FLAG, name="OLD_FLAG", ...)`); redirect a module with `deprecated_module`.
 
-!!! warning
+!!! note
 
     **`args_mapping` passes a renamed value by keyword when the called object hides its signature.**
 
@@ -152,7 +154,7 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
     Building the proxy does not warn about this. Builtins such as `max` and `min` hide their signature too, yet accept the renamed keyword (`key=`). Rename the arguments of such a builtin in a small Python function and wrap that function instead.
 
-!!! warning
+!!! note
 
     **`cached_property` warns at most once per instance while its value stays cached.**
 
@@ -160,13 +162,13 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
 ## Configuration
 
-!!! warning
+!!! note
 
     **`skip_if` must return a strict `bool`.**
 
     A truthy `int` or a string raises `TypeError`; wrap the result in `bool(...)`. See [the `skip_if` error](troubleshooting.md#typeerror-skip_if-function-must-return-bool).
 
-!!! warning
+!!! note
 
     **A bound target does not work for a classmethod source.**
 
@@ -174,7 +176,7 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
     Inside the class body pass the raw descriptor (`target=method`) instead. See [Class methods and static methods](guide/advanced.md#class-methods-and-static-methods).
 
-!!! warning
+!!! note
 
     **A classmethod target cannot tell a plain or static source from a classmethod.**
 
@@ -184,7 +186,7 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
     A class passed there or given as the default is forwarded as the receiver. Make the source a `@classmethod`, or give a static source a bound target such as `target=YourClass.method`. See [Class methods and static methods](guide/advanced.md#class-methods-and-static-methods).
 
-!!! warning
+!!! note
 
     **An `as_exceptions()` scope reaches a new thread only if the interpreter copies the context.**
 
@@ -192,7 +194,7 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
     Whether a thread started inside the block inherits it depends on the interpreter; [The global switch](guide/functions.md#the-global-switch) lists which threads and executors do. Run the thread's target through `contextvars.copy_context().run(...)` when it must inherit the scope. Inside a scope `deprecate.AS_EXCEPTIONS` still reports the global value, so do not read it to detect a scope.
 
-!!! warning
+!!! note
 
     **An `as_exceptions()` scope held across a generator `yield` applies to the consumer.**
 
@@ -202,7 +204,7 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
 ## Static checkers
 
-!!! warning
+!!! note
 
     **Only a literal `warnings.deprecated` is visible to type checkers.**
 
@@ -212,7 +214,7 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
 ## Audit tooling
 
-!!! warning
+!!! note
 
     **The Python static API shares the CLI `--static` blind spots.**
 
@@ -222,7 +224,7 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
     See [scanning from Python without importing](guide/audit.md#scanning-from-python-without-importing) and [CLI static mode](guide/cli.md#static-mode).
 
-!!! warning
+!!! note
 
     **The full audit imports the package it scans.**
 
@@ -230,7 +232,7 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
     See [Audit Tools](guide/audit.md) and [the CLI reference](guide/cli.md).
 
-!!! warning
+!!! note
 
     **CLI `--static` covers `expiry` and `policy` only, and only what the source spells.**
 
@@ -252,7 +254,7 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
     See [Static mode](guide/cli.md#static-mode).
 
-!!! warning
+!!! note
 
     **CLI scans are per package, never per file.**
 
@@ -260,8 +262,18 @@ Each entry states the behaviour in one or two sentences. It links to the section
 
     Therefore, "scan only the files changed in this commit" is not available. Pass the package directory or an importable name. See [Path formats](guide/cli.md#path-formats).
 
-!!! warning
+!!! note
 
     **The GitHub Action's `install: true` re-pins pyDeprecate.**
 
     The default installs pyDeprecate from the action's own ref into the job's Python, replacing the version your job already had. Set `install: false` when your project pins its own version. See [GitHub Action](guide/ci-integration.md#github-action).
+
+## Missing something you need?
+
+If one of the boundaries above blocks a practical use case, we would like to hear about it. Open an issue on [GitHub Issues](https://github.com/Borda/pyDeprecate/issues) and include:
+
+- the code you are deprecating and what you expect callers to see
+- the decorator or proxy call you tried
+- your Python and pyDeprecate versions (`pip show pyDeprecate`)
+
+We are happy to discuss the case, and to integrate a change when it fits the design.

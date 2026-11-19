@@ -5,19 +5,19 @@ description: "Learn when and how to use pyDeprecate's void(...) helper to silenc
 
 # The void(...) Helper
 
-When `@deprecated` forwards to a `target` callable, the deprecated function's body never runs — every call is intercepted before the body executes. This creates a practical annoyance: IDEs and linters see the parameters in the signature but nothing using them in the body, and they flag them as unused.
+When `@deprecated` forwards to a `target` callable, the deprecated function's body **never runs** — every call is intercepted before the body executes. This creates a practical annoyance: IDEs and linters see the parameters in the signature but nothing using them in the body, and they flag them as unused.
 
-`void(...)` is a no-op that accepts any arguments and returns `None`. Its only job is to silence those IDE warnings by giving the parameters a nominal "use" that says: the body is intentionally empty, not accidentally incomplete. It has no runtime effect.
+`void(...)` is a *no-op* that accepts any arguments and returns `None`. Its only job is to silence those IDE warnings by giving the parameters a nominal "use" that says: the body is intentionally empty, not accidentally incomplete. It has **no runtime effect**.
 
 ## When to use void(...)
 
-Use `void(...)` when all three of these are true:
+Use `void(...)` when *all three* of these are true:
 
 - The deprecated function forwards to a `target` callable (not `TargetMode.NOTIFY` or `TargetMode.ARGS_REMAP`).
 - Your IDE or linter flags the function parameters as unused.
 - You want the code to clearly signal that the empty body is deliberate.
 
-If you prefer, a bare `pass` or a standalone docstring are equally valid. pyDeprecate does not require `void(...)`. Use whichever form is clearest for your team.
+If you prefer, a bare `pass` or a standalone docstring are equally valid. pyDeprecate does **not require** `void(...)`. Use whichever form is clearest for your team.
 
 ## Basic usage
 
@@ -62,7 +62,7 @@ print(add_v1(2, 3))
 
 ## Alternatives to void(...)
 
-There are three common patterns for the body of a deprecated function that forwards to a target. All are equivalent at runtime because the body is never reached. The choice is about communicating intent to readers and static analysis.
+There are three common patterns for the body of a deprecated function that forwards to a target. All are *equivalent at runtime* because the body is never reached. The choice is about communicating intent to readers and static analysis.
 
 ### Option 1: `pass` statement
 
@@ -169,7 +169,7 @@ If you use a strict linter that flags unused parameters (e.g. ruff's `ARG001`), 
 
 ## void(...) in generator stubs
 
-A deprecated generator stub must still contain `yield`. The wrapper kind follows the stub.
+A deprecated generator stub <u>must still contain</u> `yield`. The wrapper kind follows the stub.
 
 !!! warning "A plain stub gets a plain wrapper"
 
@@ -208,7 +208,7 @@ Resized to 800x600 (bilinear)
 
 </details>
 
-You do not need to pass `self` to `void(...)` — only the parameters your linter flags. `self` is implicitly used by method dispatch and is never flagged.
+You do **not** need to pass `self` to `void(...)` — only the parameters your linter flags. `self` is implicitly used by method dispatch and is never flagged.
 
 ## Type annotation note
 
@@ -262,7 +262,7 @@ In practice, neither workaround is usually needed — modern versions of mypy ha
 
 ## void(...) vs assert_no_warnings
 
-These two utilities solve completely different problems. Their names might suggest a connection, but they operate in different contexts. `assert_no_warnings` is a test-time tool covered in [Testing Deprecated Code](testing.md#testing-deprecated-code).
+These two utilities solve *completely different* problems. Their names might suggest a connection, but they operate in different contexts. `assert_no_warnings` is a test-time tool covered in [Testing Deprecated Code](testing.md#testing-deprecated-code).
 
 |                    | `void(...)`                                                | `assert_no_warnings()`                                                  |
 | ------------------ | ---------------------------------------------------------- | ----------------------------------------------------------------------- |

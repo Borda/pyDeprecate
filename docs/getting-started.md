@@ -5,19 +5,19 @@ description: Install pyDeprecate and write your first deprecation in minutes. Co
 
 # Getting Started
 
-You renamed a function or retired an argument. You need the old name to keep working, a clear deprecation notice for callers, and a firm removal date you can enforce.
+You renamed a function or retired an argument. You need the old name to **keep working**, a **clear deprecation notice** for callers, and a **firm removal date** you can enforce.
 
 pyDeprecate handles all three with a single decorator. You can focus on the new API instead of the plumbing.
 
 ## Why pyDeprecate instead of `warnings.warn`?
 
-`warnings.warn` tells callers that something is deprecated — but they still have to update their code manually and the old code path keeps running. pyDeprecate adds three things on top:
+`warnings.warn` tells callers that something is deprecated — but they still have to update their code *manually* and the old code path keeps running. pyDeprecate adds three things on top:
 
 - **Automatic call forwarding** — every call to the old function is transparently redirected to the replacement; no stale code runs.
 - **Argument mapping** — rename or drop arguments across the API boundary with `args_mapping={"old": "new"}` to help callers migrate to the new signature.
 - **CI deadline enforcement** — `validate_deprecation_expiry()` returns a message for every wrapper whose removal version has been reached. Install it via `pip install 'pyDeprecate[audit]'`. On any expired wrapper, `pydeprecate expiry` exits `1`, so CI fails and deprecated code cannot quietly outlive its deadline.
 
-If you only need a one-line notice with no forwarding and no deadline tracking, `warnings.warn` is sufficient. Choose pyDeprecate when you need the old name to keep working while callers migrate.
+If you only need a one-line notice with no forwarding and no deadline tracking, `warnings.warn` is sufficient. Choose pyDeprecate when you need the old name to **keep working** while callers migrate.
 
 ## Installation
 
@@ -25,7 +25,7 @@ pyDeprecate requires **Python 3.9 or later** and has zero runtime dependencies. 
 
 <!-- keep this install table in sync with docs/index.md -->
 
-Choose the install that matches the workflow you need:
+Choose the install that matches the *workflow* you need:
 
 | Workflow                     | Command                            | Includes                                                                                                                                   |
 | ---------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -59,7 +59,7 @@ pip install 'pyDeprecate[audit]'
 
 ## Quick Start
 
-Here is the most common scenario: you renamed a function and need the old name to keep working during the transition. The decorator handles call forwarding automatically, so the deprecated wrapper needs no implementation.
+Here is the most common scenario: you renamed a function and need the old name to keep working during the transition. The decorator handles call forwarding automatically, so the deprecated wrapper needs **no implementation**.
 
 ```python
 from deprecate import deprecated
@@ -89,7 +89,7 @@ print(addition(1, 2))
 
 </details>
 
-All calls to `addition()` are automatically forwarded to `compute_sum()` with a `FutureWarning`. The old function's body is never executed.
+All calls to `addition()` are automatically forwarded to `compute_sum()` with a `FutureWarning`. <u>The old function's body is never executed.</u>
 
 !!! tip "Customizing deprecation messages"
 
@@ -126,7 +126,7 @@ Not sure which API to reach for? This table maps common scenarios to the right t
 | `update_docstring` | `False`               | Append Sphinx `.. deprecated::` notice to docstring                                                                                                                     |
 | `docstring_style`  | `"auto"`              | Style of the injected notice: `"auto"`, `"rst"`, `"mkdocs"`, `"markdown"`                                                                                               |
 
-Prefer passing an explicit `target` (`TargetMode.NOTIFY`, `TargetMode.ARGS_REMAP`, or a callable) so the intent is visible at the call site. `TargetMode.AUTO` is only the front-door default that resolves an omitted `target`. You never write it yourself.
+*Prefer* passing an explicit `target` (`TargetMode.NOTIFY`, `TargetMode.ARGS_REMAP`, or a callable) so the intent is visible at the call site. `TargetMode.AUTO` is only the front-door default that resolves an omitted `target`. You never write it yourself.
 
 All three decorators (`@deprecated`, `deprecated_callable()`, `deprecated_class()`) share every parameter above. They differ as follows:
 

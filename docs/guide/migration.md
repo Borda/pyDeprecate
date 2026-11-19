@@ -5,7 +5,7 @@ description: Upgrade pyDeprecate safely with source-version checklists, compatib
 
 # Migration Guide
 
-The latest release is **v0.14**; changes on the unreleased line are listed under `[UnReleased]` in the [Changelog](../changelog.md). This guide contains only rewrites, deprecations, and observable changes that existing users need to handle when upgrading. New APIs and capabilities belong in the [Changelog](../changelog.md) and topic guides.
+The latest release is **v0.14**; changes on the unreleased line are listed under `[UnReleased]` in the [Changelog](../changelog.md). This guide contains *only* rewrites, deprecations, and observable changes that existing users need to handle when upgrading. New APIs and capabilities belong in the [Changelog](../changelog.md) and topic guides.
 
 ## Migrate Legacy Target Values
 
@@ -13,9 +13,9 @@ v0.8 introduced `TargetMode` so deprecation intent no longer depends on the lega
 
 ### `target=None` → `TargetMode.NOTIFY`
 
-`target=None` means "warn, then run the decorated body". It still works, but emits `FutureWarning` at decoration time.
+`target=None` means "**warn, then run the decorated body**". It still works, but emits `FutureWarning` at decoration time.
 
-Omit `target` for the shortest current form; the `TargetMode.AUTO` default resolves to `TargetMode.NOTIFY` when no mapping is present. Use `target=TargetMode.NOTIFY` when being explicit helps the reader.
+Omit `target` for the **shortest current form**; the `TargetMode.AUTO` default resolves to `TargetMode.NOTIFY` when no mapping is present. Use `target=TargetMode.NOTIFY` when being explicit helps the reader.
 
 ```diff
 - # DEPRECATED API — legacy sentinel
@@ -46,11 +46,11 @@ refreshed:products
 
 </details>
 
-The notice respects `num_warns` (once by default); the function body still executes normally.
+The notice respects `num_warns` (once by default); the function body **still executes** normally.
 
 ### `target=True` → `TargetMode.ARGS_REMAP`
 
-`target=True` remaps deprecated keyword names within the same function. Replace it with `TargetMode.ARGS_REMAP`; existing callers can keep the old keyword during the migration window while new callers use the replacement.
+`target=True` remaps deprecated keyword names *within the same function*. Replace it with `TargetMode.ARGS_REMAP`; existing callers can keep the old keyword during the migration window while new callers use the replacement.
 
 ```diff
 - target=True,
@@ -90,11 +90,11 @@ print(configure_cache(cache_ttl=45))
 
 ### `target=False` → `TargetMode.NOTIFY` or a callable target
 
-`target=False` was never a valid target. On a callable it now emits `UserWarning` at decoration time and behaves like warn-only mode.
+`target=False` was **never a valid target**. On a callable it now emits `UserWarning` at decoration time and behaves like warn-only mode.
 
 !!! warning "Proxy compatibility paths"
 
-    `deprecated_class` treats it like an omitted target while marking the configuration as misconfigured, so a supplied mapping may still be inferred. `deprecated_instance` raises `TypeError`. Do not rely on either compatibility path.
+    `deprecated_class` treats it like an omitted target while marking the configuration as misconfigured, so a supplied mapping may still be inferred. `deprecated_instance` raises `TypeError`. Do **not** rely on either compatibility path.
 
 Choose the behavior you actually need:
 
@@ -131,7 +131,7 @@ print(legacy_checksum("abc"))
 
 </details>
 
-If the old API should forward to a replacement, pass that callable instead. The deprecated body is then not executed:
+If the old API should forward to a replacement, pass that callable instead. The deprecated body is then **not executed**:
 
 ```python
 from deprecate import deprecated
@@ -173,7 +173,7 @@ The same rule applies to `deprecated_class()` and `deprecated_instance()`: `targ
 
 ### Misconfigured `TargetMode` combinations
 
-Contradictory combinations emit `UserWarning` at decoration time. The warning is a migration task: the ignored configuration is scheduled to become an error in v1.0.
+Contradictory combinations emit `UserWarning` at decoration time. The warning is a **migration task**: <u>the ignored configuration is scheduled to become an error in v1.0</u>.
 
 | Combination                                                         | Migration                                                                                                        |
 | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
@@ -184,11 +184,11 @@ Contradictory combinations emit `UserWarning` at decoration time. The warning is
 | `deprecated_class(target=TargetMode.ATTRS_REMAP)` without a mapping | Add `attrs_mapping={"old": "new"}`, or use `NOTIFY` for class-wide warnings.                                     |
 | `@deprecated(target=TargetMode.ATTRS_REMAP)`                        | Use `deprecated_class(attrs_mapping=...)`; the common front door does not expose the proxy-only `attrs_mapping`. |
 
-An explicitly supplied `NOTIFY` is never rewritten: its mapping stays inert. Inference happens only when `target` is omitted.
+An explicitly supplied `NOTIFY` is **never rewritten**: its mapping stays inert. Inference happens *only* when `target` is omitted.
 
 ### `DeprecationWrapperInfo` field renames
 
-Two audit fields were renamed in v0.8. The old names still work and will be removed in v1.0.
+Two audit fields were renamed in v0.8. The old names still work and will be **removed in v1.0**.
 
 - Reading the old properties emits a `FutureWarning` and raises `DeprecatedError` in fatal mode.
 - Passing the old names as constructor or `dataclasses.replace()` keywords emits a `DeprecationWarning`.

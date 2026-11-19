@@ -13,7 +13,7 @@ The `pydeprecate` CLI runs all four [audit checks](audit.md) directly from the c
 pip install 'pyDeprecate[audit]'
 ```
 
-Start with `[audit]` unless you are certain you will never use `expiry`, `policy`, or `all`. The `[audit]` extra pulls in `packaging`.
+**Start with `[audit]`** unless you are certain you will never use `expiry`, `policy`, or `all`. The `[audit]` extra pulls in `packaging`.
 
 | Check                                         | When it needs `packaging`                                                                                                                                                 |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -240,7 +240,7 @@ Flags and the path may come in any order. `pydeprecate check --exit-zero src/myp
 
 Since v0.16 every subcommand takes several paths — `pydeprecate all src/pkg_a src/pkg_b` — and audits them in one run with one exit code:
 
-1. Every path is checked before anything is imported.
+1. Every path is checked *before* anything is imported.
 2. Duplicate and recursively covered paths are combined when their settings and versions allow it.
 3. The retained paths are scanned one after another, each with its own import root, settings, and auto-detected version.
 4. The console prints one scan header per path, then each check's findings of all paths in one section. For `all` and `status`, it then prints one table per path under a `### <package>` heading.
@@ -259,7 +259,7 @@ A plain directory takes part in import-name checks with the bare name of each to
 
 !!! note "Missing submodules are found later"
 
-    Validation looks up only the top-level package without importing it. A missing submodule of an importable package (`pkg.nosuch`) therefore exits `2` when its path is scanned, after the paths before it. No report is written.
+    Validation looks up *only* the top-level package without importing it. A missing submodule of an importable package (`pkg.nosuch`) therefore exits `2` when its path is scanned, after the paths before it. No report is written.
 
 #### Duplicate and covered paths
 
@@ -296,11 +296,11 @@ The report holds every path in `paths`, `versions`, and each finding's and gap's
 
     With exactly two positionals, `expiry`, `all` and `status` can still read the second one as the version. It must name no existing path or findable module and parse as a version, as in `pydeprecate expiry src/mypackage 2.0`.
 
-    This form is deprecated and stops working in v1.0. The run prints a notice on stderr asking for `--version` instead.
+    This form is **deprecated** and stops working in v1.0. The run prints a notice on stderr asking for `--version` instead.
 
     A second positional that is not a version is a second path. A mistyped one is therefore reported as `No such path or importable module`.
 
-    Operands after a `--` separator are always paths. `pydeprecate expiry -- src/mypackage 2.0` scans `2.0` as a second path instead of reading it as the version. Pass `--version 2.0` there.
+    Operands after a `--` separator are *always* paths. `pydeprecate expiry -- src/mypackage 2.0` scans `2.0` as a second path instead of reading it as the version. Pass `--version 2.0` there.
 
 #### Audit gaps
 
@@ -395,13 +395,13 @@ It survives moved code, a version bump and reworded messages. It changes only wh
 
 The rule slugs are `invalid-args`, `misconfigured-target`, `inner-order-property`, `identity-mapping`, `no-effect`, `positional-only-mapping`, `chain`, `expired`, `min-grace` and `message-required`.
 
-The layout is described by the JSON Schema [`docs/schemas/report-1.schema.json`](../schemas/report-1.schema.json). `schema` is bumped only when a key is removed or renamed, or its meaning or type changes. Adding a key does not bump it, so readers must ignore keys they do not know.
+The layout is described by the JSON Schema [`docs/schemas/report-1.schema.json`](../schemas/report-1.schema.json). `schema` is bumped *only* when a key is removed or renamed, or its meaning or type changes. Adding a key does not bump it, so readers must ignore keys they do not know.
 
 The keys added in v0.16 (per-finding records, `gate`, `mode`, …) did not bump it. Every key a v0.15 report has (`schema`, `table`, `gaps[].kind`/`detail`/`hint`) keeps its type and meaning. A v0.15 reader therefore still reads a v0.16 report.
 
 !!! note "Report publication"
 
-    The file is written only when the run exits `0` or `1`. A usage error (exit `2`) or crash (exit `3`) leaves any existing report unchanged. Consumers must check the exit code before reading or publishing a report.
+    The file is written only when the run exits `0` or `1`. A usage error (exit `2`) or crash (exit `3`) leaves any existing report unchanged. Consumers <u>must check the exit code</u> before reading or publishing a report.
 
 The [GitHub Action](ci-integration.md#github-action) builds its gap annotations and job summary from this file.
 
@@ -492,14 +492,14 @@ Policy: min-grace=0.3 (pyproject.toml)  message-required=True (built-in)
 
 The table is looked up like `--version` auto-detection below. Search from the scanned *path*'s directory up to two parents. The nearest file declaring `[tool.pydeprecate]` wins.
 
-There is one table per project: a nested file declaring it replaces the parent's whole table. A bare module *name* never triggers the lookup.
+There is **one table per project**: a nested file declaring it replaces the parent's whole table. A bare module *name* never triggers the lookup.
 
 | Setting     | Accepted values and effect                                                                                                                                                                                                     |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `exclude`   | Patterns are `fnmatch` globs over the full dotted module name (`my_package.tests`, not `tests`). A pattern matching a package excludes its whole subtree. A string or comma-separated string is accepted in place of the list. |
 | `min-grace` | It takes the dotted delta as a string (`"1.0"`, `"0.3"`, `"0.0.2"`), or a one-key unit table (`{ minor = 3 }`). Quote the delta (`"0.10"`, not `0.10`): a TOML float drops the trailing zero exactly as the shell does.        |
 
-A wrapper is reported if and only if the module it is reported under does not match `exclude`. Even when something else in the package imports an excluded module, its wrappers stay out.
+A wrapper is reported *if and only if* the module it is reported under does not match `exclude`. Even when something else in the package imports an excluded module, its wrappers stay out.
 
 !!! warning "Configuration validation"
 
@@ -518,7 +518,7 @@ A wrapper is reported if and only if the module it is reported under does not ma
 
     Reading the file needs a TOML parser. It is built in on Python 3.11+; on 3.9–3.10, use the `tomli` backport from the `[audit]` extra.
 
-    Without a parser, a reachable `pyproject.toml` triggers a stderr advisory instead of being silently skipped. None of its `[tool.pydeprecate]` settings apply, including `strict = true`, so a gap no longer fails the run.
+    Without a parser, a reachable `pyproject.toml` triggers a stderr advisory instead of being silently skipped. None of its `[tool.pydeprecate]` settings apply, including `strict = true`, so <u>a gap no longer fails the run</u>.
 
     On Python 3.9 or 3.10, install the `[audit]` extra to read `strict` from `pyproject.toml`. Otherwise pass `--strict` on the command line.
 
@@ -534,7 +534,7 @@ Every subcommand and the JSON report table use the same `--version` auto-detecti
 
 1. For an existing *path*, search its directory and up to 2 parent directories for a `pyproject.toml`. The nearest file with a `[project]` table owns the version, even if its version cannot be resolved. Files without that table are skipped.
 2. If the local version is unresolved or the argument is a bare module name, try installed metadata in the order below.
-3. Only after these lookups fail, read the top-level import package's string `__version__`.
+3. *Only after* these lookups fail, read the top-level import package's string `__version__`.
 
 Installed metadata is tried under these names in order:
 
@@ -554,7 +554,7 @@ Only a genuinely unresolved version skips the expiry check with a `version not r
 
 ### Accepting known findings
 
-Fix a finding when you can. When one must stay for now, accept it instead of excluding its whole module. For example, a removal might be waiting on a downstream release:
+Fix a finding when you can. When one must stay for now, **accept it** instead of excluding its whole module. For example, a removal might be waiting on a downstream release:
 
 ```bash
 pydeprecate expiry src/mypackage --ignore='expired:mypackage.legacy:old_api'
@@ -571,7 +571,7 @@ pydeprecate all src/mypackage --baseline=ci/pydeprecate-baseline.json      # lat
 | `*:mypackage.compat.*:*`    | Each part is an `fnmatch` glob, so this accepts everything under `mypackage.compat`. |
 | `expired:mypackage.oldmod:` | The empty symbol names a deprecated module.                                          |
 
-Commas always separate entries. A character class holding a comma such as `[a,o]` is therefore never one glob; write the class without commas (`[ao]`). The rule slugs are those of the report (`expired`, `min-grace`, `chain`, …).
+Commas *always* separate entries. A character class holding a comma such as `[a,o]` is therefore never one glob; write the class without commas (`[ao]`). The rule slugs are those of the report (`expired`, `min-grace`, `chain`, …).
 
 #### Baselines and suppression
 
@@ -600,7 +600,7 @@ The entry is counted as `summary.baseline_unmatched`; it never fails the run. On
 
 ## Static mode
 
-`pydeprecate expiry --static` and `pydeprecate policy --static` read the package's source with Python's `ast` module instead of importing it. Nothing from the scanned package is imported or executed, including for the version and the `--report-json` table.
+`pydeprecate expiry --static` and `pydeprecate policy --static` read the package's source with Python's `ast` module instead of importing it. **Nothing** from the scanned package is imported or executed, including for the version and the `--report-json` table.
 
 Use it where the package's runtime dependencies are not installed, such as the isolated environment of a remote [pre-commit hook](ci-integration.md#pre-commit-integration):
 
@@ -610,7 +610,7 @@ pydeprecate expiry --static src/mypackage --version 2.0
 pydeprecate policy --static src/mypackage
 ```
 
-The output carries a `Mode: static (source read with ast; nothing imported)` header line. Recognized wrappers with resolvable settings are checked, subject to the blind spots below. A clean run does not establish complete coverage.
+The output carries a `Mode: static (source read with ast; nothing imported)` header line. Recognized wrappers with resolvable settings are checked, subject to the blind spots below. A clean run does **not** establish complete coverage.
 
 The source has to spell the settings a rule reads:
 
@@ -686,7 +686,7 @@ A module kept out of the walk by `--no-recursive` or `--exclude` is read on dema
 
     Read the gap lines, or the `gaps` of `--report-json`, to see what was not audited. Spell those settings literally to bring them into the audit.
 
-    With `--strict` or `strict = true`, a static run that recorded any gap exits `1`. A CI gate that must not pass on a partly read source should enable it.
+    With `--strict` or `strict = true`, a static run that recorded any gap exits `1`. A CI gate that must not pass on a partly read source **should enable it**.
 
 ### Static version resolution
 
@@ -701,7 +701,7 @@ Without `--version`, the resolver tries these sources in order:
 
     A `__version__` rebound inside `if` or `try`, or through a function's `global`, makes the source read yield nothing. It does not yield the literal before the rebinding. Resolution therefore falls back to the package's installed metadata, which may be stale for a development checkout.
 
-    Pass `--version` explicitly in that case.
+    Pass `--version` **explicitly** in that case.
 
 ### Locations and blind spots
 
@@ -789,17 +789,17 @@ Exit `3` means the audit itself did not run. Neither error writes a `--report-js
 
 Policy violations are the one finding `all` reports without acting on by default: they move `all` from `0` to `1` only with `--gate=policy`.
 
-Unknown or misspelled flags are never silently ignored. For example, `pydeprecate expiry mypackage --verison 2.0` exits `2` with an `unrecognized arguments: --verison` diagnostic before anything is scanned.
+Unknown or misspelled flags are *never* silently ignored. For example, `pydeprecate expiry mypackage --verison 2.0` exits `2` with an `unrecognized arguments: --verison` diagnostic before anything is scanned.
 
 ## CI recipes
 
-Use `pydeprecate all --gate=policy` (since v0.16) for one step and one scan. It fails the build on misconfigured wrappers, chains, expired deprecations, and deprecations scheduled in a way the project does not allow. The console sections and the report's `rule` field tell you which problem you have.
+Use `pydeprecate all --gate=policy` (since v0.16) for **one step and one scan**. It fails the build on misconfigured wrappers, chains, expired deprecations, and deprecations scheduled in a way the project does not allow. The console sections and the report's `rule` field tell you which problem you have.
 
 A monorepo passes every package to the same step. The full workflow, with the rules declared once in `[tool.pydeprecate.policy]`, is in the [audit guide](ci-integration.md#enforcing-the-policy-in-ci).
 
 While bringing an existing codebase into line, follow these steps:
 
-1. Run the gate advisory-first so it reports without blocking.
+1. Run the gate **advisory-first** so it reports without blocking.
 2. Drop the flag once the backlog is clear.
 
 ```bash

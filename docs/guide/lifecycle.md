@@ -38,11 +38,11 @@ print(decorated_sum(2, 3))  # warns: FutureWarning
 
 </details>
 
-This forwards the compatibility function to the replacement. See [Functions](functions.md) for forwarding and argument mapping, or [Classes](classes.md) for class migrations.
+This **forwards** the compatibility function to the replacement. See [Functions](functions.md) for forwarding and argument mapping, or [Classes](classes.md) for class migrations.
 
 ## 2. Warn callers
 
-The default `FutureWarning` names the deprecated function, replacement, introduction version, and removal version. The summation call still returns the replacement's result.
+The default `FutureWarning` names the deprecated function, replacement, introduction version, and removal version. The summation call still returns the *replacement's* result.
 
 | `num_warns`   | Behavior                                     |
 | ------------- | -------------------------------------------- |
@@ -51,7 +51,7 @@ The default `FutureWarning` names the deprecated function, replacement, introduc
 | `-1`          | Emit on every call.                          |
 | `0`           | Suppress deprecation messages.               |
 
-For argument deprecations, the warning budget applies per deprecated argument.
+For argument deprecations, the warning budget applies **per deprecated argument**.
 
 !!! note "Output routing"
 
@@ -61,7 +61,7 @@ See [Customization](customization.md) for message templates and stream signature
 
 ## 3. Test the migration
 
-Check both the compatibility result and the replacement's warning-free behavior.
+Check **both** the compatibility result and the replacement's warning-free behavior.
 
 ```python
 import pytest
@@ -109,7 +109,7 @@ See [Testing](testing.md) for pytest patterns, warning budgets, and `assert_no_w
 
 ## 4. Audit in CI
 
-Run the same audits locally and in CI before each release.
+Run the same audits *locally and in CI* before each release.
 
 1. Install `pyDeprecate[audit]` in the audit environment.
 2. Run `pydeprecate expiry --version 0.4 <package-path>` while the summation wrapper is still supported.
@@ -120,11 +120,11 @@ Replace `<package-path>` with your package's source path. See [CLI Reference](cl
 
 !!! warning "Confirm audit coverage"
 
-    Review skipped imports and version-detection gaps. Pass `--version` explicitly when the package version cannot be detected. A passing scan does not prove that skipped modules were checked.
+    Review skipped imports and version-detection gaps. Pass `--version` explicitly when the package version cannot be detected. <u>A passing scan does not prove that skipped modules were checked.</u>
 
 ## 5. Remove and prune
 
-At version `0.5`, the expiry gate reports the summation wrapper because the current version has reached `remove_in`.
+At version `0.5`, the expiry gate reports the summation wrapper because the current version has **reached** `remove_in`.
 
 1. Run `pydeprecate expiry --version 0.5 <package-path>` to identify wrappers due for removal.
 2. Delete `decorated_sum` and remove the old name from public re-exports and import lists.
@@ -134,11 +134,11 @@ At version `0.5`, the expiry gate reports the summation wrapper because the curr
 
 !!! note "Removal is manual"
 
-    `remove_in` records a deadline. It does not delete the wrapper or automatically stop forwarding calls. The expiry gate fails for expired wrappers unless failure is explicitly suppressed with `--exit-zero`.
+    `remove_in` records a *deadline*. It does **not** delete the wrapper or automatically stop forwarding calls. The expiry gate fails for expired wrappers unless failure is explicitly suppressed with `--exit-zero`.
 
 ## 6. Record the release
 
-Generate the active deprecation inventory before removing wrappers, so release notes can preserve their migration information.
+Generate the active deprecation inventory *before* removing wrappers, so release notes can preserve their migration information.
 
 ```python
 from types import ModuleType

@@ -9,9 +9,9 @@ description: "Enforce removal deadlines and deprecation policy rules with Python
 
 ![Deprecation lifecycle cycle: old API in blue, new API and decorator in yellow, callers migrate, pre-commit, CI and pytest flag the expired wrapper, delete it and repeat](../assets/images/pydeprecate-lifecycle.svg)
 
-`remove_in` commits you to delete code when that version ships. Forgotten deadlines leave zombie code behind.
+`remove_in` commits you to **delete code** when that version ships. Forgotten deadlines leave *zombie code* behind.
 
-`validate_deprecation_expiry()` scans a module or package for every deprecated callable whose removal version has been reached or passed. It returns error-message strings. An empty list means the scan found no expired callables.
+`validate_deprecation_expiry()` scans a module or package for every deprecated callable whose removal version has been reached or passed. It returns error-message strings. An empty list means the scan found **no expired callables**.
 
 Install the `audit` extra for `packaging`, which provides PEP 440 version comparison:
 
@@ -71,7 +71,7 @@ Found 0 expired
 
 !!! warning "Unparsable versions leave gaps"
 
-    An invalid `remove_in` is skipped with a `UserWarning` naming the callable and unparsable version. Its expiry is not checked. The CLI prints a `remove_in not PEP 440` gap instead.
+    An invalid `remove_in` is skipped with a `UserWarning` naming the callable and unparsable version. Its expiry is <u>not checked</u>. The CLI prints a `remove_in not PEP 440` gap instead.
 
     `pydeprecate policy` also prints gaps for versions its `min-grace` rule cannot parse. These are `remove_in not PEP 440` or `deprecated_in not PEP 440` gaps. A `--strict` run fails on them.
 
@@ -83,7 +83,7 @@ A downstream release may still need a symbol past its deadline. Accept that find
 
 ### pytest integration for expiry enforcement
 
-Wire expiry checks into your test suite so zombie code is caught before any tests run. The session-scoped autouse fixture pattern below prevents the suite from starting at all if expired deprecations are present.
+Wire expiry checks into your test suite so zombie code is caught *before* any tests run. The session-scoped autouse fixture pattern below prevents the suite from starting at all if expired deprecations are present.
 
 ```python
 import pytest
@@ -125,7 +125,7 @@ def enforce_deprecation_deadlines():
 
 ## Enforcing a Deprecation Policy
 
-`validate_deprecation_expiry()` asks whether code was removed on time. `validate_deprecation_policy()` checks whether the original schedule and migration guidance were responsible.
+`validate_deprecation_expiry()` asks whether code was removed *on time*. `validate_deprecation_policy()` checks whether the original schedule and migration guidance were *responsible*.
 
 It detects short upgrade windows, removals off release boundaries, and warnings that name no replacement. These problems are cheap to fix during review. They become expensive once downstream projects pin against the release.
 
@@ -160,7 +160,7 @@ Set up a policy in two steps:
 | `"0.0.2"`                  | Callers receive two patches.               |
 | `false`                    | The rule is disabled.                      |
 
-Each run resolves each rule in this order: flag, project table, built-in default. A `Policy:` header identifies the source. See [project configuration](cli.md#project-configuration-in-pyprojecttoml).
+Each run resolves each rule in *this order*: flag, project table, built-in default. A `Policy:` header identifies the source. See [project configuration](cli.md#project-configuration-in-pyprojecttoml).
 
 !!! note "Python policy arguments"
 
@@ -173,13 +173,13 @@ Each run resolves each rule in this order: flag, project table, built-in default
 | `min-grace`        | `remove_in` is one clean version bump beyond `deprecated_in`, at least this far    | `min_grace="0.3"`       | `min_grace=None`         |
 | `message-required` | The wrapper provides migration guidance (a target, a mapping, or a custom message) | `message_required=True` | `message_required=False` |
 
-Every violation message starts with its rule slug in square brackets: `[min-grace]` or `[message-required]`. Group or filter CI logs by that stable prefix without parsing the prose.
+Every violation message starts with its *rule slug* in square brackets: `[min-grace]` or `[message-required]`. Group or filter CI logs by that stable prefix without parsing the prose.
 
 Tune the defaults using these contracts.
 
 #### Grace windows
 
-`min_grace` accepts a version-shaped delta string with two or three components. At most one component may be non-zero.
+`min_grace` accepts a version-shaped delta string with two or three components. **At most one** component may be non-zero.
 
 | Input                              | Interpretation                            |
 | ---------------------------------- | ----------------------------------------- |
@@ -192,7 +192,7 @@ Tune the defaults using these contracts.
 
 !!! warning "Pass version deltas as strings"
 
-    A float such as `0.10` loses its trailing zero and reads as one minor. Always pass the version-shaped form as a string.
+    A float such as `0.10` loses its trailing zero and reads as one minor. Always pass the version-shaped form **as a string**.
 
 !!! note "Zero-count windows still require clean bumps"
 
@@ -202,7 +202,7 @@ Internally, every spelling becomes `deprecate.audit.GraceWindow(count, unit)`: o
 
 You may also pass a `GraceWindow` instance (`from deprecate import GraceWindow, VersionBump`) or a one-key unit table such as `{"major": 1}`.
 
-The removal must cleanly bump a single component and reset every lower component. For example, `1.2` → `1.5` or `2.0` is valid. `1.2` → `2.3` or `1.3.1` is not.
+The removal must **cleanly bump a single component** and reset every lower component. For example, `1.2` → `1.5` or `2.0` is valid. `1.2` → `2.3` or `1.3.1` is not.
 
 Mixed bumps miss the release boundaries on which projects promise removals.
 
@@ -230,7 +230,7 @@ Mixed bumps miss the release boundaries on which projects promise removals.
 
     An empty `args_mapping` or `attrs_mapping` (`{}`) carries no actual rename. The rule treats it like no mapping.
 
-    A deprecated module passes with a custom `message_template`. The auto-rendered text stored by `deprecated_module()` does not count; otherwise, every module would pass trivially. A module using only `target` or `attrs_mapping` needs at least one non-empty value.
+    A deprecated module passes with a custom `message_template`. The auto-rendered text stored by `deprecated_module()` does **not** count; otherwise, every module would pass trivially. A module using only `target` or `attrs_mapping` needs at least one non-empty value.
 
 !!! note "Data-object proxies"
 
@@ -278,13 +278,13 @@ Found 4 violations
 
     Wrappers without `deprecated_in` or `remove_in` do not violate the grace-window rule. That rule skips them because unscheduled deprecations are valid and common.
 
-    An unparsable version emits a `UserWarning` naming the wrapper and offending field. The scan continues, so one typo never aborts the gate.
+    An unparsable version emits a `UserWarning` naming the wrapper and offending field. The scan continues, so one typo *never* aborts the gate.
 
     `recursive`, `include_members`, and `exclude` behave exactly as in `find_deprecation_wrappers()`.
 
 !!! note "Result formats"
 
-    Policy results are message strings, not structured records. Filter, group, or suppress them by the stable `[min-grace]` or `[message-required]` slug. The wording after that prefix may change.
+    Policy results are message strings, not structured records. Filter, group, or suppress them by the stable `[min-grace]` or `[message-required]` slug. The wording after that prefix **may change**.
 
     `validate_deprecation_expiry()` also returns plain strings, without a slug. Use `find_deprecation_wrappers()` for structured per-wrapper `DeprecationWrapperInfo` rows.
 
@@ -296,7 +296,7 @@ Found 4 violations
 
     The CLI can read `[tool.pydeprecate.policy]` from `pyproject.toml`. See [project configuration](cli.md#project-configuration-in-pyprojecttoml).
 
-    The Python function accepts a module object or importable name, never a filesystem path. It does not read that file. Pass `min_grace` and `message_required` explicitly.
+    The Python function accepts a module object or importable name, never a filesystem path. It does not read that file. Pass `min_grace` and `message_required` **explicitly**.
 
 ## See also
 

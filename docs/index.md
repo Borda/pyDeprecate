@@ -12,7 +12,7 @@ description: >-
 
 **Author:** [Jiri Borovec](https://github.com/Borda) · **License:** Apache 2.0 · **Python:** 3.9+ · **Install:** `pip install pyDeprecate` · **Import:** `from deprecate import deprecated` · **PyPI:** https://pypi.org/project/pyDeprecate/
 
-Renaming a function or retiring an argument often means writing a wrapper and manual forwarding. You must also configure the warning category and `stacklevel`, then enforce the removal deadline. **pyDeprecate** replaces that boilerplate with a decorator and CI checks for overdue removals.
+Renaming a function or retiring an argument often means writing a wrapper and manual forwarding. You must also configure the warning category and `stacklevel`, then *enforce* the removal deadline. **pyDeprecate** replaces that boilerplate with a decorator and CI checks for overdue removals.
 
 !!! note "Usage and background"
 
@@ -49,16 +49,16 @@ print(addition(1, 2))  # warns: FutureWarning
 
 </details>
 
-Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards to `compute_sum`.
+Calling `addition(1, 2)` now **emits a `FutureWarning`** and transparently **forwards** to `compute_sum`.
 
 ![pyDeprecate call flow: an old call hits the @deprecated wrapper, which warns and forwards to the new API](assets/images/pydeprecate-flow.svg)
 
 ## Features
 
 - **Automatic call forwarding:** The decorator routes positional and keyword arguments to the replacement. You need no manual `*args/**kwargs` plumbing.
-- **Generator and async support:** Wrappers support generator functions (`def fn(): yield`), `async def` coroutines, and async generators (`async def fn(): yield`). They preserve the source's `iscoroutinefunction`, `isgeneratorfunction`, or `isasyncgenfunction` introspection. Functions warn at call time, coroutines on `await`, and generators on their first `next()` or `async for` step.
+- **Generator and async support:** Wrappers support generator functions (`def fn(): yield`), `async def` coroutines, and async generators (`async def fn(): yield`). They preserve the source's `iscoroutinefunction`, `isgeneratorfunction`, or `isasyncgenfunction` introspection. Functions warn *at call time*, coroutines *on `await`*, and generators on their first `next()` or `async for` step.
 - **Argument mapping:** `args_mapping={"old": "new"}` handles renames across the API boundary. Map to `None` to drop an argument entirely.
-- **Argument deprecation:** `TargetMode.ARGS_REMAP` warns only when callers pass the old argument name. Migrated callers see no noise.
+- **Argument deprecation:** `TargetMode.ARGS_REMAP` warns *only* when callers pass the old argument name. Migrated callers see no noise.
 - **Class and Enum support:** `@deprecated_class` wraps classes, Enums, and dataclasses in a transparent proxy. It supports `isinstance` and `issubclass`.
 - **Instance / constant proxy:** `deprecated_instance(obj, ...)` wraps module-level dicts, lists, and custom objects. It provides transparent attribute/item access and optional `read_only` enforcement.
 - **Module deprecation:** [`deprecated_module(__name__, ...)`](guide/modules.md) retires a module, warning on every public attribute access. This includes names already in `__dict__` and star-imports, which PEP 562's `__getattr__` cannot reach. Warn in place, redirect to a replacement, or alias from the parent package.
@@ -87,7 +87,7 @@ Calling `addition(1, 2)` now emits a `FutureWarning` and transparently forwards 
 
 <!-- keep this install table in sync with docs/getting-started.md -->
 
-Choose the install that matches your workflow.
+Choose the install that matches *your workflow*.
 
 | Workflow                     | Command                            | Includes                                                                                                                                   |
 | ---------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -107,7 +107,7 @@ pip install 'pyDeprecate[audit]'
 
 !!! tip "The `[audit]` extra is only needed for `validate_deprecation_expiry` and `validate_deprecation_policy`"
 
-    The base install gives you `@deprecated`, `@deprecated_class`, `deprecated_instance`, and all other audit functions. Only `validate_deprecation_expiry()` and `validate_deprecation_policy()` need the extra. They use `packaging` for PEP 440 version comparison.
+    The base install gives you `@deprecated`, `@deprecated_class`, `deprecated_instance`, and all other audit functions. <u>Only `validate_deprecation_expiry()` and `validate_deprecation_policy()` need the extra.</u> They use `packaging` for PEP 440 version comparison.
 
 !!! tip "Use `[audit]` for command-line audit workflows"
 

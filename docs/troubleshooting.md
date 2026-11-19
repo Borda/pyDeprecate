@@ -2874,3 +2874,5 @@ pyDeprecate's own audit remains unaffected. `find_deprecation_wrappers()` and th
 !!! question "Open a GitHub issue"
 
     If none of the above covers your situation, open an issue on [GitHub Issues](https://github.com/Borda/pyDeprecate/issues). Include the full traceback, the decorator call you used, and the Python and pyDeprecate versions (`pip show pyDeprecate`).
+
+    The same goes for a use case the library does not handle yet: describe what you are deprecating and what callers should see. We are happy to discuss it and integrate it when it fits.
