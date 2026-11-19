@@ -1020,10 +1020,12 @@ def deprecated_callable(
         )
         # The wrapper kind follows the source's own ``inspect`` flags.  Known false-negatives of
         # ``inspect.iscoroutinefunction`` — these sources silently receive the plain sync wrapper, meaning
-        # ``await wrapper(...)`` will fail or return a bare coroutine:
+        # ``inspect.iscoroutinefunction(wrapper)`` is ``False`` and the warning fires at the call, not the ``await``:
         #   • async function wrapped by a decorator that does NOT propagate ``__wrapped__`` / use
         #     ``functools.wraps`` (``inspect.iscoroutinefunction`` walks ``__wrapped__``, not ``__call__``).
-        #   • callable objects whose ``__call__`` is ``async def`` — use ``async def`` thin wrapper instead.
+        #   • callable objects whose ``__call__`` is ``async def`` — ``await wrapper(...)`` still works (the call
+        #     returns the bare coroutine), but frameworks dispatching on
+        #     ``iscoroutinefunction`` see a sync callable; use an ``async def`` thin wrapper instead.
         # Workaround for both: wrap the callable in a plain ``async def my_wrapper(*a, **kw): return
         # await callable(*a, **kw)`` before applying ``@deprecated``.
         return _make_wrapper(ctx, kind=_wrapper_kind(source), update_docstring=update_docstring)
