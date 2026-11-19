@@ -503,7 +503,9 @@ def deprecated_module(
     # produces a vaguer notice and cannot be gated by expiry audits. Fired once here at call time (module
     # deprecation runs once at import) so the gap surfaces during development, not silently at runtime.
     # Both notices below follow every argument check above, so a rejected call raises without announcing.
-    if not deprecated_in:
+    # A custom ``message_template`` writes the whole message and is exempt, as with ``@deprecated``; ``stream=None`` is
+    # not, because a module keeps delivering its warning (see the ``stream=None`` notice below).
+    if not deprecated_in and not message_template:
         warnings.warn(
             f"`deprecated_module` on {module_name!r} has no `deprecated_in` set."
             " Deprecation notices and expiry audits will omit the `deprecated_in` version."

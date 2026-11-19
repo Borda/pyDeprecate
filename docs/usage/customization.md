@@ -49,7 +49,7 @@ With `deprecated_class` and `deprecated_instance`, `source_path` depends on what
 
 The `TEMPLATE_WARNING_*` constants live in `deprecate.messaging` (for example `from deprecate.messaging import TEMPLATE_WARNING_CALLABLE`). An unknown placeholder or a malformed conversion in `message_template` raises `ValueError` at decoration time, listing the available placeholders.
 
-An empty `deprecated_in` emits a `UserWarning` at decoration time, except when `stream=None` or a `message_template` is set; `deprecated_module` always emits it.
+An empty `deprecated_in` emits a `UserWarning` at decoration time, except when `stream=None` or a `message_template` is set; `deprecated_module` honours only the `message_template`, because `stream=None` still delivers its module warning until v1.0.
 
 Proxy warnings pick their template and placeholder values by warning kind, which differs from `@deprecated`:
 
