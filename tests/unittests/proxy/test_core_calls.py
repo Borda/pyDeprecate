@@ -1,6 +1,5 @@
 """Unit tests for proxy calls, argument forwarding, and descriptor binding."""
 
-import contextlib
 import copy
 import inspect
 import pickle
@@ -168,38 +167,24 @@ class TestArgsMapping:
     """args_mapping remaps or drops kwargs when the proxy is called."""
 
     @pytest.mark.parametrize(
-        ("kwargs", "expected_label", "expected_total", "extra_warning"),
+        ("kwargs", "expected_label", "expected_total"),
         [
-            pytest.param({"name": "hello", "total": 7}, "hello", 7, contextlib.nullcontext, id="new-total-kept"),
-            pytest.param(
-                {"name": "world", "count": 3},
-                "world",
-                3,
-                lambda: pytest.warns(FutureWarning, match=r"`MappedDataClass` uses deprecated arguments: `count`"),
-                id="old-count-remapped",
-            ),
+            pytest.param({"name": "hello", "total": 7}, "hello", 7, id="new-total-kept"),
+            pytest.param({"name": "world", "count": 3}, "world", 3, id="old-count-remapped"),
         ],
     )
-    def test_remap_kwargs(
-        self,
-        kwargs: dict[str, object],
-        expected_label: str,
-        expected_total: int,
-        extra_warning: Callable[[], contextlib.AbstractContextManager[object]],
-    ) -> None:
+    def test_remap_kwargs(self, kwargs: dict[str, object], expected_label: str, expected_total: int) -> None:
         """DeprecationProxy dataclass calls should remap renamed kwargs and preserve explicit non-remapped kwargs.
 
-        When an old kwarg name is passed (e.g. ``name`` mapped to ``label``), the proxy emits the per-argument
-        deprecation template (``old -> new``) — matching the decorator's argument-deprecation form. A caller that
-        also passes the old ``count`` name gets a second per-argument warning for ``count -> total``, while a caller
-        already using ``total`` gets none.
+        A class with a replacement warns once per call that the class was deprecated in favor of the replacement, as
+        ``@deprecated`` does for a callable target, however many old keyword names the caller passes.
 
         """
-        with (
-            pytest.warns(FutureWarning, match=r"`MappedDataClass` uses deprecated arguments: `name` -> `label`"),
-            extra_warning(),
-        ):
+        with pytest.warns(
+            FutureWarning, match=r"`MappedDataClass` was deprecated since v1\.0 in favor of `.*NewDataClass`"
+        ) as caught:
             result = MappedDataClass(**kwargs)  # type: ignore[arg-type]
+        assert len(caught) == 1
         assert isinstance(result, NewDataClass)
         assert result.label == expected_label
         assert result.total == expected_total
@@ -207,17 +192,15 @@ class TestArgsMapping:
     def test_drop_kwarg(self) -> None:
         """Args mapped to None should be dropped before forwarding, while mapped kwargs still reach target.
 
-        Old kwarg names (``name`` and the dropped ``legacy_flag``) emit per-argument deprecation messages;
+        Both old kwarg names (``name`` and the dropped ``legacy_flag``) produce one call-level deprecation message;
         ``legacy_flag`` is dropped before forwarding.
 
         """
-        with (
-            pytest.warns(
-                FutureWarning, match=r"`MappedDropArgDataClass` uses deprecated arguments: `legacy_flag` -> `None`"
-            ),
-            pytest.warns(FutureWarning, match=r"`MappedDropArgDataClass` uses deprecated arguments: `name`"),
-        ):
+        with pytest.warns(
+            FutureWarning, match=r"`MappedDropArgDataClass` was deprecated since v1\.0 in favor of `.*NewDataClass`"
+        ) as caught:
             result = MappedDropArgDataClass(name="x", legacy_flag=True)  # type: ignore[call-arg]
+        assert len(caught) == 1
         assert isinstance(result, NewDataClass)
         assert result.label == "x"
 
@@ -229,11 +212,13 @@ class TestArgsMapping:
     def test_enum_remap_kwarg(self) -> None:
         """Enum wrappers should apply args_mapping so old constructor kwargs still resolve target members.
 
-        Passing the old kwarg name (``val``) triggers the per-argument warning template (``val -> value``), matching the
-        decorator's argument-deprecation form.
+        Passing the old kwarg name (``val``) triggers the call-level warning that names the replacement enum, matching a
+        callable target of ``@deprecated``.
 
         """
-        with pytest.warns(FutureWarning, match=r"`MappedColorEnum` uses deprecated arguments: `val` -> `value`"):
+        with pytest.warns(
+            FutureWarning, match=r"`MappedColorEnum` was deprecated since v1\.0 in favor of `.*ColorEnum`"
+        ):
             result = MappedColorEnum(val=1)  # type: ignore[call-arg]
         assert result is ColorEnum.RED
 
@@ -392,8 +377,10 @@ class TestKeywordOverflowRestoration:
         with pytest.warns(FutureWarning):
             result = alias(old_flag=1, x=99)
         assert result == (1, {"flag": 1, "x": 99})
-        with pytest.warns(FutureWarning):
+        # the one call-level warning is spent, as for ``@deprecated``; the call still forwards unchanged
+        with captured_warnings() as caught:
             unchanged = alias(x=99)
+        assert not caught
         assert unchanged == (1, {"x": 99})
 
     def test_callable_target_preserves_keyword_bridge(self) -> None:

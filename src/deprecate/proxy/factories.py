@@ -168,7 +168,7 @@ def deprecated_class(
             - ``%(target_name)s`` — target class name (only when *target* is callable)
             - ``%(target_path)s`` — fully-qualified target path (only when *target* is callable)
             - ``%(argument_map)s`` — formatted ``\`old\` -> \`new\``` string, or ``\`old\` (kept)`` for an argument
-              mapped to ``""`` (only for per-argument warnings emitted by ``args_mapping``)
+              mapped to ``""`` (only for the per-argument warnings of a proxy without a replacement, ``ARGS_REMAP``)
 
             Example: ``"v%(deprecated_in)s: ``%(source_name)s`` -> ``%(target_name)s``"``.
         args_mapping: Optional dict remapping keyword argument names when the decorated class is called.  Keys are

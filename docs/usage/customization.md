@@ -51,10 +51,10 @@ The `TEMPLATE_WARNING_*` constants live in `deprecate.messaging` (for example `f
 
 An empty `deprecated_in` emits a `UserWarning` at decoration time, except when `stream=None` or a `message_template` is set; `deprecated_module` honours only the `message_template`, because `stream=None` still delivers its module warning until v1.0.
 
-Proxy warnings pick their template and placeholder values by warning kind, which differs from `@deprecated`:
+Proxy warnings pick their template by warning kind, as `@deprecated` does:
 
-- a call through `deprecated_class` or `deprecated_instance` uses `TEMPLATE_WARNING_CALLABLE` when a replacement target is set;
-- a call that passes an old `args_mapping` name uses `TEMPLATE_WARNING_ARGUMENTS` even when a replacement class is the target, and `target_name` is the new argument name;
+- a call through `deprecated_class` or `deprecated_instance` uses `TEMPLATE_WARNING_CALLABLE` when a replacement target is set, once per call even when the caller passes old `args_mapping` names;
+- a call that passes an old `args_mapping` name to a proxy without a replacement (`TargetMode.ARGS_REMAP`) uses `TEMPLATE_WARNING_ARGUMENTS`, with `target_name` set to the new argument name;
 - an `attrs_mapping` access sets `source_name` to the old attribute and `target_name` to the new attribute name, and `target_path` to `Owner.attr`.
 
 ### Custom template example

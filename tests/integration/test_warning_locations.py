@@ -188,7 +188,7 @@ class TestCallTimeExpressionSites:
             pytest.param(
                 lambda: MappedDataClass(name="a"),  # type: ignore[call-arg]
                 FutureWarning,
-                "`name`",
+                "in favor of",
                 id="proxy-ctor-forward-argument",
             ),
             pytest.param(

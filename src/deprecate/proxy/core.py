@@ -1776,14 +1776,16 @@ def _proxy_call_mapped(
     mapping = dep.args_mapping or {}
     remap_only = dep.target is TargetMode.ARGS_REMAP
     active = cfg.obj if remap_only else dep.target
-    for old_key in mapping:
-        if old_key in kwargs:
-            proxy._warn(arg_name=old_key)
-    if mapping.keys().isdisjoint(kwargs):
-        if remap_only and not cfg.args_extra:
+    if remap_only:
+        # the proxy serves its own object: each renamed keyword the caller passed warns under its own budget
+        for old_key in mapping:
+            if old_key in kwargs:
+                proxy._warn(arg_name=old_key)
+        if mapping.keys().isdisjoint(kwargs) and not cfg.args_extra:
             return active(*args, **kwargs)
-        if not remap_only:
-            proxy._warn()
+    else:
+        # a replacement serves every call, so one call-level "in favor of" warning, as ``@deprecated`` emits
+        proxy._warn()
     # A rewritten call holds such keywords out of the split, as the ``@deprecated`` dispatcher does, so the called
     # object still binds them to its ``**kwargs``.
     kwargs, keyword_overflow = _take_keyword_overflow(cfg.facts.source_keyword_overflow, mapping, kwargs)
