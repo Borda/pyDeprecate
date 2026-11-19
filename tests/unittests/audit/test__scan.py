@@ -476,19 +476,21 @@ class TestFindDeprecationWrappersReexport:
     def test_class_rename_does_not_use_metaclass_name_hook(self) -> None:
         """A renamed class can customize attribute access without affecting scan classification.
 
-        Enable the application hook after constructing the proxy so this tests only the auditor's name lookup.
-        The stored type name remains available without invoking the hook.
+        Arm the application hook after constructing the proxy so this tests only the auditor's name lookup. The hook
+        records every dynamic read of the class name and then answers it unchanged, so nothing in the scan can swallow
+        the detection; the stored type name remains available without invoking the hook.
         """
+        name_reads: list[str] = []
 
         class NameGuard(type):
-            """Reject name access once the proxy has been built."""
+            """Record name access once the proxy has been built."""
 
             guard_name = False
 
             def __getattribute__(cls, name: str) -> object:
-                """Forbid dynamic reads of the class name after setup."""
+                """Record dynamic reads of the class name after setup, then answer them as usual."""
                 if name == "__name__" and cls.guard_name:
-                    raise RuntimeError("metaclass name hook was called")
+                    name_reads.append(name)
                 return super().__getattribute__(name)
 
         class ThemeColor(metaclass=NameGuard):
@@ -500,7 +502,7 @@ class TestFindDeprecationWrappersReexport:
 
         (info,) = find_deprecation_wrappers(module)
 
-        assert (info.function, info.self_reference, info.no_effect) == ("Color", False, False)
+        assert (info.function, info.self_reference, info.no_effect, name_reads) == ("Color", False, False, [])
 
     @pytest.mark.parametrize(
         "aliases",
@@ -1119,6 +1121,41 @@ class TestFindDeprecationWrappersClassScan:
 
         names = [r.function for r in results]
         assert any("delete_only" in n for n in names)
+
+    @pytest.mark.parametrize(
+        ("members", "no_effect"),
+        [
+            pytest.param(("Color",), {"Host.Color": False}, id="rename-only"),
+            pytest.param(("ThemeColor",), {"Host.ThemeColor": True}, id="in-place"),
+            pytest.param(("Color", "ThemeColor"), {"Host.Color": True, "Host.ThemeColor": True}, id="both-bindings"),
+        ],
+    )
+    def test_self_target_class_proxy_member_is_no_effect_only_without_a_rename(
+        self, members: tuple[str, ...], no_effect: dict[str, bool]
+    ) -> None:
+        """A self-targeting class proxy on a class attribute keeps the finding while the class's own name holds it too.
+
+        A framework exposes its enums as class attributes and renames ``ThemeColor``, keeping ``Host.Color`` as a
+        deprecated alias of the proxy. A ``Host.Color`` binding alone is a real rename: callers get the warning and
+        the audit must not call it a no-op. Once the same proxy also sits on ``Host.ThemeColor``, every binding warns
+        callers to use a name that is itself the deprecated proxy, so ``Host.Color`` must keep the self-reference
+        finding exactly as a module-level alias does.
+
+        """
+
+        class ThemeColor(Enum):
+            RED = "red"
+
+        mod = types.ModuleType("test_mod_member_alias")
+        proxy = deprecated_class(target=ThemeColor, deprecated_in="1.0", remove_in="2.0")(ThemeColor)
+        # the scan only descends into classes whose ``__module__`` matches the scanned module
+        vars(mod)["Host"] = type("Host", (), {"__module__": mod.__name__, **dict.fromkeys(members, proxy)})
+
+        results = find_deprecation_wrappers(mod)
+
+        assert {r.function: (r.self_reference, r.no_effect) for r in results} == {
+            name: (flag, flag) for name, flag in no_effect.items()
+        }
 
 
 class TestValidateMappingCompatibility:

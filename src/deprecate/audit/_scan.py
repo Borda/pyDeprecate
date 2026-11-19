@@ -268,8 +268,15 @@ def _scan_class_member(
     module_name: str,
     qualified: str,
     attr_name: str,
+    *,
+    bindings: Optional[dict[str, Any]] = None,
 ) -> Optional[DeprecationWrapperInfo]:
-    """Scan one class member for pyDeprecate metadata, peeking through its descriptor."""
+    """Scan one class member for pyDeprecate metadata, peeking through its descriptor.
+
+    ``bindings`` maps every member name of the class to its raw value, so a self-targeting class proxy bound both under
+    an alias and under its wrapped class's own name keeps the self-reference finding on the alias.
+
+    """
     if isinstance(obj, (classmethod, staticmethod)):
         kind = _descriptor_kind(obj)
         return _scan_callable(obj.__func__, module_name, qualified, member_name=attr_name, descriptor_kind=kind)
@@ -295,7 +302,7 @@ def _scan_class_member(
         return result
     if isinstance(obj, cached_property):
         return _scan_callable(obj.func, module_name, qualified, member_name=attr_name)
-    return _scan_callable(obj, module_name, qualified, member_name=attr_name)
+    return _scan_callable(obj, module_name, qualified, member_name=attr_name, bindings=bindings)
 
 
 #: Hooks ``warnings.deprecated`` / ``typing_extensions.deprecated`` install on a class they decorate with a warning
@@ -381,6 +388,8 @@ def _scan_class(
         pep702_names = _pep702_member_names(cls) if include_pep702 else frozenset()
     except (AttributeError, TypeError):
         return results
+    # A proxy aliased under another member name is a rename only while the class's own name does not hold it too.
+    bindings = dict(members)
     for attr_name, obj in members:
         # Looked up once per owned member; the private-member gate and the row below share it.
         pep702_message = _descriptor_pep702_message(obj) if attr_name in pep702_names else None
@@ -394,7 +403,7 @@ def _scan_class(
         ):
             continue
         qualified = f"{cls_name}.{attr_name}"
-        result = _scan_class_member(obj, module_name, qualified, attr_name)
+        result = _scan_class_member(obj, module_name, qualified, attr_name, bindings=bindings)
         if result is None and pep702_message is not None:
             result = _pep702_row(obj, module_name, qualified, pep702_message, member_name=attr_name)
         if result is not None:
