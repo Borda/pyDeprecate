@@ -47,7 +47,7 @@ inputs:
     default: "false"
   install:
     description: >-
-      Install `pyDeprecate[cli,audit]` from the action ref into the current Python. Set to `false` when the job
+      Install `pyDeprecate[audit]` from the action ref into the current Python. Set to `false` when the job
       already installs the pyDeprecate version your project pins.
     required: false
     default: "true"

@@ -6,7 +6,7 @@
 # pass the path only for another location or for a root holding several packages (e.g. `mypkg/` plus `tests/`),
 # which otherwise fails loudly: `args: [mypkg]`.
 # The scan imports the scanned package, so this isolated hook environment only works for packages whose imports
-# resolve without their own runtime dependencies; see the "Pre-commit Integration" section of docs/guide/audit.md.
+# resolve without their own runtime dependencies; see the "Pre-commit Integration" section of docs/audit/index.md.
 # The `-static` hooks read the source with `ast` instead and import nothing from the package, so they work for any
 # package; they cover `expiry` and `policy` only. Recognized unresolved forms produce a
 # `not statically resolvable` gap without failing the hook; other forms can be invisible without a gap. pre-commit shows a passing hook's output only when the hook
@@ -16,7 +16,7 @@
 # Settings repeated on every hook:
 # - `pass_filenames: false`, `require_serial: true`: scan the whole package once, never individual files
 # - Import-mode hooks use `types: [python]`; static hooks also run for TOML files, including `pyproject.toml`
-# - `additional_dependencies`: `pip install .` skips extras, so request the `cli` and `audit` extras of pyproject.toml by
+# - `additional_dependencies`: `pip install .` skips extras, so request the `audit` extra of pyproject.toml by
 #   name; pip binds the name to the `.` checkout pre-commit installs, so no other release is fetched. A user
 #   `additional_dependencies` list replaces this one, so it must start with the same entry
 
@@ -29,7 +29,7 @@
   pass_filenames: false
   types: [python]
   require_serial: true
-  additional_dependencies: ["pyDeprecate[cli,audit]"]
+  additional_dependencies: ["pyDeprecate[audit]"]
 
 - id: pydeprecate-policy
   name: pydeprecate policy
@@ -40,7 +40,7 @@
   pass_filenames: false
   types: [python]
   require_serial: true
-  additional_dependencies: ["pyDeprecate[cli,audit]"]
+  additional_dependencies: ["pyDeprecate[audit]"]
 
 - id: pydeprecate-expiry
   name: pydeprecate expiry
@@ -51,7 +51,7 @@
   pass_filenames: false
   types: [python]
   require_serial: true
-  additional_dependencies: ["pyDeprecate[cli,audit]"]
+  additional_dependencies: ["pyDeprecate[audit]"]
 
 - id: pydeprecate-policy-static
   name: pydeprecate policy (static)
@@ -63,7 +63,7 @@
   types_or: [python, toml]
   require_serial: true
   verbose: true
-  additional_dependencies: ["pyDeprecate[cli,audit]"]
+  additional_dependencies: ["pyDeprecate[audit]"]
 
 - id: pydeprecate-expiry-static
   name: pydeprecate expiry (static)
@@ -75,7 +75,7 @@
   types_or: [python, toml]
   require_serial: true
   verbose: true
-  additional_dependencies: ["pyDeprecate[cli,audit]"]
+  additional_dependencies: ["pyDeprecate[audit]"]
 
 - id: pydeprecate-chains
   name: pydeprecate chains
@@ -86,7 +86,7 @@
   pass_filenames: false
   types: [python]
   require_serial: true
-  additional_dependencies: ["pyDeprecate[cli,audit]"]
+  additional_dependencies: ["pyDeprecate[audit]"]
 
 - id: pydeprecate-all
   name: pydeprecate all
@@ -97,7 +97,7 @@
   pass_filenames: false
   types: [python]
   require_serial: true
-  additional_dependencies: ["pyDeprecate[cli,audit]"]
+  additional_dependencies: ["pyDeprecate[audit]"]
 
 # Short alias
 - id: pydeprecate
@@ -109,4 +109,4 @@
   pass_filenames: false
   types: [python]
   require_serial: true
-  additional_dependencies: ["pyDeprecate[cli,audit]"]
+  additional_dependencies: ["pyDeprecate[audit]"]

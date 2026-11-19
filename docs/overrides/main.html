@@ -190,4 +190,15 @@
 
 
 {% endif %}
+
+{# Follow a section that moved to another page: when the URL hash names a heading this page no longer has, jump to the page holding it (extra.anchor_moves in mkdocs.yml). #}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var moves = {{ config.extra.anchor_moves | tojson }};
+    var id = decodeURIComponent(window.location.hash.slice(1));
+    if (!id || !moves[id] || document.getElementById(id)) return;
+    if (window.location.pathname.endsWith("/" + moves[id])) return;
+    window.location.replace("{{ base_url }}/" + moves[id] + "#" + id);
+  });
+</script>
 {% endblock %}

@@ -146,6 +146,13 @@ jobs:
             cp README.md docs/index.md
           fi
 
+      - name: 🧾 Generate docs/llms-full.txt
+        # Built from docs/llms.txt and the public exports; not committed. Tags that predate the generator skip it.
+        run: |
+          if [ -f .github/scripts/generate_llms_full.py ]; then
+            python .github/scripts/generate_llms_full.py
+          fi
+
       - name: 📖 Build portal
         # Drop --strict for dispatch: historical docs may have nav entries pointing to demo dirs
         # that are injected only at assemble time. Strict is enforced on push/PR where it matters.
@@ -367,6 +374,13 @@ jobs:
             done
           fi
 
+      - name: 🧾 Generate docs/llms-full.txt
+        # Built from docs/llms.txt and the public exports; not committed. Tags that predate the generator skip it.
+        run: |
+          if [ -f .github/scripts/generate_llms_full.py ]; then
+            python .github/scripts/generate_llms_full.py
+          fi
+
       - name: 🚀 Mike deploy
         if: env.SKIP != 'true'
         run: |
@@ -411,6 +425,13 @@ jobs:
             dst="${src_dest##*:}"
             if [ -f "$src" ]; then
               cp "$src" "$TMPWORKTREE/$dst"
+              # The agent files link topic pages under /stable/. Until a release moves the stable
+              # alias those folders do not exist there, so a deploy that is not the stable release
+              # points the links at /dev/, which always holds the current layout.
+              if [ "${ALIASES}" != "stable" ] && [[ "$dst" == llms*.txt ]]; then
+                sed -E -i.bak 's#(pyDeprecate/)stable/(usage|audit|integrations|adoption|migration)/#\1dev/\2/#g' "$TMPWORKTREE/$dst"
+                rm -f "$TMPWORKTREE/$dst.bak"
+              fi
             else
               echo "::warning::$src absent at this ref — skipping $dst in root-metadata deploy"
             fi

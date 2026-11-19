@@ -1,5 +1,13 @@
 """Tests for deprecation documentation strings."""
 
+import sys
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Optional
+
+import pytest
+
 from tests.collections.docstrings import (
     OldClass,
     OldClassPlain,
@@ -27,6 +35,236 @@ from tests.collections.docstrings import (
     sphinx_args_multiline,
     sphinx_args_removed,
 )
+
+_ROOT = Path(__file__).resolve().parents[2]
+_GENERATOR_SPEC = spec_from_file_location("generate_llms_full", _ROOT / ".github/scripts/generate_llms_full.py")
+assert _GENERATOR_SPEC is not None
+assert _GENERATOR_SPEC.loader is not None
+_GENERATOR = module_from_spec(_GENERATOR_SPEC)
+_GENERATOR_SPEC.loader.exec_module(_GENERATOR)
+
+
+def test_llms_full_render_holds_contract_and_api_map() -> None:
+    """Render the full agent context from the contract and the public exports.
+
+    A docs build generates the file that agents download next to the compact contract.
+    The render must carry the whole contract verbatim and an API map entry for every public export.
+    """
+    rendered = _GENERATOR.render()
+    contract = (_ROOT / "docs/llms.txt").read_text(encoding="utf-8")
+    assert contract in rendered
+    assert "## API Map" in rendered
+    assert "- `deprecate.deprecated` (function)" in rendered
+
+
+def _run_generator(monkeypatch: pytest.MonkeyPatch, *flags: str) -> int:
+    monkeypatch.setattr(sys, "argv", ["generate_llms_full.py", *flags])
+    return _GENERATOR.main()
+
+
+class TestLlmsFullGenerator:
+    """Command-line behaviour of the full agent context generator run by the docs build."""
+
+    @pytest.fixture
+    def generator_paths(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
+        """Point the generator at a temporary contract and output file."""
+        source = tmp_path / "llms.txt"
+        output = tmp_path / "llms-full.txt"
+        source.write_bytes(b"# Contract\n\n- rule one\n")
+        monkeypatch.setattr(_GENERATOR, "SOURCE", source)
+        monkeypatch.setattr(_GENERATOR, "OUTPUT", output)
+        return source, output
+
+    def test_writes_lf_output_from_crlf_source(
+        self, generator_paths: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Generate LF-only output from a contract checked out with CRLF line endings.
+
+        A maintainer on Windows regenerates the full context from a CRLF checkout.
+        The written file must use LF only and match the render of the same contract with LF endings.
+        """
+        source, output = generator_paths
+        source.write_bytes(b"# Contract\r\n\r\n- rule one\r\n")
+        assert _run_generator(monkeypatch) == 0
+        written = output.read_bytes()
+        assert b"\r" not in written
+        source.write_bytes(b"# Contract\n\n- rule one\n")
+        assert written == _GENERATOR.render().encode("utf-8")
+
+
+_HOOKS_SPEC = spec_from_file_location("mkdocs_hooks", _ROOT / "docs/mkdocs_hooks.py")
+assert _HOOKS_SPEC is not None
+assert _HOOKS_SPEC.loader is not None
+_HOOKS = module_from_spec(_HOOKS_SPEC)
+_HOOKS_SPEC.loader.exec_module(_HOOKS)
+_pydeprecate_faq_entries = _HOOKS._pydeprecate_faq_entries
+_pydeprecate_plain_text = _HOOKS._pydeprecate_plain_text
+_pydeprecate_copy_redirect_mirrors = _HOOKS._pydeprecate_copy_redirect_mirrors
+
+
+def _first_question_answers(markdown: str) -> list[str]:
+    """Read each question's opening prose paragraph without including its optional Q label."""
+    answers: list[str] = []
+    awaiting_answer = False
+    paragraph: list[str] = []
+    for line in [*markdown.splitlines(), ""]:
+        if paragraph and (not line.strip() or line.startswith(("## ", "### "))):
+            answer = " ".join(paragraph)
+            assert not answer.endswith(":"), answer
+            answers.append(_pydeprecate_plain_text(answer))
+            paragraph.clear()
+            awaiting_answer = False
+        if line.startswith("### "):
+            awaiting_answer = True
+        elif line.startswith("## "):
+            awaiting_answer = False
+        elif awaiting_answer and line.strip() and not line.startswith("**Q:**"):
+            # The page requires prose before examples, notes, or detail labels.
+            assert not line.startswith(("```", "~~~", "!!!", "<", "|", ">", "-")), line
+            paragraph.append(line.removeprefix("**A:** ").strip())
+    return answers
+
+
+class TestTroubleshootingFaq:
+    """Check the troubleshooting page's generated FAQ entries."""
+
+    def test_topics_and_fenced_headings_do_not_become_questions(self) -> None:
+        """Only questions beneath topics contribute FAQ entries.
+
+        Topic introductions, example code, and the closing help section must not become answers or questions in
+        search metadata. Each real question retains its own first prose answer across topic boundaries.
+
+        """
+        markdown = """# Troubleshooting
+
+### Orphan question?
+
+Not beneath a topic.
+
+## Functions
+
+This introduction is not an answer.
+
+### Why does `render` warn?
+
+**Q:** A longer description of the problem.
+
+!!! note
+    This note is not an answer.
+
+```python
+## Fake topic
+### Fake question?
+print("not an answer")
+```
+
+**A:** Use [the replacement](usage/functions.md) and **migrate** `render`.
+
+This later paragraph must not be selected.
+
+### Why does it fail?
+
+**Details**
+
+> Quoted context is not an answer.
+
+- A list is not an answer.
+
+Use a supported target.
+
+## Classes
+
+A different topic introduction.
+
+### Can I subclass it?
+
+Yes, subclass the replacement.
+
+### Still stuck?
+
+Contact the maintainers.
+
+## Still stuck?
+
+Closing help is not an answer.
+"""
+        assert _pydeprecate_faq_entries(markdown) == [
+            {"name": "Why does render warn?", "text": "Use the replacement and migrate render."},
+            {"name": "Why does it fail?", "text": "Use a supported target."},
+            {"name": "Can I subclass it?", "text": "Yes, subclass the replacement."},
+        ]
+
+    def test_missing_answer_does_not_borrow_the_next_topic_intro(self) -> None:
+        """A missing answer fails instead of borrowing unrelated topic prose.
+
+        A maintainer can accidentally leave a question with only an example. The following topic introduction must
+        not hide that omission by becoming the question's structured-data answer.
+
+        """
+        markdown = """## Functions
+
+### Why does it fail?
+
+```python
+print("example only")
+```
+
+## Classes
+
+This is not the previous question's answer.
+"""
+        with pytest.raises(ValueError, match="section 'Why does it fail\\?' has no answer paragraph"):
+            _pydeprecate_faq_entries(markdown)
+
+    def test_answer_leadin_preserves_existing_continuation_rules(self) -> None:
+        """Lead-in answers retain the following prose and discard a dangling colon.
+
+        Existing FAQ answers may introduce a list or example with a colon. Moving questions beneath topics must
+        preserve the continuation rule and its fallback when no following prose exists.
+
+        """
+        markdown = """## Functions
+
+### Which target?
+
+**A:** Choose a target:
+
+- A supported function.
+
+Use its canonical import.
+
+### Which mode?
+
+**A:** Choose one:
+"""
+        assert _pydeprecate_faq_entries(markdown) == [
+            {"name": "Which target?", "text": "Choose a target: Use its canonical import."},
+            {"name": "Which mode?", "text": "Choose one"},
+        ]
+
+    def test_wrapped_answer_matches_paragraph(self) -> None:
+        """Compare an answer across physical lines as one paragraph.
+
+        A prose paragraph can be wrapped by an editor without changing the answer shown in the FAQ.
+
+        """
+        markdown = "## Topic\n\n### Question?\n\nFirst line\ncontinues here.\n"
+        assert _first_question_answers(markdown) == ["First line continues here."]
+
+    def test_every_page_question_has_an_entry(self) -> None:
+        """Every question on the actual troubleshooting page appears exactly once.
+
+        Grouping the page must preserve every existing question while topic headings and the final help section
+        stay outside the FAQ. This checks the real source alongside the parser's controlled examples.
+
+        """
+        page = _ROOT / "docs" / "troubleshooting.md"
+        markdown = page.read_text(encoding="utf-8")
+        questions = [line[4:].replace("`", "") for line in markdown.splitlines() if line.startswith("### ")]
+        entries = _pydeprecate_faq_entries(markdown)
+        assert len(entries) == len(questions)
+        assert [entry["name"] for entry in entries] == questions
+        assert [entry["text"] for entry in entries] == _first_question_answers(markdown)
 
 
 class TestDeprecationDocstrings:
@@ -403,3 +641,92 @@ Returns:
 !!! warning "Deprecated in 1.8"
     Will be removed in 1.9."""
         assert mkdocs_no_target_with_args_mapping.__doc__ == expected
+
+
+class TestRedirectMirrors:
+    """Markdown mirrors of moved pages stay reachable at their released addresses."""
+
+    @staticmethod
+    def _config(site: Path, redirect_maps: Optional[dict[str, str]]) -> dict:
+        plugins = (
+            {} if redirect_maps is None else {"redirects": SimpleNamespace(config={"redirect_maps": redirect_maps})}
+        )
+        return {"site_dir": str(site), "plugins": plugins}
+
+    def _serve_moved_page(self, site: Path, page: bytes) -> str:
+        """Build the old mirror of ``audit/index.md`` at ``guide/audit.html.md`` and return its text."""
+        (site / "audit").mkdir()
+        (site / "audit" / "index.html.md").write_bytes(page)
+        _pydeprecate_copy_redirect_mirrors(self._config(site, {"guide/audit.md": "audit/index.md"}))
+        return (site / "guide" / "audit.html.md").read_bytes().decode("utf-8")
+
+    def test_old_mirror_serves_the_new_page(self, tmp_path: Path) -> None:
+        """Serve the new page's markdown at the old mirror address after a page moves.
+
+        An agent holds a link such as ``guide/audit.html.md`` from the previous release.
+        The built site must answer there with the moved page, because a static host cannot redirect it.
+        A page whose links resolve the same from both addresses, here one pointing at a sibling section, comes back
+        byte for byte, line endings included.
+        """
+        page = b"# Audit\r\n\r\nSee [testing](../integrations/testing.md).\r\n"
+        assert self._serve_moved_page(tmp_path, page) == page.decode("utf-8")
+
+    def test_same_directory_link_is_rebased_to_the_new_page_directory(self, tmp_path: Path) -> None:
+        """Point a same-directory link of the moved page back at the directory the page now lives in.
+
+        The audit page links to its companion ``policy.md`` and ``cli.md`` pages, which sit next to it under ``audit/``.
+        Served from ``guide/``, an unchanged ``policy.md`` would look for ``guide/policy.md``, which does not exist.
+        The old mirror must reach ``../audit/policy.md`` instead, keeping any anchor, and leave a link into another
+        section as it was.
+        """
+        page = (
+            "See [policy](policy.md) and [flags](cli.md#static-mode).\n"
+            "![diagram](../assets/images/audit.svg) and [testing](../integrations/testing.md).\n"
+        )
+        assert self._serve_moved_page(tmp_path, page.encode("utf-8")) == (
+            "See [policy](../audit/policy.md) and [flags](../audit/cli.md#static-mode).\n"
+            "![diagram](../assets/images/audit.svg) and [testing](../integrations/testing.md).\n"
+        )
+
+    def test_links_that_are_not_relative_pages_stay_as_written(self, tmp_path: Path) -> None:
+        """Rewrite only the relative page links a reader follows, never a URL, an anchor or code.
+
+        The audit page carries external URLs, a ``mailto:`` address and in-page ``#anchor`` links.
+        It also shows example Markdown inside fenced code blocks and inline code spans, where ``policy.md`` is text to
+        read, not a link to follow.
+        None of these may change in the old mirror, while the real link on the last line still moves.
+        """
+        page = (
+            "[site](https://example.org/policy.md) [mail](mailto:team@example.org) [here](#usage)\n"
+            "Write `[policy](policy.md)` in your page.\n"
+            "```markdown\n"
+            "[policy](policy.md)\n"
+            "```\n"
+            "~~~\n"
+            "[policy](policy.md)\n"
+            "~~~\n"
+            "[policy](policy.md)\n"
+        )
+        expected = page[: page.rindex("[policy](policy.md)")] + "[policy](../audit/policy.md)\n"
+        assert self._serve_moved_page(tmp_path, page.encode("utf-8")) == expected
+
+    def test_existing_old_mirror_is_kept(self, tmp_path: Path) -> None:
+        """Leave an old mirror that the build already wrote untouched.
+
+        A redirect entry names a path that still has its own page, so the mirror there is real content.
+        The hook must not overwrite it with the target page.
+        """
+        (tmp_path / "audit").mkdir()
+        (tmp_path / "audit" / "index.html.md").write_text("new\n", encoding="utf-8")
+        (tmp_path / "old.html.md").write_text("own\n", encoding="utf-8")
+        _pydeprecate_copy_redirect_mirrors(self._config(tmp_path, {"old.md": "audit/index.md"}))
+        assert (tmp_path / "old.html.md").read_text(encoding="utf-8") == "own\n"
+
+    def test_no_redirects_plugin_is_a_no_op(self, tmp_path: Path) -> None:
+        """Do nothing when the site is built without the redirects plugin.
+
+        A contributor builds the docs with a trimmed plugin list.
+        The hook must return without error and write nothing.
+        """
+        _pydeprecate_copy_redirect_mirrors(self._config(tmp_path, None))
+        assert list(tmp_path.iterdir()) == []

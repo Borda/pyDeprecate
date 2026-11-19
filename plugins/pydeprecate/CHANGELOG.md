@@ -2,6 +2,14 @@
 
 All notable changes to the `pydeprecate` coding-agent plugin (the `sunset` and `prune` skills) are listed here. The plugin `version` follows its own cadence, independent of the `pyDeprecate` package version; `compatible_package_version` is the package support window the skills are verified against.
 
+## [0.6.7] - Unreleased
+
+### Changed
+
+- `sunset` and `prune`: long paragraphs and numbered steps are split into short bullet lines with one idea each, so the steps read as a checklist. The layout and wording change; the steps keep their order.
+- `sunset` and `prune`: release references carry a `v` prefix and read "since vX" for availability that continues and "before vX" for older releases.
+- `sunset` and `prune`: the CLI, policy and status commands need `pyDeprecate[audit]`, plus `[cli]` before v0.15. The empty `cli` extra no longer exists on current releases.
+
 ## [0.6.1] - Unreleased
 
 ### Changed

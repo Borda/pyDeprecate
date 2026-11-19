@@ -211,10 +211,11 @@ def deprecated_class(
 
             **Validation limitation**: attribute existence is checked using :func:`inspect.getattr_static`,
             which detects class-level attributes and ``__slots__`` entries but not instance-only attributes
-            set in ``__init__`` via ``self.x = ...``.  For dataclass targets without defaults, the field
-            name appears in ``__dataclass_fields__`` but the attribute itself is instance-only —
-            decoration-time validation will raise :class:`ValueError` even though access would succeed at
-            runtime.  As a workaround, add a class-level default or use a ``None`` (warn-only) entry.
+            set in ``__init__`` via ``self.x = ...``.  Such an instance-only attribute makes decoration-time
+            validation raise :class:`ValueError` even though access would succeed at runtime.  Dataclass fields
+            are recognised through ``__dataclass_fields__``, so they validate even without a default.  As a
+            workaround for other instance-only attributes, add a class-level default or use a ``None``
+            (warn-only) entry.
 
             The mode can also be set explicitly as ``target=TargetMode.ATTRS_REMAP`` — both forms are equivalent;
             the explicit form is self-documenting and enables validation at decoration time. Passing

@@ -16,7 +16,7 @@ hooks:
 
 exclude_docs: |
   overrides/
-  guide/_deltas/
+  migration/_deltas/
 
 theme:
   name: material
@@ -41,6 +41,24 @@ theme:
 
 plugins:
   - search
+  # Every moved or renamed page needs an entry here (old path -> new path) so old links and bookmarks keep working.
+  # Keys are the page paths of the v0.15.0 release; never remove a line.
+  - redirects:
+      redirect_maps:
+        guide/use-cases.md: usage/index.md
+        guide/functions.md: usage/functions.md
+        guide/classes.md: usage/classes.md
+        guide/modules.md: usage/modules.md
+        guide/properties.md: usage/properties.md
+        guide/async.md: usage/async.md
+        guide/advanced.md: usage/advanced.md
+        guide/customization.md: usage/customization.md
+        guide/void-helper.md: usage/void-helper.md
+        guide/audit.md: audit/index.md
+        guide/cli.md: audit/cli.md
+        guide/migration.md: migration/index.md
+        guide/compare-python-deprecation-tools.md: adoption/compare-python-deprecation-tools.md
+        guide/agent-recipes.md: adoption/agent-recipes.md
   - git-revision-date-localized:
       enable_creation_date: true
       type: iso_date
@@ -62,6 +80,37 @@ extra:
   version:
     provider: mike
     default: stable
+  # A section that moved to another page: old anchor -> page now holding it. main.html follows it when the anchor is missing.
+  anchor_moves:
+    enforcing-removal-deadlines: audit/policy.html
+    pytest-integration-for-expiry-enforcement: audit/policy.html
+    enforcing-a-deprecation-policy: audit/policy.html
+    the-two-rules: audit/policy.html
+    scanning-a-package: audit/policy.html
+    pytest-integration: audit/ci-integration.html
+    enforcing-the-policy-in-ci: audit/ci-integration.html
+    monorepo-several-packages-in-one-run: audit/ci-integration.html
+    pre-commit-integration: audit/ci-integration.html
+    github-action: audit/ci-integration.html
+    testing-deprecated-code: integrations/testing.html
+    suppressing-warnings-in-test-fixtures: integrations/testing.html
+    choosing-the-right-testing-tool: integrations/testing.html
+    selective-attribute-deprecation: usage/attributes.html
+    decorator-syntax-attribute-rename: usage/attributes.html
+    reads-writes-and-deletes-all-redirect: usage/attributes.html
+    warn-only-with-none-redirect: usage/attributes.html
+    per-attribute-independent-warning-budgets: usage/attributes.html
+    enum-deprecated-member-aliases: usage/attributes.html
+    explicit-targetmodeattrs_remap-form: usage/attributes.html
+    callable-target-with-attribute-redirection: usage/attributes.html
+    dataclass-field-renames: usage/attributes.html
+    class-type-compatibility: usage/attributes.html
+    combining-attribute-and-argument-deprecation: usage/attributes.html
+    mixed-redirect-and-warn-only-entries: usage/attributes.html
+    stacking-deprecated_class-for-multi-version-deprecations: usage/attributes.html
+    chained-redirect: usage/attributes.html
+    nested-proxy-wrappers: usage/attributes.html
+    real-world-migration-ml-training-config: usage/attributes.html
 
 extra_css:
   - stylesheets/extra.css
@@ -77,6 +126,7 @@ markdown_extensions:
   - pymdownx.snippets:
       base_path: [docs]
       check_paths: true
+  - pymdownx.details
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
@@ -90,24 +140,30 @@ validation:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
-  - Use Cases:
-      - Overview: guide/use-cases.md
-      - Functions: guide/functions.md
-      - Classes: guide/classes.md
-      - Modules: guide/modules.md
-      - Properties: guide/properties.md
-      - Async: guide/async.md
-      - Advanced: guide/advanced.md
-  - Tools:
-      - Audit Tools: guide/audit.md
-      - CLI: guide/cli.md
-      - void() Helper: guide/void-helper.md
-  - Configuration:
-      - Customization: guide/customization.md
-      - Migration Guide: guide/migration.md
+  - Usage:
+      - Overview: usage/index.md
+      - Lifecycle: usage/lifecycle.md
+      - Functions: usage/functions.md
+      - Classes: usage/classes.md
+      - Attributes: usage/attributes.md
+      - Modules: usage/modules.md
+      - Properties: usage/properties.md
+      - Async: usage/async.md
+      - Advanced: usage/advanced.md
+      - Customization: usage/customization.md
+      - void() Helper: usage/void-helper.md
+  - Audit and CI:
+      - Audit Tools: audit/index.md
+      - Audit Policy: audit/policy.md
+      - CI Integration: audit/ci-integration.md
+      - CLI: audit/cli.md
+  - Integrations:
+      - Testing: integrations/testing.md
+      - Docs Integration: integrations/docs-integration.md
   - Adoption:
-      - Compare Python Deprecation Tools: guide/compare-python-deprecation-tools.md
-      - Agent Recipes: guide/agent-recipes.md
+      - Compare Python Deprecation Tools: adoption/compare-python-deprecation-tools.md
+      - Agent Recipes: adoption/agent-recipes.md
+  - Migration Guide: migration/index.md
   - API Reference: api-reference.md
   - Troubleshooting: troubleshooting.md
   - Limitations: limitations.md

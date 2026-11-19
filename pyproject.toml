@@ -41,9 +41,10 @@ classifiers = [
 dynamic = [ "readme", "version" ]
 dependencies = []
 # For validate_deprecation_expiry and pyproject.toml version detection; tomllib is stdlib in 3.11+
-optional-dependencies.audit = [ "packaging>=20.0", "tomli>=2.0; python_version<'3.11'" ]
-# the CLI uses only the standard library; the empty extra keeps `pip install 'pyDeprecate[cli]'` working
-optional-dependencies.cli = []
+optional-dependencies.audit = [
+  "packaging>=20.0",
+  "tomli>=2.0; python_version<'3.11'",
+]
 urls."Agent Guide" = "https://borda.github.io/pyDeprecate/llms.txt"
 urls."Bug Tracker" = "https://github.com/Borda/pyDeprecate/issues"
 urls."Source Code" = "https://github.com/Borda/pyDeprecate"
