@@ -63,7 +63,7 @@ Recurse through the replacement's own name instead. See [the cycle error](troubl
 
 !!! warning "A custom mutator slips through"
 
-    Besides attribute and item writes and in-place operators, `read_only` blocks ten standard collection mutators: `append`, `clear`, `discard`, `extend`, `insert`, `pop`, `remove`, `setdefault`, `update` and `add`. Other built-in mutators such as `sort`, `reverse`, `popitem` and the set `*_update` methods are not blocked, and neither is a custom method such as `register()` or `reload()`.
+    Besides attribute and item writes and in-place operators, `read_only` blocks sixteen standard collection mutators: `add`, `append`, `clear`, `difference_update`, `discard`, `extend`, `insert`, `intersection_update`, `pop`, `popitem`, `remove`, `reverse`, `setdefault`, `sort`, `symmetric_difference_update` and `update`. A custom method such as `register()` or `reload()` is not blocked, because the guard knows only these names.
 
     See [read_only troubleshooting](troubleshooting.md#my-object-mutated-despite-read_onlytrue).
 

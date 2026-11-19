@@ -70,6 +70,12 @@ _MUTATING_METHOD_NAMES = frozenset(
         "setdefault",
         "add",
         "discard",
+        "sort",
+        "reverse",
+        "popitem",
+        "difference_update",
+        "intersection_update",
+        "symmetric_difference_update",
     }
 )
 

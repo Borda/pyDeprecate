@@ -1412,7 +1412,7 @@ print(OLD_THRESHOLD["value"])
 
 ### My object mutated despite `read_only=True`
 
-`read_only=True` blocks attribute and item writes, in-place operators and ten standard collection mutator names: `append`, `clear`, `discard`, `extend`, `insert`, `pop`, `remove`, `setdefault`, `update`, `add`. Other built-in mutators such as `sort`, `reverse`, `popitem` and the set `*_update` methods are not blocked.
+`read_only=True` blocks attribute and item writes, in-place operators and sixteen standard collection mutator names: `add`, `append`, `clear`, `difference_update`, `discard`, `extend`, `insert`, `intersection_update`, `pop`, `popitem`, `remove`, `reverse`, `setdefault`, `sort`, `symmetric_difference_update`, `update`. A custom method of your own object is not blocked.
 
 **Q:** I passed `read_only=True` to `deprecated_instance()` but a method on my object still mutated its state. Why?
 

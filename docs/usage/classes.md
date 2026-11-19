@@ -154,7 +154,7 @@ efg
 
 ## Constants and instances
 
-`deprecated_instance` wraps module-level dicts, lists, and custom objects in a *transparent proxy*. Attribute, item, and call access emit a deprecation notice. Use `read_only=True` to block attribute and item writes, in-place operators and ten standard collection mutators (`append`, `extend`, `insert`, `pop`, `remove`, `clear`, `update`, `setdefault`, `add`, `discard`) through the deprecated alias. Other built-in mutators such as `sort`, `reverse`, `popitem` and the set `*_update` methods, custom mutator methods and nested writes are not blocked; see [Limitations](../limitations.md#read_only-covers-only-the-standard-mutators) for the detail.
+`deprecated_instance` wraps module-level dicts, lists, and custom objects in a *transparent proxy*. Attribute, item, and call access emit a deprecation notice. Use `read_only=True` to block attribute and item writes, in-place operators and sixteen standard collection mutators (`append`, `extend`, `insert`, `pop`, `remove`, `clear`, `update`, `setdefault`, `add`, `discard`, `sort`, `reverse`, `popitem` and the set `difference_update`, `intersection_update`, `symmetric_difference_update`) through the deprecated alias. Custom mutator methods and nested writes are not blocked; see [Limitations](../limitations.md#read_only-covers-only-the-standard-mutators) for the detail.
 
 The proxy carries only protocols supported by the wrapped object:
 

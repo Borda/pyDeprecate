@@ -204,6 +204,40 @@ class TestProxyReadOnly:
         with pytest.raises(AttributeError, match="read-only"):
             operation(proxy)
 
+    @pytest.mark.parametrize(
+        ("make_obj", "method", "args"),
+        [
+            pytest.param(lambda: [3, 1, 2], "append", (4,), id="list-append"),
+            pytest.param(lambda: [3, 1, 2], "sort", (), id="list-sort"),
+            pytest.param(lambda: [3, 1, 2], "reverse", (), id="list-reverse"),
+            pytest.param(lambda: {"k": 1}, "popitem", (), id="dict-popitem"),
+            pytest.param(lambda: {1, 2, 3}, "difference_update", ({1},), id="set-difference_update"),
+            pytest.param(lambda: {1, 2, 3}, "intersection_update", ({1},), id="set-intersection_update"),
+            pytest.param(
+                lambda: {1, 2, 3}, "symmetric_difference_update", ({1},), id="set-symmetric_difference_update"
+            ),
+        ],
+    )
+    def test_builtin_mutator_raises_and_leaves_object_unchanged(
+        self, make_obj: Callable, method: str, args: tuple
+    ) -> None:
+        """A built-in collection mutator is blocked in read_only mode and the wrapped object stays as it was.
+
+        A user freezes a module-level list, dict or set with ``deprecated_instance(..., read_only=True)``.  Every
+        standard in-place mutator must raise through the alias, including ``sort``, ``reverse``, ``popitem`` and the
+        set ``*_update`` methods, which would otherwise rearrange or shrink the object without a word.
+
+        """
+        obj = make_obj()
+        before = make_obj()
+        proxy = _DeprecatedProxy(
+            obj=obj,
+            spec=_ProxySpec(name="d", **_DEPRS_CASE_STD_ARGS, read_only=True, stream=None),
+        )
+        with pytest.raises(AttributeError, match="read-only"):
+            getattr(proxy, method)(*args)
+        assert obj == before
+
     def test_setitem_forwards_to_source(self) -> None:
         """``__setitem__`` mutates the source object when not read-only, without emitting a warning."""
         inner = {"k": 1}
