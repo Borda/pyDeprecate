@@ -49,7 +49,8 @@ class TestWrapperFindings:
             inner_order_property=True,
         )
         findings = _wrapper_findings(info)
-        assert [finding.rule.value for finding in findings] == [
+        actual = [finding.rule.value for finding in findings]
+        expected = [
             "invalid-args",
             "misconfigured-target",
             "inner-order-property",
@@ -58,6 +59,7 @@ class TestWrapperFindings:
             "positional-only-mapping",
             "chain",
         ]
+        assert actual == expected
         assert {finding.check for finding in findings} == {_Check.CHECK, _Check.CHAINS}
         assert findings[-1].check is _Check.CHAINS
 

@@ -117,7 +117,8 @@ class TestFindDeprecationWrappersPep702:
 
         """
         infos = find_deprecation_wrappers(pep702_module, recursive=False)
-        assert {(info.function, info.pep702_message) for info in infos} == {
+        actual = {(info.function, info.pep702_message) for info in infos}
+        expected = {
             ("stacked_callable", None),
             ("StackedAlias", None),
             ("StackedMembers.legacy_method", None),
@@ -126,6 +127,7 @@ class TestFindDeprecationWrappersPep702:
             ("Pep702MixedMembers.old_wrapped", None),
             ("Pep702AliasFirst.old_wrapped", None),
         }
+        assert actual == expected
 
     def test_opt_in_reports_pep702_only_objects(self) -> None:
         """With ``include_pep702=True`` every PEP 702-only symbol is listed, its ``api_type`` naming its shape.
@@ -137,7 +139,8 @@ class TestFindDeprecationWrappersPep702:
 
         """
         infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
-        assert {(info.function, info.api_type) for info in infos if info.pep702_message is not None} == {
+        actual = {(info.function, info.api_type) for info in infos if info.pep702_message is not None}
+        expected = {
             ("pep702_only_function", "callable"),
             ("pep702_empty_message", "callable"),
             ("Pep702OnlyClass", "class"),
@@ -155,6 +158,7 @@ class TestFindDeprecationWrappersPep702:
             ("Pep702OnlyMembers.old_total", "class method"),
             ("Pep702MixedMembers.old_pep702", "class method"),
         }
+        assert actual == expected
 
     @pytest.mark.parametrize("marker", [None, pytest.param(b"Use `pep702_target` instead.", id="bytes")])
     def test_non_string_marker_is_not_reported(self, marker: object, monkeypatch: pytest.MonkeyPatch) -> None:

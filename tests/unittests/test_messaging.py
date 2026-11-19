@@ -538,7 +538,8 @@ class TestRaiseWarnStacklevel:
         stream = PassThroughMessageOnlyStream()
         deprecated_sum = make_sum_deprecation_with_stream(functools.partial(stream) if as_partial else stream)
         result = deprecated_sum(1, 2)
-        assert (result, stream.calls) == (
+        actual = (result, stream.calls)
+        expected = (
             3,
             [
                 "The `original_sum` was deprecated since v1.0 in favor of "
@@ -546,6 +547,7 @@ class TestRaiseWarnStacklevel:
                 " It will be removed in v2.0."
             ],
         )
+        assert actual == expected
 
     def test_keyword_typeerror_from_stream_propagates_after_one_call(self) -> None:
         """A stream's own ``TypeError`` mentioning "keyword" propagates after a single invocation.

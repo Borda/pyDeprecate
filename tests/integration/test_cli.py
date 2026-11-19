@@ -6,12 +6,12 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import jsonschema
 import pytest
 
-from deprecate.audit import find_deprecation_wrappers_static
+from deprecate.audit import DeprecationWrapperInfo, find_deprecation_wrappers_static
 from tests._helpers import write_pkg
 
 _SRC_DIR = str(Path(__file__).resolve().parent.parent.parent / "src")
@@ -118,6 +118,42 @@ def _run_cli(
         encoding="utf-8",
         env=env if env is not None else _cli_env(),
         cwd=cwd,
+    )
+
+
+def _table_row(info: DeprecationWrapperInfo) -> tuple[str, str, str]:
+    """Return the ``(symbol, deprecated in, remove in)`` cells the report table shows for a scanned wrapper."""
+    deprecated_in = info.deprecated_info.deprecated_in
+    remove_in = info.deprecated_info.remove_in
+    return (
+        f"{info.module}.{info.function}",
+        f"v{deprecated_in}" if deprecated_in else "—",
+        f"v{remove_in}" if remove_in else "—",
+    )
+
+
+def _finding_row(finding: dict[str, Any]) -> tuple[Any, ...]:
+    """Return the ``(module, symbol, deprecated in, remove in, file, line)`` of a report finding."""
+    location = finding["location"]
+    return (
+        finding["subject"]["module"],
+        finding["subject"]["symbol"],
+        finding["deprecated_in"],
+        finding["remove_in"],
+        (Path(_SRC_DIR).parent / location["file"]).resolve() if location else None,
+        location["line"] if location else None,
+    )
+
+
+def _wrapper_row(info: DeprecationWrapperInfo) -> tuple[Any, ...]:
+    """Return the ``(module, symbol, deprecated in, remove in, file, line)`` of a scanned wrapper."""
+    return (
+        info.module,
+        info.function,
+        info.deprecated_info.deprecated_in,
+        info.deprecated_info.remove_in,
+        Path(info.source_file).resolve() if info.source_file else None,
+        info.source_line,
     )
 
 
@@ -2008,36 +2044,12 @@ class TestCliStatic:
         jsonschema.validate(data, json.loads(_REPORT_SCHEMA_FILE.read_text(encoding="utf-8")))
         assert data["mode"] == "static"
         cells = [line.split("|")[1:-1] for line in data["table"].splitlines() if line.startswith("| `")]
-        assert [(row[0].strip(" `"), row[3].strip(), row[4].strip()) for row in cells] == [
-            (
-                f"{info.module}.{info.function}",
-                f"v{info.deprecated_info.deprecated_in}" if info.deprecated_info.deprecated_in else "—",
-                f"v{info.deprecated_info.remove_in}" if info.deprecated_info.remove_in else "—",
-            )
-            for info in scan.wrappers
-        ]
-        assert [
-            (
-                finding["subject"]["module"],
-                finding["subject"]["symbol"],
-                finding["deprecated_in"],
-                finding["remove_in"],
-                (Path(_SRC_DIR).parent / finding["location"]["file"]).resolve() if finding["location"] else None,
-                finding["location"]["line"] if finding["location"] else None,
-            )
-            for finding in data["findings"]
-        ] == [
-            (
-                info.module,
-                info.function,
-                info.deprecated_info.deprecated_in,
-                info.deprecated_info.remove_in,
-                Path(info.source_file).resolve() if info.source_file else None,
-                info.source_line,
-            )
-            for info in scan.wrappers
-            if info.deprecated_info.remove_in
-        ]
+        actual_table = [(row[0].strip(" `"), row[3].strip(), row[4].strip()) for row in cells]
+        expected_table = [_table_row(info) for info in scan.wrappers]
+        assert actual_table == expected_table
+        actual_findings = [_finding_row(finding) for finding in data["findings"]]
+        expected_findings = [_wrapper_row(info) for info in scan.wrappers if info.deprecated_info.remove_in]
+        assert actual_findings == expected_findings
 
     def test_expiry_static_reads_source_without_importing(self, tmp_path: Path) -> None:
         """``expiry --static`` reports the overdue wrappers of a package whose import would fail.
