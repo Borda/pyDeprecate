@@ -277,7 +277,7 @@ class Invoice:
         return self.total()
 
     # DEPRECATED API — read `amount` instead
-    @deprecated(deprecated_in="1.1", remove_in="2.0")
+    @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.1", remove_in="2.0")
     @property
     def value(self) -> float:
         return self.amount

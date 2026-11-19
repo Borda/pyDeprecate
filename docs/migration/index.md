@@ -15,7 +15,7 @@ v0.8 introduced `TargetMode` so deprecation intent no longer depends on the lega
 
 `target=None` means "**warn, then run the decorated body**". It still works, but emits `FutureWarning` at decoration time.
 
-Omit `target` for the **shortest current form**; the `TargetMode.AUTO` default resolves to `TargetMode.NOTIFY` when no mapping is present. Use `target=TargetMode.NOTIFY` when being explicit helps the reader.
+Prefer an explicit `target=TargetMode.NOTIFY`, as the examples here do. Omitting `target` is the **shortest form** and resolves to the same mode, because the `TargetMode.AUTO` default picks `TargetMode.NOTIFY` when no mapping is present.
 
 ```diff
 - # DEPRECATED API — legacy sentinel

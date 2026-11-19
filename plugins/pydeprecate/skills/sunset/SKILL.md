@@ -146,7 +146,7 @@ As a decorator, it supports plain synchronous functions only. An `async def`, ge
 
 Like the global itself, `as_exceptions()` is the consumer's switch for application or test code. Library code must not use `as_exceptions(False)` to escape a caller's strict run. `as_exception=False` on a wrapper (singular) never escapes one.
 
-`as_exceptions()` is an UnReleased helper: check whether the installed `deprecate` module provides it before using it. Do not assign it a release number until one is published.
+`as_exceptions()` is available since v0.15. On an older install, check that the installed `deprecate` module provides it before using it.
 
 On an installed release that has `deprecate.AS_EXCEPTIONS` but not the helper, preserve the previous value with `try/finally`:
 
