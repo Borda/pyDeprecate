@@ -567,7 +567,7 @@ class _ProxyConfig:
         return replace(self, obj=copy.deepcopy(self.obj, memo), state=copy.deepcopy(self.state, memo))
 
     def __getstate__(self) -> dict[str, Any]:
-        """Return the pickle state in the 0.14 layout, so a proxy pickled by this release also loads on 0.14.
+        """Return the pickle state in the v0.14 layout, so a proxy pickled by this release also loads on v0.14.
 
         The budget is written as flat ``warned`` / ``warned_args`` counters; neither ``state`` nor ``facts`` is
         written, because 0.14 restores the config by updating its ``__dict__`` and cannot import either private class.

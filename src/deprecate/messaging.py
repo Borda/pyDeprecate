@@ -96,6 +96,14 @@ def _resolve_message_template_alias(
     Raises:
         TypeError: If both ``message_template`` and ``template_mgs`` are supplied.
 
+    Example:
+        >>> _resolve_message_template_alias("custom notice", None)
+        'custom notice'
+        >>> _resolve_message_template_alias("custom notice", "legacy notice")
+        Traceback (most recent call last):
+        ...
+        TypeError: Both `message_template` and `template_mgs` were supplied; pass only one (`template_mgs` deprecated).
+
     """
     if template_mgs is None:
         return message_template
@@ -122,6 +130,13 @@ def _validate_message_template(message_template: Optional[str]) -> None:
     Raises:
         ValueError: When ``message_template`` references an unknown ``%(...)s`` key, uses a malformed conversion
             specifier, or otherwise fails ``%``-formatting against the full placeholder set.
+
+    Example:
+        >>> _validate_message_template("`%(source_name)s` is deprecated")
+        >>> _validate_message_template("`%(unknown)s` is deprecated")
+        Traceback (most recent call last):
+        ...
+        ValueError: Invalid message_template: KeyError('unknown'). Available placeholders: ...
 
     """
     if not message_template:
@@ -203,6 +218,12 @@ def _inspect_stream_accepts_stacklevel(stream: Callable[..., Any]) -> bool:
 
     Uncached core of :func:`_stream_accepts_stacklevel`; see there for the decision rules.
 
+    Example:
+        >>> _inspect_stream_accepts_stacklevel(lambda msg, stacklevel=1: None)
+        True
+        >>> _inspect_stream_accepts_stacklevel(lambda msg: None)
+        False
+
     """
     try:
         # Look through ``functools.wraps``-style pass-throughs: a layer whose own signature is a bare
@@ -237,6 +258,12 @@ def _declares_own_parameters(layer: Callable[..., Any]) -> bool:
 
     ``follow_wrapped=False`` keeps the lookup on the layer itself rather than on the callable it copied metadata from.
 
+    Example:
+        >>> _declares_own_parameters(lambda msg: None)
+        True
+        >>> _declares_own_parameters(lambda *args, **kwargs: None)
+        False
+
     """
     kinds = [param.kind for param in inspect.signature(layer, follow_wrapped=False).parameters.values()]
     return kinds != [inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD]
@@ -248,6 +275,12 @@ def _binds_message_and_stacklevel(signature: inspect.Signature) -> bool:
     Binding mirrors the real call, so the positional message occupies the first slot before ``stacklevel`` is
     considered: ``def sink(stacklevel)`` is rejected (``stacklevel`` is already taken by the message), while
     ``def sink(*args, stacklevel=None)`` and ``def sink(msg, **kwargs)`` are accepted.
+
+    Example:
+        >>> _binds_message_and_stacklevel(inspect.signature(lambda msg, **kwargs: None))
+        True
+        >>> _binds_message_and_stacklevel(inspect.signature(lambda stacklevel: None))
+        False
 
     """
     try:
@@ -264,6 +297,7 @@ def _decision_evictor(key: int) -> Callable[["weakref.ReferenceType[Any]"], None
     pop = _STREAM_DECISIONS.pop
 
     def evict(_ref: "weakref.ReferenceType[Any]") -> None:
+        """Forget the memoised ``stacklevel`` decision of the stream that was just collected."""
         pop(key, None)
 
     return evict
@@ -378,6 +412,12 @@ def _format_deprecation_message(
 
     Shared by the call-time emitters (:func:`_raise_warn`) and the decoration-time static renderer
     (:func:`_render_static_deprecation_message`) so both paths format messages identically.
+
+    Example:
+        >>> _format_deprecation_message("`%(source_name)s` -> `%(target_name)s`", "old", "pkg.old", target_name="new")
+        '`old` -> `new`'
+        >>> _format_deprecation_message("`%(source_path)s` replaced by `%(target_name)s`", "old", "pkg.old")
+        '`pkg.old` replaced by ``'
 
     """
     # Templates are validated against the complete public placeholder vocabulary independent of target mode.
@@ -505,7 +545,18 @@ def _callable_display_name(obj: Any) -> tuple[str, str]:  # noqa: ANN401
 
 
 def _source_display_name(source: Callable) -> str:
-    """Return display name: class name for ``__init__``, function name otherwise."""
+    """Return the name a message should show: the owning class for an ``__init__``, the function name otherwise.
+
+    Example:
+        >>> class Widget:
+        ...     def __init__(self): pass
+        >>> _source_display_name(Widget.__init__)
+        'Widget'
+        >>> def helper(): pass
+        >>> _source_display_name(helper)
+        'helper'
+
+    """
     return source.__qualname__.split(".")[-2] if source.__name__ == "__init__" else source.__name__
 
 

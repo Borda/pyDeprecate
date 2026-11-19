@@ -106,7 +106,7 @@ from deprecate.proxy import deprecated_class, deprecated_instance
 from deprecate.routine import deprecated_callable
 from deprecate.utils import (
     assert_no_warnings,
-    no_warning_call,  # noqa: F401 # deprecated since 0.6, use assert_no_warnings
+    no_warning_call,  # noqa: F401 # deprecated since v0.6, use assert_no_warnings
     void,
 )
 
@@ -159,10 +159,10 @@ if TYPE_CHECKING:
         PolicyRule,
         TableStyle,
         VersionBump,
-        find_deprecated_callables,  # noqa: F401 # deprecated since 0.6, use find_deprecation_wrappers
+        find_deprecated_callables,  # noqa: F401 # deprecated since v0.6, use find_deprecation_wrappers
         find_deprecation_wrappers,
         generate_deprecation_table,
-        validate_deprecated_callable,  # noqa: F401 # deprecated since 0.6, use validate_deprecation_wrapper
+        validate_deprecated_callable,  # noqa: F401 # deprecated since v0.6, use validate_deprecation_wrapper
         validate_deprecation_chains,
         validate_deprecation_expiry,
         validate_deprecation_policy,

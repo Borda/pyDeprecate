@@ -172,6 +172,14 @@ def _is_dataclass_target(cls: Any) -> bool:  # noqa: ANN401
     Used by :class:`~deprecate.proxy._DeprecatedProxy` to detect ``@dataclass`` targets that benefit from automatic
     ``attrs_mapping`` → ``args_mapping`` expansion.
 
+    Example:
+        >>> from dataclasses import dataclass
+        >>> @dataclass
+        ... class Point:
+        ...     x: int
+        >>> _is_dataclass_target(Point), _is_dataclass_target(Point(1)), _is_dataclass_target(int)
+        (True, False, False)
+
     """
     return isinstance(cls, type) and dataclasses.is_dataclass(cls)
 
@@ -231,6 +239,11 @@ def _warns_repr(warns: list[warnings.WarningMessage]) -> list[Union[Warning, str
 
     Returns:
         List of warning messages as strings or Warning objects.
+
+    Example:
+        >>> caught = warnings.WarningMessage(UserWarning("old is deprecated"), UserWarning, "mod.py", 1)
+        >>> _warns_repr([caught])
+        [UserWarning('old is deprecated')]
 
     """
     return [w.message for w in warns]
@@ -395,7 +408,18 @@ def void(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
 def _unwrap_descriptor_target(
     target: Union[bool, None, Callable, TargetMode, staticmethod, classmethod],
 ) -> Union[bool, None, Callable, TargetMode]:
-    """Return ``target.__func__`` when *target* is a descriptor; pass through otherwise."""
+    """Return ``target.__func__`` when *target* is a ``staticmethod``/``classmethod``; pass anything else through.
+
+    Class-body code sees the raw descriptor, which lacks ``__qualname__``; callers unwrap it to inspect the function.
+
+    Example:
+        >>> def func(): pass
+        >>> _unwrap_descriptor_target(staticmethod(func)) is func
+        True
+        >>> _unwrap_descriptor_target(func) is func
+        True
+
+    """
     if isinstance(target, (staticmethod, classmethod)):
         return target.__func__
     return target

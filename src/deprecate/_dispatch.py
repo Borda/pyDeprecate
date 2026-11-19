@@ -238,6 +238,13 @@ def _renamed_defaults_owned_by_target(
     rename's *new* name, and a renamed *old* name whose new name has a default on the target. Only a callable target
     with a non-empty mapping can have any.
 
+    Example:
+        >>> def new(x, y=1): pass
+        >>> sorted(_renamed_defaults_owned_by_target(new, {"old": "y"}))
+        ['old', 'y']
+        >>> _renamed_defaults_owned_by_target(new, {})
+        frozenset()
+
     """
     if not args_mapping or not callable(normalized_target):
         return frozenset()
@@ -282,6 +289,11 @@ def _derive_forward_defaults(
     Raises:
         TypeError: When the target's signature cannot be read.
         ValueError: When the target's signature cannot be read.
+
+    Example:
+        >>> def new(x, y=1): pass
+        >>> _derive_forward_defaults(new, None)
+        _ForwardDefaults(stale_renamed=frozenset(), partial_bound=frozenset())
 
     """
     stale_renamed = _renamed_defaults_owned_by_target(normalized_target, args_mapping or {})
@@ -354,6 +366,13 @@ def _merge_source_defaults(
 
     Returns:
         The caller's arguments plus every source default the target does not own.
+
+    Example:
+        >>> def new(x, y=2): pass
+        >>> _merge_source_defaults({"old": 1, "z": 9}, new, {}, {"old": "y"})
+        {'z': 9}
+        >>> _merge_source_defaults({"old": 1, "z": 9}, new, {"old": 5}, {"old": "y"})
+        {'old': 5, 'z': 9}
 
     """
     full_defaults = {**source_defaults, **kwargs}
@@ -465,6 +484,10 @@ def _split_positional_only_kwargs(
     Raises:
         TypeError: When a positional-only name is present in ``resolved_kwargs`` while an earlier
             positional-only parameter is absent — forwarding positionally would misbind the value.
+
+    Example:
+        >>> _split_positional_only_kwargs(("a", "b", "c"), {"a": 1, "b": 2, "c": 3}, frozenset({"a", "b"}))
+        ([1, 2], {'c': 3})
 
     """
     kw_args = dict(resolved_kwargs)
@@ -643,6 +666,8 @@ def _check_classmethod_receiver(ctx: _WrapperContext, kwargs: Mapping[str, Any])
     elif not isinstance(receiver, type):
         problem = f"its first parameter `{name}` received a value of type `{type(receiver).__name__}`, not a class"
     elif (
+        # the caller also passed the target's own receiver name as a keyword and it is not just a mapped alias
+        # of the source receiver, so it would collide with the forwarded receiver
         target_name is not None
         and target_name != name
         and target_name in kwargs
@@ -995,11 +1020,14 @@ def _skips_call_plan(ctx: _WrapperContext, args: tuple[Any, ...], kwargs: Mappin
         ``True`` when the wrapper may call ``ctx.source(*args, **kwargs)`` directly.
 
     """
+    # neither fast path applies: the call needs the full warn-and-forward machinery
     if not (ctx.fast_notify or ctx.fast_remap):
         return False
     state, facts = ctx.state, ctx.facts
     misconfig_due = ctx.cfg.misconfigured and ctx.stream and not state.warned_misconfigured
     limit = facts.source_positional_limit
+    # bail out to the full path when a misconfiguration warning is still due or more positionals
+    # were passed than the source accepts
     if misconfig_due or (limit is not None and len(args) > limit):
         return False
     if ctx.fast_notify:
@@ -1089,6 +1117,8 @@ def _emit_call_warning(
     state, cfg, num_warns = ctx.state, ctx.cfg, ctx.num_warns
     fatal = _resolve_as_exception(cfg.as_exception)
     should_warn, arguments = fatal, reason_argument
+    # warn only when strict mode is off, a stream is attached, and the budget is not spent yet:
+    # unlimited, a reason argument present, or fewer warnings emitted than allowed
     if not fatal and ctx.stream and (num_warns < 0 or reason_argument or state.warned_calls < num_warns):
         with state.lock:
             if reason_callable:

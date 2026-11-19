@@ -68,6 +68,19 @@ def _build_module_warn_msg(
     target: Optional[types.ModuleType],
     message_template: Optional[str],
 ) -> str:
+    """Build the warning text for a deprecated module: the caller's template, else the redirect or no-target notice.
+
+    Args:
+        module_name: ``__name__`` of the deprecated module.
+        deprecated_in: Version in which the module was deprecated.
+        remove_in: Version in which the module will be removed.
+        target: The replacement module, or ``None`` for a warn-only deprecation.
+        message_template: Caller-supplied template, which replaces the built-in notice when set.
+
+    Returns:
+        The rendered warning message.
+
+    """
     target_name = getattr(target, "__name__", None) if target is not None else None
     # A caller-supplied ``message_template`` replaces the built-in notice (consistent with the other
     # factories); plain text renders verbatim, while ``%``-placeholders are substituted. Otherwise pick the
@@ -310,6 +323,10 @@ def _resolve_module_name(name: Optional[str], caller_frame: types.FrameType) -> 
         TypeError: If ``name`` is omitted and the call is made from inside a function or class body
             (``f_locals`` differs from ``f_globals``) rather than at module top level.
         ValueError: If ``name`` is omitted and the caller frame's ``__name__`` cannot be determined.
+
+    Example:
+        >>> _resolve_module_name("pkg.legacy", sys._getframe())
+        'pkg.legacy'
 
     """
     if name is not None:
