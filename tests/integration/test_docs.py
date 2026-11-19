@@ -653,16 +653,62 @@ class TestRedirectMirrors:
         )
         return {"site_dir": str(site), "plugins": plugins}
 
+    def _serve_moved_page(self, site: Path, page: bytes) -> str:
+        """Build the old mirror of ``audit/index.md`` at ``guide/audit.html.md`` and return its text."""
+        (site / "audit").mkdir()
+        (site / "audit" / "index.html.md").write_bytes(page)
+        _pydeprecate_copy_redirect_mirrors(self._config(site, {"guide/audit.md": "audit/index.md"}))
+        return (site / "guide" / "audit.html.md").read_bytes().decode("utf-8")
+
     def test_old_mirror_serves_the_new_page(self, tmp_path: Path) -> None:
         """Serve the new page's markdown at the old mirror address after a page moves.
 
         An agent holds a link such as ``guide/audit.html.md`` from the previous release.
         The built site must answer there with the moved page, because a static host cannot redirect it.
+        A page whose links resolve the same from both addresses, here one pointing at a sibling section, comes back
+        byte for byte, line endings included.
         """
-        (tmp_path / "audit").mkdir()
-        (tmp_path / "audit" / "index.html.md").write_text("# Audit\n", encoding="utf-8")
-        _pydeprecate_copy_redirect_mirrors(self._config(tmp_path, {"guide/audit.md": "audit/index.md"}))
-        assert (tmp_path / "guide" / "audit.html.md").read_text(encoding="utf-8") == "# Audit\n"
+        page = b"# Audit\r\n\r\nSee [testing](../integrations/testing.md).\r\n"
+        assert self._serve_moved_page(tmp_path, page) == page.decode("utf-8")
+
+    def test_same_directory_link_is_rebased_to_the_new_page_directory(self, tmp_path: Path) -> None:
+        """Point a same-directory link of the moved page back at the directory the page now lives in.
+
+        The audit page links to its companion ``policy.md`` and ``cli.md`` pages, which sit next to it under ``audit/``.
+        Served from ``guide/``, an unchanged ``policy.md`` would look for ``guide/policy.md``, which does not exist.
+        The old mirror must reach ``../audit/policy.md`` instead, keeping any anchor, and leave a link into another
+        section as it was.
+        """
+        page = (
+            "See [policy](policy.md) and [flags](cli.md#static-mode).\n"
+            "![diagram](../assets/images/audit.svg) and [testing](../integrations/testing.md).\n"
+        )
+        assert self._serve_moved_page(tmp_path, page.encode("utf-8")) == (
+            "See [policy](../audit/policy.md) and [flags](../audit/cli.md#static-mode).\n"
+            "![diagram](../assets/images/audit.svg) and [testing](../integrations/testing.md).\n"
+        )
+
+    def test_links_that_are_not_relative_pages_stay_as_written(self, tmp_path: Path) -> None:
+        """Rewrite only the relative page links a reader follows, never a URL, an anchor or code.
+
+        The audit page carries external URLs, a ``mailto:`` address and in-page ``#anchor`` links.
+        It also shows example Markdown inside fenced code blocks and inline code spans, where ``policy.md`` is text to
+        read, not a link to follow.
+        None of these may change in the old mirror, while the real link on the last line still moves.
+        """
+        page = (
+            "[site](https://example.org/policy.md) [mail](mailto:team@example.org) [here](#usage)\n"
+            "Write `[policy](policy.md)` in your page.\n"
+            "```markdown\n"
+            "[policy](policy.md)\n"
+            "```\n"
+            "~~~\n"
+            "[policy](policy.md)\n"
+            "~~~\n"
+            "[policy](policy.md)\n"
+        )
+        expected = page[: page.rindex("[policy](policy.md)")] + "[policy](../audit/policy.md)\n"
+        assert self._serve_moved_page(tmp_path, page.encode("utf-8")) == expected
 
     def test_existing_old_mirror_is_kept(self, tmp_path: Path) -> None:
         """Leave an old mirror that the build already wrote untouched.

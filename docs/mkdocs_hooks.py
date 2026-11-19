@@ -8,6 +8,7 @@ structured documentation index.
 from __future__ import annotations
 
 import os
+import posixpath
 import re
 import shutil as _pydeprecate_shutil
 from pathlib import Path as _PyDeprecatePath
@@ -250,6 +251,11 @@ def on_post_page(output: str, page: Page, config: MkDocsConfig) -> str:
     return output
 
 
+# An inline code span (skipped) or the ``](`` opening of an inline link or image followed by its target.
+_PYDEPRECATE_LINK_RE = re.compile(r"`[^`\n]*`|(\]\()([^)\s]+)")
+_PYDEPRECATE_URL_SCHEME_RE = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
+
+
 def _pydeprecate_mirror_target(src_path: str) -> str:
     if src_path == "index.md":
         return "index.html.md"
@@ -268,18 +274,76 @@ def _pydeprecate_copy_markdown_mirrors(docs_dir: str, site_dir: str) -> None:
         _pydeprecate_shutil.copyfile(src, dest)
 
 
+def _pydeprecate_rebase_link(target: str, from_dir: str, to_dir: str) -> str:
+    """Rewrite one relative link target of a page in ``from_dir`` so it resolves from ``to_dir`` instead.
+
+    Absolute URLs, root-absolute paths, pure ``#anchor`` targets and targets climbing out of the docs tree stay as
+    written.
+
+    """
+    path, hash_mark, anchor = target.partition("#")
+    if not path or path.startswith("/") or _PYDEPRECATE_URL_SCHEME_RE.match(path):
+        return target
+    resolved = posixpath.normpath(posixpath.join(from_dir, path))
+    if resolved.startswith(".."):
+        return target
+    # A fake root keeps relpath independent of the working directory.
+    rebased = posixpath.relpath(f"/{resolved}", f"/{to_dir}")
+    if path.endswith("/") and not rebased.endswith("/"):
+        rebased += "/"
+    return f"{rebased}{hash_mark}{anchor}"
+
+
+def _pydeprecate_rebase_markdown_links(markdown: str, from_dir: str, to_dir: str) -> str:
+    """Rebase the relative links of a Markdown page from ``from_dir`` to ``to_dir``, leaving code untouched.
+
+    Both directories are docs-relative POSIX paths, empty for the docs root. Fenced code blocks and single-backtick
+    inline code spans are copied verbatim, and the page's own bytes survive wherever no link changes.
+
+    """
+    if from_dir == to_dir:
+        return markdown
+
+    def _rebase(match: re.Match[str]) -> str:
+        opener, target = match.group(1), match.group(2)
+        if opener is None:  # an inline code span, matched only so its text is skipped
+            return match.group(0)
+        return f"{opener}{_pydeprecate_rebase_link(target, from_dir, to_dir)}"
+
+    lines: list[str] = []
+    fence = ""
+    for line in markdown.splitlines(keepends=True):
+        marker = re.match(r"\s*(`{3,}|~{3,})", line)
+        if fence:
+            closing = re.fullmatch(r"\s*(`{3,}|~{3,})\s*", line)
+            if closing and closing.group(1)[0] == fence[0] and len(closing.group(1)) >= len(fence):
+                fence = ""
+        elif marker:
+            fence = marker.group(1)
+        else:
+            line = _PYDEPRECATE_LINK_RE.sub(_rebase, line)
+        lines.append(line)
+    return "".join(lines)
+
+
 def _pydeprecate_copy_redirect_mirrors(config: MkDocsConfig) -> None:
     # A static host cannot redirect ``.html.md``, so a moved page's old mirror address serves the new page's source.
+    # Its relative links are rebased, since the old address lives in another directory than the page they were written for.
     plugin = config["plugins"].get("redirects")
     if plugin is None:
         return
     site = _PyDeprecatePath(config["site_dir"])
     for old, new in plugin.config["redirect_maps"].items():
-        source = site / _pydeprecate_mirror_target(new.split("#")[0])
+        new_page = new.split("#")[0]
+        source = site / _pydeprecate_mirror_target(new_page)
         dest = site / _pydeprecate_mirror_target(old)
         if source.is_file() and not dest.exists():
             dest.parent.mkdir(parents=True, exist_ok=True)
-            _pydeprecate_shutil.copyfile(source, dest)
+            # Bytes, not text: universal newlines would rewrite the page's line endings.
+            page = _pydeprecate_rebase_markdown_links(
+                source.read_bytes().decode("utf-8"), posixpath.dirname(new_page), posixpath.dirname(old)
+            )
+            dest.write_bytes(page.encode("utf-8"))
 
 
 def _pydeprecate_rewrite_sitemap(site_dir: str) -> None:
