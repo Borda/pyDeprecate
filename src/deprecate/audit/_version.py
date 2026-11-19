@@ -90,6 +90,7 @@ def _version_from_dynamic(module_name: str, scan_path: str, pyproject_dir: str) 
     original = list(sys.path)
     added: list[str] = []
     for root in (scan_root, os.path.dirname(scan_root), pyproject_dir, os.path.join(pyproject_dir, "src")):
+        # take each candidate root once, and only when it is a real directory (the dirname of "/" can be empty)
         if root and os.path.isdir(root) and root not in added:
             added.append(root)
             sys.path.insert(0, root)
@@ -158,7 +159,15 @@ _ALL_UNREADABLE = "has an `__all__` that is not one literal list of names"
 
 
 def _binds_all(node: ast.AST) -> bool:
-    """Tell whether *node* itself binds ``__all__``: a name store or ``del``, a ``def``, a class or an import."""
+    """Tell whether *node* itself binds ``__all__``: a name store or ``del``, a ``def``, a class or an import.
+
+    Examples:
+        >>> _binds_all(ast.parse("__all__ = []").body[0].targets[0]), _binds_all(ast.parse("import __all__").body[0])
+        (True, True)
+        >>> _binds_all(ast.parse("x = 1").body[0].targets[0])
+        False
+
+    """
     if isinstance(node, ast.Name):
         return node.id == "__all__" and isinstance(node.ctx, (ast.Store, ast.Del))
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
@@ -169,12 +178,28 @@ def _binds_all(node: ast.AST) -> bool:
 
 
 def _uses_all(node: ast.AST) -> bool:
-    """Tell whether *node* uses ``__all__`` without binding it: ``__all__.append(...)``, an item write or any read."""
+    """Tell whether *node* uses ``__all__`` without binding it: ``__all__.append(...)``, an item write or any read.
+
+    Examples:
+        >>> any(_uses_all(node) for node in ast.walk(ast.parse("print(__all__)")))
+        True
+        >>> any(_uses_all(node) for node in ast.walk(ast.parse("__all__ = []")))
+        False
+
+    """
     return isinstance(node, ast.Name) and node.id == "__all__" and isinstance(node.ctx, ast.Load)
 
 
 def _all_assigned(stmt: ast.stmt) -> Optional[ast.expr]:
-    """Return the value a statement assigns to ``__all__`` (``__all__ = ...`` or ``__all__: T = ...``), if it does."""
+    """Return the value a statement assigns to ``__all__`` (``__all__ = ...`` or ``__all__: T = ...``), if it does.
+
+    Examples:
+        >>> ast.literal_eval(_all_assigned(ast.parse("__all__ = ['a']").body[0]))
+        ['a']
+        >>> _all_assigned(ast.parse("x = 1").body[0]) is None
+        True
+
+    """
     if isinstance(stmt, ast.Assign):
         named = any(isinstance(target, ast.Name) and target.id == "__all__" for target in stmt.targets)
     elif isinstance(stmt, ast.AnnAssign):
@@ -213,6 +238,7 @@ def _literal_all(tree: ast.Module) -> Union[set[str], None, str]:
     if any(_uses_all(node) for node in ast.walk(tree)):
         return _ALL_UNREADABLE
     values = [value for stmt in tree.body if (value := _all_assigned(stmt)) is not None]
+    # readable only when the one binding is a module-level assignment of a literal list or tuple
     if bindings == 1 and len(values) == 1 and isinstance(values[0], (ast.List, ast.Tuple)):
         elts = values[0].elts
         names = [elt.value for elt in elts if isinstance(elt, ast.Constant) and isinstance(elt.value, str)]
@@ -336,7 +362,17 @@ def _module_string(
 
 
 def _namespace_may_rebind(tree: ast.Module, name: str) -> bool:
-    """Detect namespace access that can mutate a binding without a name store."""
+    r"""Detect namespace access that can mutate a binding without a name store.
+
+    Examples:
+        >>> _namespace_may_rebind(ast.parse("globals()['v'] = '2'"), "v")
+        True
+        >>> _namespace_may_rebind(ast.parse("import sys\nsys.modules['m'] = 1"), "v")
+        True
+        >>> _namespace_may_rebind(ast.parse("v = '1'"), "v")
+        False
+
+    """
     # Namespace objects can escape through aliases or be mutated indirectly.
     sys_names = {
         alias.asname or "sys"
@@ -347,6 +383,7 @@ def _namespace_may_rebind(tree: ast.Module, name: str) -> bool:
     }
     for node in ast.walk(tree):
         if (
+            # a bare ``globals()`` / ``vars()`` call hands out the module namespace, which can then be written to
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
             and node.func.id in {"globals", "vars"}
@@ -354,14 +391,17 @@ def _namespace_may_rebind(tree: ast.Module, name: str) -> bool:
             and not node.keywords
         ):
             return True
+        # reaching into ``sys.modules`` (via any ``sys`` alias), or an attribute write/delete of the tracked name
         if isinstance(node, ast.Attribute) and (
             (node.attr == "modules" and isinstance(node.value, ast.Name) and node.value.id in sys_names)
             or (node.attr == name and isinstance(node.ctx, (ast.Store, ast.Del)))
         ):
             return True
+        # ``from sys import modules`` exposes the module table without the ``sys.modules`` spelling
         if isinstance(node, ast.ImportFrom) and node.module == "sys" and any(a.name == "modules" for a in node.names):
             return True
         if (
+            # ``setattr`` / ``delattr`` that may hit the tracked name: the attribute is not a literal, or is the name
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
             and node.func.id in {"setattr", "delattr"}
@@ -398,6 +438,7 @@ def _rebound_string(
         if not any(isinstance(target, ast.Name) and target.id == name for target in targets):
             return current if not _binds(node, name) else None
         value = node.value
+        # only a plain string literal is a readable version; any computed value is left to runtime
         return value.value if isinstance(value, ast.Constant) and isinstance(value.value, str) else None
     if isinstance(node, ast.ImportFrom):
         origin = _absolute_import(module, is_package, node)
@@ -424,10 +465,13 @@ def _binds(node: ast.AST, name: str) -> bool:
 
     """
     for sub in ast.walk(node):
+        # the name is assigned or deleted
         if isinstance(sub, ast.Name) and sub.id == name and isinstance(sub.ctx, (ast.Store, ast.Del)):
             return True
+        # a ``def`` or ``class`` is called the name
         if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and sub.name == name:
             return True
+        # an import brings in the name, or a star import that may
         if isinstance(sub, (ast.Import, ast.ImportFrom)) and any(
             alias.name == "*" or (alias.asname or alias.name.split(".")[0]) == name for alias in sub.names
         ):
@@ -493,6 +537,7 @@ def _setuptools_version_attr(data: dict[str, Any]) -> Optional[str]:
     for key in ("tool", "setuptools", "dynamic", "version"):
         node = node.get(key) if isinstance(node, dict) else None
     attr = node.get("attr") if isinstance(node, dict) else None
+    # usable only as ``module.attribute``: a dotted name with at least a module part and an attribute part
     return attr if isinstance(attr, str) and "." in attr and _is_dotted_name(attr) else None
 
 

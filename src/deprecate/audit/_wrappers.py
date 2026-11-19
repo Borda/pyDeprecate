@@ -234,7 +234,7 @@ class DeprecationWrapperInfo:
 # Backward-compatible constructor shim for DeprecationWrapperInfo
 #
 # ``empty_mapping`` and ``identity_mapping`` were renamed to
-# ``empty_args_mapping`` / ``identity_args_mapping`` in 0.8.  The
+# ``empty_args_mapping`` / ``identity_args_mapping`` in v0.8.  The
 # ``@property`` aliases above cover attribute *reads*; this shim patches
 # ``__init__`` so old keyword arguments emit ``DeprecationWarning`` and are
 # redirected to the new names rather than raising ``TypeError``.
@@ -314,7 +314,19 @@ def _validate_args_mapping(
     func: Callable,
     args_mapping: Optional[dict[str, Optional[str]]],
 ) -> tuple[list[str], list[str], bool]:
-    """Return (invalid_args, identity_args_mapping, all_identity) for the given mapping."""
+    """Return (invalid_args, identity_args_mapping, all_identity) for the given mapping.
+
+    ``invalid_args`` are mapped names the function's signature does not have (never checked for a proxy), and
+    ``identity_args_mapping`` the entries that map a name to itself.
+
+    Examples:
+        >>> def old(a, b): ...
+        >>> _validate_args_mapping(old, {"a": "a", "x": "b"})
+        (['x'], ['a'], False)
+        >>> _validate_args_mapping(old, None)
+        ([], [], False)
+
+    """
     if not args_mapping:
         return [], [], False
     if isinstance(func, _DeprecatedProxy):
@@ -328,7 +340,16 @@ def _validate_args_mapping(
 
 
 def _definition_of(obj: Any) -> Any:  # noqa: ANN401
-    """Return the class or function whose source defines the deprecated *obj*, or ``None`` when there is none."""
+    """Return the class or function whose source defines the deprecated *obj*, or ``None`` when there is none.
+
+    Examples:
+        >>> def old(): ...
+        >>> _definition_of(staticmethod(old)) is old, _definition_of(property(old)) is old
+        (True, True)
+        >>> _definition_of(len) is None
+        True
+
+    """
     if isinstance(obj, _DeprecatedProxy):
         # a `deprecated_class` proxy is defined by its class, which lies beneath any further proxy stacked over it; a
         # `deprecated_instance` object, callable or not, is bound by an assignment that nothing records, so the
@@ -351,6 +372,7 @@ def _definition_of(obj: Any) -> Any:  # noqa: ANN401
     unwrapped = inspect.unwrap(target, stop=lambda wrapper: isinstance(wrapper, _DeprecatedProxy))
     if isinstance(unwrapped, _DeprecatedProxy):
         return _definition_of(unwrapped)
+    # only Python-level source (a function, method or class) can be located; a builtin or other callable has none
     if inspect.isfunction(unwrapped) or inspect.ismethod(unwrapped) or inspect.isclass(unwrapped):
         return unwrapped
     return None
@@ -595,6 +617,12 @@ def _format_report_symbol(info: DeprecationWrapperInfo) -> str:
     an empty ``function`` (or an empty ``module``) so the rendered label is always clean — e.g.
     ``tests.collections.modules.old_math`` for a deprecated module, never ``...old_math.`` or ``...(module)``.
 
+    Examples:
+        >>> _format_report_symbol(DeprecationWrapperInfo(module="pkg", function="Old.method"))
+        'pkg.Old.method'
+        >>> _format_report_symbol(DeprecationWrapperInfo(module="pkg", function=""))
+        'pkg'
+
     """
     if info.module and info.function:
         return f"{info.module}.{info.function}"
@@ -612,6 +640,12 @@ def _subject_noun(info: DeprecationWrapperInfo) -> str:
     :func:`~deprecate.proxy.deprecated_instance` proxy (``api_type="data"`` -- the wrapped object is not called), and
     *Callable* for everything else, instead of inlining ``info.function`` (which is empty for modules).
 
+    Examples:
+        >>> _subject_noun(DeprecationWrapperInfo(module="pkg", function="old"))
+        'Callable'
+        >>> _subject_noun(DeprecationWrapperInfo(module="pkg", function="", api_type=_ApiType.MODULE.value))
+        'Module'
+
     """
     return _SUBJECT_NOUNS.get(info.api_type, "Callable")
 
@@ -624,6 +658,10 @@ def _format_subject(info: DeprecationWrapperInfo) -> str:
     then the quoted name, and a module subject reads *Module* then the quoted module path. Centralising this here means
     no expiry site inlines ``info.function`` directly, so an empty or sentinel module label can never leak into the
     text.
+
+    Examples:
+        >>> _format_subject(DeprecationWrapperInfo(module="pkg", function="old"))
+        'Callable `pkg.old`'
 
     """
     return f"{_subject_noun(info)} `{_format_report_symbol(info)}`"
@@ -640,14 +678,34 @@ _METHOD_API_TYPES = (_ApiType.CLASS_METHOD, _ApiType.CLASS_METHOD_ARGS)
 
 
 def _classify_member_api_type(member_name: str, descriptor_kind: Optional[str], has_mapping: bool) -> _ApiType:
-    """Classify the API type for a deprecated class member (method, constructor, descriptor)."""
+    """Classify the API type for a deprecated class member (method, constructor, descriptor).
+
+    Examples:
+        >>> _classify_member_api_type("__init__", None, False).value
+        'class constructor'
+        >>> _classify_member_api_type("create", "classmethod", True).value
+        'classmethod args'
+        >>> _classify_member_api_type("run", None, False).value
+        'class method'
+
+    """
     member_kind = "__init__" if member_name == "__init__" else descriptor_kind
     plain, mapped = _MEMBER_API_TYPES.get(member_kind, _METHOD_API_TYPES)
     return mapped if has_mapping else plain
 
 
 def _classify_class_api_type(cls: type, has_mapping: bool) -> _ApiType:
-    """Classify a deprecated class: a dataclass (its attributes when remapped) or any other class."""
+    """Classify a deprecated class: a dataclass (its attributes when remapped) or any other class.
+
+    Examples:
+        >>> from dataclasses import dataclass
+        >>> @dataclass
+        ... class Point:
+        ...     x: int
+        >>> _classify_class_api_type(Point, False).value, _classify_class_api_type(dict, False).value
+        ('dataclass', 'class')
+
+    """
     if is_dataclass(cls):
         return _ApiType.DATACLASS_ATTRIBUTES if has_mapping else _ApiType.DATACLASS
     return _ApiType.CLASS

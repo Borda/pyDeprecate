@@ -159,7 +159,14 @@ def _misconfiguration(info: DeprecationWrapperInfo) -> str:
 
 
 def _no_effect_reasons(info: DeprecationWrapperInfo) -> tuple[str, ...]:
-    """Return why *info* has no effect on its callers, in report order."""
+    """Return why *info* has no effect on its callers, in report order.
+
+    Examples:
+        >>> info = DeprecationWrapperInfo(module="pkg", function="old", empty_args_mapping=True, self_reference=True)
+        >>> _no_effect_reasons(info)
+        ('Empty mapping', 'Self reference')
+
+    """
     reasons = (
         (info.empty_args_mapping, "Empty mapping"),
         (info.self_reference, "Self reference"),

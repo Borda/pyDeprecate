@@ -90,7 +90,13 @@ _GRACE_WINDOW_SPELLINGS = "`1.0` (one major), `0.1` (one minor), `0.0.1` (one pa
 
 
 def _grace_window_error(min_grace: object, detail: str) -> ValueError:
-    """Build the uniform ``ValueError`` for a ``min_grace`` value the parser does not accept."""
+    """Build the uniform ``ValueError`` for a ``min_grace`` value the parser does not accept.
+
+    Examples:
+        >>> str(_grace_window_error("1", "too short")).startswith("Invalid `min_grace` specification `1`; too short")
+        True
+
+    """
     return ValueError(
         f"Invalid `min_grace` specification `{min_grace}`; {detail} — expected {_GRACE_WINDOW_SPELLINGS}."
     )
@@ -125,6 +131,7 @@ class GraceWindow:
 
     def __post_init__(self) -> None:
         """Reject a count or unit no accepted spelling could have produced."""
+        # ``True``/``False`` are ints in Python but never a meaningful step count; also reject floats and negatives
         if isinstance(self.count, bool) or not isinstance(self.count, int) or self.count < 0:
             raise _grace_window_error(self, "the count must be a non-negative integer")
         if not isinstance(self.unit, VersionBump):
@@ -170,6 +177,7 @@ class GraceWindow:
             return min_grace
         if isinstance(min_grace, Mapping):
             return cls._parse_table(min_grace)
+        # an int (or bool) such as ``1`` does not say whether it counts majors, minors or patches
         if isinstance(min_grace, bool) or not isinstance(min_grace, (str, float)):
             raise _grace_window_error(min_grace, "a bare number does not say which release level it counts")
         spec = str(min_grace).strip()
@@ -185,7 +193,13 @@ class GraceWindow:
 
     @classmethod
     def _parse_table(cls, min_grace: Mapping[str, int]) -> "GraceWindow":
-        """Parse the table form ``{"minor": 3}`` — exactly one unit key; the count is validated on construction."""
+        """Parse the table form ``{"minor": 3}`` — exactly one unit key; the count is validated on construction.
+
+        Examples:
+            >>> GraceWindow._parse_table({"minor": 2})
+            GraceWindow(count=2, unit=<VersionBump.MINOR: 'minor'>)
+
+        """
         if len(min_grace) != 1:
             raise _grace_window_error(dict(min_grace), "a table must name exactly one unit")
         ((unit_name, count),) = min_grace.items()
@@ -357,6 +371,7 @@ def _satisfies_grace_window(deprecated_ver: "Version", remove_ver: "Version", wi
     old = deprecated_ver.release + (0,) * (width - len(deprecated_ver.release))
     new = remove_ver.release + (0,) * (width - len(remove_ver.release))
     bumped = next((i for i, (o, n) in enumerate(zip(old, new)) if o != n), None)
+    # not a clean bump: nothing changed, the number went down, or a finer component stayed non-zero (``1.3.1``)
     if bumped is None or new[bumped] < old[bumped] or any(new[bumped + 1 :]):
         return False  # Same release, a step backwards, or a mixed bump — not a clean release boundary.
     unit_position = _GRACE_WINDOW_UNITS.index(window.unit)
