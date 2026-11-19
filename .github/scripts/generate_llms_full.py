@@ -1,9 +1,9 @@
 """Generate the full agent context from the authoritative contract and public exports.
 
-Purpose: Keep the committed full context synchronized with its sources. Scope: Read docs/llms.txt and the package and
-public subpackage __all__ exports. Usage: Run python .github/scripts/generate_llms_full.py, optionally with --check.
-Outputs: Write docs/llms-full.txt, or report drift without changing it. Failure: Return 1 for drift; source, import and
-filesystem errors propagate. Used by: Maintainers, the llms-full-sync hook and documentation integration tests.
+Purpose: Build the full agent context from its sources at docs build time; the generated file is not committed. Scope:
+Read docs/llms.txt and the package and public subpackage __all__ exports. Usage: Run python
+.github/scripts/generate_llms_full.py. Outputs: Write docs/llms-full.txt. Failure: Source, import and filesystem errors
+propagate. Used by: make docs-build, the docs workflow and documentation integration tests.
 
 Only the standard library and this checkout's dependency-free package are needed. Constants have no symbol docstring;
 inherited value-type documentation is omitted because it describes the type rather than the export and varies across
@@ -68,18 +68,10 @@ def render() -> str:
 
 
 def main() -> int:
-    """Write the generated file or check it for drift and return an exit code."""
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--check", action="store_true", help="Report drift without writing the file.")
-    args = parser.parse_args()
-    expected = render()
-    if args.check:
-        if not OUTPUT.is_file() or OUTPUT.read_text(encoding="utf-8") != expected:
-            print(f"docs/llms-full.txt is out of date; run: {REGENERATE}", file=sys.stderr)
-            return 1
-        return 0
+    """Write the generated full agent context and return an exit code."""
+    argparse.ArgumentParser(description=__doc__.splitlines()[0]).parse_args()
     # Byte writes keep LF line endings on Windows too.
-    OUTPUT.write_bytes(expected.encode("utf-8"))
+    OUTPUT.write_bytes(render().encode("utf-8"))
     return 0
 
 

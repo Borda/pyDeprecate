@@ -42,15 +42,17 @@ _GENERATOR = module_from_spec(_GENERATOR_SPEC)
 _GENERATOR_SPEC.loader.exec_module(_GENERATOR)
 
 
-def test_llms_full_matches_generator() -> None:
-    """Keep the committed full agent context synchronized with its sources.
+def test_llms_full_render_holds_contract_and_api_map() -> None:
+    """Render the full agent context from the contract and the public exports.
 
-    A maintainer edits the authoritative agent contract or changes the public exports.
-    The committed full context must match a fresh render so agents receive the current contract and API map.
+    A docs build generates the file that agents download next to the compact contract.
+    The render must carry the whole contract verbatim and an API map entry for every public export.
     """
-    assert (_ROOT / "docs/llms-full.txt").read_text(encoding="utf-8") == _GENERATOR.render(), (
-        "Regenerate with: python .github/scripts/generate_llms_full.py"
-    )
+    rendered = _GENERATOR.render()
+    contract = (_ROOT / "docs/llms.txt").read_text(encoding="utf-8")
+    assert contract in rendered
+    assert "## API Map" in rendered
+    assert "- `deprecate.deprecated` (function)" in rendered
 
 
 def _run_generator(monkeypatch: pytest.MonkeyPatch, *flags: str) -> int:
@@ -59,7 +61,7 @@ def _run_generator(monkeypatch: pytest.MonkeyPatch, *flags: str) -> int:
 
 
 class TestLlmsFullGenerator:
-    """Command-line behaviour of the full agent context generator behind the ``llms-full-sync`` hook."""
+    """Command-line behaviour of the full agent context generator run by the docs build."""
 
     @pytest.fixture
     def generator_paths(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
@@ -70,46 +72,6 @@ class TestLlmsFullGenerator:
         monkeypatch.setattr(_GENERATOR, "SOURCE", source)
         monkeypatch.setattr(_GENERATOR, "OUTPUT", output)
         return source, output
-
-    def test_check_passes_when_synchronized(
-        self, generator_paths: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Pass the check without touching an output that matches a fresh render.
-
-        A contributor commits an unchanged contract and the pre-commit hook runs ``--check``.
-        The hook must succeed and leave the committed file byte-for-byte as it was.
-        """
-        _, output = generator_paths
-        output.write_bytes(_GENERATOR.render().encode("utf-8"))
-        before = output.read_bytes()
-        assert _run_generator(monkeypatch, "--check") == 0
-        assert output.read_bytes() == before
-
-    def test_check_fails_when_stale(
-        self, generator_paths: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """Fail the check on drift and leave the stale output for the maintainer to regenerate.
-
-        A contributor edits the contract but forgets to regenerate the full context.
-        The hook must fail, name the regeneration command, and not rewrite the file itself.
-        """
-        _, output = generator_paths
-        output.write_bytes(b"stale\n")
-        assert _run_generator(monkeypatch, "--check") == 1
-        assert output.read_bytes() == b"stale\n"
-        assert _GENERATOR.REGENERATE in capsys.readouterr().err
-
-    def test_check_fails_when_missing(
-        self, generator_paths: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Fail the check when the full context file does not exist, without creating it.
-
-        A fresh checkout loses the generated file, or a contributor deletes it by mistake.
-        The hook must report the gap instead of silently writing a new file.
-        """
-        _, output = generator_paths
-        assert _run_generator(monkeypatch, "--check") == 1
-        assert not output.exists()
 
     def test_writes_lf_output_from_crlf_source(
         self, generator_paths: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch

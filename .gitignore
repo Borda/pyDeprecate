@@ -78,6 +78,8 @@ demo-docs/sphinx/.claude/
 demo-docs/sphinx/_build/
 demo-docs/sphinx/build/
 demo-docs/mkdocs/.claude/
+# generated at docs build time by .github/scripts/generate_llms_full.py
+docs/llms-full.txt
 demo-docs/mkdocs/site/
 
 # PyBuilder

@@ -146,6 +146,13 @@ jobs:
             cp README.md docs/index.md
           fi
 
+      - name: 🧾 Generate docs/llms-full.txt
+        # Built from docs/llms.txt and the public exports; not committed. Tags that predate the generator skip it.
+        run: |
+          if [ -f .github/scripts/generate_llms_full.py ]; then
+            python .github/scripts/generate_llms_full.py
+          fi
+
       - name: 📖 Build portal
         # Drop --strict for dispatch: historical docs may have nav entries pointing to demo dirs
         # that are injected only at assemble time. Strict is enforced on push/PR where it matters.
@@ -365,6 +372,13 @@ jobs:
                 mike delete --branch "${GH_PAGES_BRANCH}" "${_alias}"
               fi
             done
+          fi
+
+      - name: 🧾 Generate docs/llms-full.txt
+        # Built from docs/llms.txt and the public exports; not committed. Tags that predate the generator skip it.
+        run: |
+          if [ -f .github/scripts/generate_llms_full.py ]; then
+            python .github/scripts/generate_llms_full.py
           fi
 
       - name: 🚀 Mike deploy
