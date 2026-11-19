@@ -88,6 +88,7 @@ def _may_be_callable_class(node: ast.ClassDef) -> bool:
         False
 
     """
+    # any base other than plain ``object`` (or a metaclass keyword) may bring a ``__call__`` along
     if node.keywords or any(not (isinstance(base, ast.Name) and base.id == "object") for base in node.bases):
         return True
     stack: list[ast.AST] = list(node.body)
@@ -97,8 +98,10 @@ def _may_be_callable_class(node: ast.ClassDef) -> bool:
             if stmt.name == "__call__":
                 return True
             continue  # bindings inside a nested scope do not belong to this class
+        # ``__call__ = ...`` in the class body defines it just as a ``def`` does
         if isinstance(stmt, ast.Name) and stmt.id == "__call__" and isinstance(stmt.ctx, ast.Store):
             return True
+        # ``from m import f as __call__`` also binds the name inside the class body
         if isinstance(stmt, (ast.Import, ast.ImportFrom)) and any(
             (alias.asname or alias.name.split(".")[0]) == "__call__" for alias in stmt.names
         ):
@@ -198,7 +201,23 @@ class _ParsedModule(NamedTuple):
 
 
 def _qualified_name(parsed: _ParsedModule, scope: Mapping[str, list[_NameBinding]], node: ast.expr) -> Optional[str]:
-    """Return the dotted name *node* spells in *parsed*, its root resolved through the one import that binds it."""
+    r"""Return the dotted name *node* spells in *parsed*, its root resolved through the one import that binds it.
+
+    Lets a decorator or base class be matched by what it really is (``dc.dataclass`` is ``dataclasses.dataclass``)
+    whatever alias the module imported it under; ``None`` when *node* is not a plain name or attribute chain.
+
+    Examples:
+        >>> tree = ast.parse("import os as o\nfrom x import y")
+        >>> parsed = _ParsedModule("pkg.mod", Path("pkg/mod.py"), tree)
+        >>> scope = _scope_events(tree.body)
+        >>> _qualified_name(parsed, scope, ast.parse("o.path", mode="eval").body)
+        'os.path'
+        >>> _qualified_name(parsed, scope, ast.parse("y.z", mode="eval").body)
+        'x.y.z'
+        >>> _qualified_name(parsed, scope, ast.parse("call()", mode="eval").body) is None
+        True
+
+    """
     dotted = _dotted(node)
     if dotted is None:
         return None
@@ -247,7 +266,7 @@ class _FactorySettings(NamedTuple):
 
 
 def _display(path: Path) -> str:
-    """Return *path* relative to the working directory when it lies below it, for gap lines."""
+    """Return *path* relative to the working directory when it lies below it, else unchanged, for gap lines."""
     try:
         return str(path.relative_to(Path.cwd()))
     except ValueError:
@@ -269,7 +288,15 @@ class _ModuleScope(NamedTuple):
 
 
 def _module_scope(parsed: _ParsedModule) -> _ModuleScope:
-    """Return the bindings of *parsed*'s module-level names, rebinding through ``global`` or ``globals()`` included."""
+    r"""Return the bindings of *parsed*'s module-level names, rebinding through ``global`` or ``globals()`` included.
+
+    Examples:
+        >>> parsed = _ParsedModule("m", Path("m.py"), ast.parse("from foo import *\nglobals()['x'] = 1"))
+        >>> scope = _module_scope(parsed)
+        >>> scope.unsettled, scope.foreign_star, sorted(scope.events)
+        (False, True, ['x'])
+
+    """
     events = _scope_events(parsed.tree.body)
     for node in ast.walk(parsed.tree):  # a function's ``global name`` may rebind it at runtime
         for name in node.names if isinstance(node, ast.Global) else ():

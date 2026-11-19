@@ -28,6 +28,7 @@ def _plain_dir_modules(directory: Path, exclude: Sequence[str]) -> Iterator[Path
 
     """
     for entry in sorted(directory.iterdir(), key=lambda ent: ent.name):
+        # skip anything that is not a regular ``*.py`` file, and dunder files such as ``__init__.py``
         if not (entry.is_file() and entry.suffix == ".py" and not entry.name.startswith("__")):
             continue
         if not _is_excluded(entry.stem, exclude):
@@ -50,6 +51,11 @@ def _locate_static(path: str, package_dir: Optional[Path]) -> Union[_StaticSourc
 
     A module name is located with :func:`importlib.util.find_spec`, which runs the import system's finders but never the
     package itself; a dotted name is refused, since locating it would import its parent packages.
+
+    Examples:
+        >>> source = _locate_static("ignored", Path("src/pkg"))  # a package directory the caller already resolved
+        >>> source.kind, source.name, source.import_root.name, source.portions
+        ('package', 'pkg', 'src', ())
 
     """
     if package_dir is not None:
@@ -112,6 +118,7 @@ def _package_entries(pkg_dir: Path, package: str, gaps: list[_FoundGap]) -> Iter
         if name == "__init__" or name in yielded:
             continue
         is_package = False
+        # a directory entry may be a subpackage: no module suffix, and no dot that would make it an invalid name
         if not name and (pkg_dir / filename).is_dir() and "." not in filename:
             try:
                 is_package = any(inspect.getmodulename(sub) == "__init__" for sub in os.listdir(pkg_dir / filename))

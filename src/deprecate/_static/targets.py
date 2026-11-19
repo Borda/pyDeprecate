@@ -52,6 +52,7 @@ class _TargetClassifier:
 
     def classify(self, node: ast.expr, shadow: Mapping[str, list], depth: int) -> _SettingValue:
         """Classify a ``target`` expression as ``("const", value)`` or ``("replacement", text, kind)``."""
+        # ``None``, ``True`` and ``False`` are constants the factories read directly, not replacement names
         if isinstance(node, ast.Constant) and (node.value is None or isinstance(node.value, bool)):
             return _SettingValue(("const", node.value))
         member = self.aliases.target_mode(node)
@@ -78,6 +79,7 @@ class _TargetClassifier:
         tree counts only when its module binds a class. Any other callee may return a callable, so it is not settled.
 
         """
+        # only a call of a plain name (``Config(...)``) can be a class construction the source settles
         if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
             return False
         name = node.func.id
@@ -86,6 +88,7 @@ class _TargetClassifier:
             return False
         if event.kind == "class":
             return isinstance(event.value, ast.ClassDef) and not _may_be_callable_class(event.value)
+        # anything but a ``from ... import name`` is a rebinding or a module the source does not settle
         if event.kind != "import" or not isinstance(event.value, ast.ImportFrom):
             return False
         origin = _absolute_import(self.parsed.name, self.parsed.is_package, event.value)
@@ -101,6 +104,7 @@ class _TargetClassifier:
         """Classify a ``target`` given by name, from how the class body or the module binds it."""
         events = shadow if node.id in shadow else self.scope.events
         bindings = events.get(node.id, [])
+        # an unbound module-level name may come from a star import of a module the reader cannot list
         if not bindings and self.scope.foreign_star and events is self.scope.events:
             return _SettingValue(("expr", node.id), f"`target` is `{node.id}`, which a star import may bind")
         if not bindings:  # a builtin, or a name the module never binds: a replacement callable at runtime
@@ -151,19 +155,33 @@ class _TargetClassifier:
 
 
 def _callable_api_type(has_mapping: bool) -> str:
-    """The ``api_type`` of a module-level ``@deprecated`` function."""
+    """Return the ``api_type`` of a module-level ``@deprecated`` function: ``args`` with an ``args_mapping``.
+
+    Examples:
+        >>> _callable_api_type(True), _callable_api_type(False)
+        ('args', 'callable')
+
+    """
     return "args" if has_mapping else "callable"
 
 
 def _class_api_type(is_dataclass: bool) -> Callable[[bool], str]:
-    """The ``api_type`` rule of a proxied class: ``class``, ``dataclass`` or ``dataclass attributes``."""
+    """Return the rule naming the ``api_type`` of a proxied class: ``class``, ``dataclass`` or ``dataclass attributes``.
+
+    The rule is applied once the wrapper's ``args_mapping`` is known, hence the returned callable.
+
+    Examples:
+        >>> _class_api_type(False)(True), _class_api_type(True)(False), _class_api_type(True)(True)
+        ('class', 'dataclass', 'dataclass attributes')
+
+    """
     if not is_dataclass:
         return lambda _: "class"
     return lambda has_mapping: "dataclass attributes" if has_mapping else "dataclass"
 
 
 def _member_api_type(attr: str, descriptor: Optional[str]) -> Callable[[bool], str]:
-    """The ``api_type`` rule of a class member, shared with the import scan."""
+    """Return the rule that names the ``api_type`` of a class member, shared with the import scan's classification."""
     return lambda has_mapping: _classify_member_api_type(attr, descriptor, has_mapping)
 
 
@@ -183,6 +201,7 @@ def _module_template(name: str, settings: _FactorySettings, target: _SettingValu
         ("remove_in", settings.remove_in),
         ("target_name", target),
     ):
+        # the template renders a setting the source did not settle, so the rendered text is unknown
         if read.reason is not None and f"%({key})" in template.value:
             return _SettingValue(None, f"`message_template` renders `{key}`, but {read.reason}")
     try:
@@ -195,8 +214,17 @@ def _module_template(name: str, settings: _FactorySettings, target: _SettingValu
 
 
 def _store_target(read: _SettingValue, route: _TargetRoute, mappings: tuple[Any, Any]) -> _SettingValue:
-    """Return the ``target`` the factory of *route* stores for a classified read, or why the source does not say."""
+    """Return the ``target`` the factory of *route* stores for a classified read, or why the source does not say.
+
+    Examples:
+        >>> _store_target(_SettingValue(("default",)), _TargetRoute.CALLABLE_STRICT, (None, None)).value
+        <TargetMode.NOTIFY: 'notify'>
+        >>> _store_target(_SettingValue(None, "not a literal"), _TargetRoute.CALLABLE, (None, None)).reason
+        'not a literal'
+
+    """
     if read.reason is not None:
+        # ``deprecated_instance`` serves a plain-data target under the old name, so it needs no resolved name
         if route is _TargetRoute.INSTANCE and isinstance(read.value, tuple) and read.value[0] == "data":
             return _SettingValue(
                 _StaticDataTarget(read.value[1])
@@ -212,7 +240,16 @@ def _store_target(read: _SettingValue, route: _TargetRoute, mappings: tuple[Any,
 
 
 def _normalise_target(read: tuple[Any, ...], route: _TargetRoute, mappings: tuple[Any, Any]) -> _SettingValue:
-    """Turn a classified ``target`` into the value the factory of *route* stores, as the runtime normalises it."""
+    """Turn a classified ``target`` into the value the factory of *route* stores, as the runtime normalises it.
+
+    Examples:
+        >>> mappings = ({"old": "new"}, None)
+        >>> _normalise_target(("const", TargetMode.AUTO), _TargetRoute.CALLABLE, mappings).value
+        <TargetMode.ARGS_REMAP: 'args_remap'>
+        >>> _normalise_target(("replacement", "new_func", "def"), _TargetRoute.CALLABLE, mappings).value.__qualname__
+        'new_func'
+
+    """
     args_mapping, attrs_mapping = mappings
     kind, value = read[0], read[1]
     if route is _TargetRoute.MODULE:
@@ -243,7 +280,15 @@ def _normalise_target(read: tuple[Any, ...], route: _TargetRoute, mappings: tupl
 
 
 def _auto_resolve(target: Any, mappings: tuple[Any, Any]) -> Any:  # noqa: ANN401
-    """Resolve a proxy's unset target from its mappings, as ``_resolve_proxy_target`` does."""
+    """Resolve a proxy's unset target from its mappings, as ``_resolve_proxy_target`` does.
+
+    Examples:
+        >>> _auto_resolve(None, ({"old": "new"}, None)), _auto_resolve(None, (None, {"old": "new"}))
+        (<TargetMode.ARGS_REMAP: 'args_remap'>, <TargetMode.ATTRS_REMAP: 'attrs_remap'>)
+        >>> _auto_resolve(None, (None, None)) is None
+        True
+
+    """
     args_mapping, attrs_mapping = mappings
     if target is None and args_mapping:
         return TargetMode.ARGS_REMAP

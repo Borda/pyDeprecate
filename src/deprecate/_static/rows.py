@@ -17,7 +17,21 @@ from deprecate.audit._scan import _is_excluded
 
 
 def _row(module: str, function: str, wrapper: _SourceWrapper) -> _StaticWrapperInfo:
-    """Build the synthetic wrapper info the checks read, named as the import scan names it."""
+    """Build the synthetic wrapper info the checks read, named as the import scan names it.
+
+    A module's own wrapper has an empty *function* and is named by the module; any other row is named by the last part
+    of its dotted *function* (``Cls.old`` is ``old``).
+
+    Examples:
+        >>> from deprecate._types import DeprecationConfig
+        >>> wrapper = _SourceWrapper("pkg.mod", False, "callable", DeprecationConfig(deprecated_in="1.0"))
+        >>> row = _row("pkg.mod", "Cls.old", wrapper)
+        >>> row.module, row.function, row.deprecated_info.name
+        ('pkg.mod', 'Cls.old', 'old')
+        >>> _row("pkg.mod", "", wrapper).deprecated_info.name
+        'pkg.mod'
+
+    """
     config = replace(wrapper.config, name=function.rsplit(".", 1)[-1] if function else module)
     return _StaticWrapperInfo(
         module=module,
@@ -52,9 +66,11 @@ def _module_rows(
                 _FoundGap(_GapKind.STATIC_UNRESOLVED, f"{module}.{name}: {_CYCLE}", subject=(module, name))
             )
         elif isinstance(value, _SourceWrapper):
+            # a wrapper bound under several public names keeps only the binding named like itself
             if id(value) in canonical and name != value.own_name:
                 continue
             rows.extend(_wrapper_rows(module, name, value, reader.gaps, attribute=attribute, seen=seen))
+        # audit the members of a class this module defines itself; classes imported from elsewhere are audited there
         elif isinstance(value, _PlainClass) and include_members and value.module == module:
             unaudited: list[str] = []
             members = reader.class_members(value, unaudited)
@@ -72,7 +88,9 @@ def _wrapper_rows(
     module: str, name: str, value: _SourceWrapper, gaps: list[_FoundGap], *, attribute: bool, seen: set[int]
 ) -> list[DeprecationWrapperInfo]:
     """Return the row of one public binding of a wrapper, or none when another binding or module owns it."""
+    # the wrapper is defined in another module of the same top-level package: a re-export, not this module's own
     foreign = value.module != module and value.module.split(".")[0] == module.split(".")[0]
+    # first sight of a wrapper over an object imported from a sibling module that is not shown to be a class or function
     if attribute and foreign and value.proxy is None and id(value) not in seen:
         seen.add(id(value))
         gaps.append(
@@ -84,6 +102,7 @@ def _wrapper_rows(
             )
         )
         return []
+    # skip a function wrapper re-exported from a sibling module (that module owns its row) and one already reported
     if (attribute and value.proxy is False and foreign) or id(value) in seen:
         return []
     seen.add(id(value))

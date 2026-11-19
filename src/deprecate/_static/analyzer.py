@@ -57,7 +57,7 @@ from deprecate.audit._version import _absolute_import
 
 
 def _may_interrupt_execution(stmt: ast.stmt) -> bool:
-    """Detect calls or imports executed while a module-level statement runs.
+    """Detect calls or imports executed while a module-level statement runs, which may raise before later bindings.
 
     Examples:
         >>> _may_interrupt_execution(ast.parse("def helper(): return work()").body[0])
@@ -141,13 +141,13 @@ class _ModuleAnalyzer:
         )
 
     def _set(self, name: str, value: _Value) -> None:
-        """Bind a module-level name, dropping any configured factory it held before."""
+        """Bind a module-level name to *value* at the current position, dropping any configured factory it held."""
         self.bindings[name] = value
         self.positions[name] = self.position
         self.configured.pop(name, None)
 
     def _statement(self, stmt: ast.stmt) -> None:
-        """Record what one module-level statement binds."""
+        """Record what one module-level statement binds, dispatching on its kind; others bind their names opaquely."""
         self.position += 1
         if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
             self._set(stmt.name, self._decorated_def(stmt, attr=None, shadow={}))
@@ -155,6 +155,7 @@ class _ModuleAnalyzer:
             self._set(stmt.name, self._class(stmt, attr=None, shadow={}))
         elif isinstance(stmt, (ast.Assign, ast.AnnAssign)):
             self._assign(stmt)
+        # a bare call statement, such as ``deprecated_module(...)``, which acts on the module itself
         elif isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call):
             self._module_call(stmt.value)
         elif isinstance(stmt, ast.ImportFrom):
@@ -234,6 +235,7 @@ class _ModuleAnalyzer:
                     self.ever_configured.add(target.id)
                 continue
             for node in ast.walk(target):  # unpacking or attribute targets bind no readable value
+                # tuple unpacking or an attribute target stores names whose values the source does not show
                 if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
                     self._set(node.id, None)
 
@@ -249,6 +251,7 @@ class _ModuleAnalyzer:
 
     def _assigned_value(self, value: ast.expr) -> _Value:
         """Return what an assigned value binds: an alias shares the object; ``typing.cast(T, x)`` aliases ``x``."""
+        # ``cast(Type, obj)`` is only a type hint: the name is bound to ``obj`` itself
         if isinstance(value, ast.Call) and _dotted(value.func) in ("cast", "typing.cast") and len(value.args) == 2:
             value = value.args[1]
         if isinstance(value, ast.Name):
@@ -294,6 +297,7 @@ class _ModuleAnalyzer:
         root = callee
         while isinstance(root, ast.Attribute):
             root = root.value
+        # not a factory reached through a name the class body rebinds, so the module-level reading stands
         if not (isinstance(root, ast.Name) and root.id in shadow):
             return False
         names_factory = self.aliases.kind(callee) not in (None, _Factory.TARGET_MODE) or (
@@ -354,6 +358,7 @@ class _ModuleAnalyzer:
             or (isinstance(name, ast.Name) and name.id == "__name__")
             or (isinstance(name, ast.Constant) and name.value in (None, self.parsed.name))
         )
+        # skip a call naming another module, or one whose ``name`` may hide inside an unresolved splat
         if not own or args.splat is not None and "name" not in args.given:
             return
         self.consumed.add(id(call.func))
@@ -374,6 +379,7 @@ class _ModuleAnalyzer:
         )
         for index, decorator in enumerate(node.decorator_list):  # outermost first; the scan reads its configuration
             factory = self._factory_call(decorator, (_Factory.DEPRECATED, _Factory.CALLABLE), shadow)
+            # not a factory decorator, or the outermost one already built the wrapper, or an outer decorator replaced it
             if factory is None or found is not None or replaced:
                 continue
             replaced = self._replaced_by_outer(node.decorator_list[:index], decorator)
@@ -407,7 +413,7 @@ class _ModuleAnalyzer:
         return False
 
     def _qualified(self, node: ast.expr) -> Optional[str]:
-        """Return the dotted name *node* spells, its root resolved through ``from module import name``."""
+        """Return the dotted name *node* spells, its root resolved through this module's imports."""
         return _qualified_name(self.parsed, self.scope, node)
 
     def _class(
@@ -536,6 +542,7 @@ class _ModuleAnalyzer:
                 self._read_settings(args, value, shadow), _TargetRoute.INSTANCE, api_type, proxy=True
             )
             obj = args.given.get("obj")
+            # an ``args_mapping`` only matters when calling the proxy, and the target may not be callable
             if obj is not None and wrapper.config.args_mapping and not callable(wrapper.config.target):
                 classification = self.targets.classify(obj, shadow, 0)
                 if classification.value[0] == "data":
@@ -672,6 +679,7 @@ class _ModuleAnalyzer:
             return None
         entries: dict[str, ast.expr] = {}
         for key, value in zip(node.keys, node.values):
+            # a ``**other`` entry or a non-string key cannot be read as a keyword argument
             if not (isinstance(key, ast.Constant) and isinstance(key.value, str)):
                 return None
             entries[key.value] = value
@@ -705,6 +713,7 @@ class _ModuleAnalyzer:
             literal = event.value if event is not None and event.kind == "assign" else node
         if isinstance(literal, ast.Constant) and literal.value is None:
             return _SettingValue(default)  # ``None`` leaves the setting unset, as the runtime reads a falsy version
+        # a string literal settles the setting; anything else is reported as not a literal
         if isinstance(literal, ast.Constant) and isinstance(literal.value, str):
             return _SettingValue(literal.value)
         return _SettingValue(default, f"`{name}` is `{ast.unparse(node)}`, not a literal")
@@ -715,6 +724,7 @@ class _ModuleAnalyzer:
             node = self._setting(args, name)
         except LookupError as err:
             return _SettingValue(None, str(err))
+        # left out or ``None``: the mapping is simply not set
         if node is None or (isinstance(node, ast.Constant) and node.value is None):
             return _SettingValue(None)
         entries = self._literal_dict(node, shadow)
