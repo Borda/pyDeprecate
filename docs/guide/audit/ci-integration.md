@@ -45,7 +45,7 @@ def test_deprecated_wrappers_are_valid():
 
 Use your project's release convention rather than assuming the policy defaults fit.
 
-1. Set the release numbers in [`[tool.pydeprecate.policy]`](audit-policy.md#enforcing-a-deprecation-policy).
+1. Set the release numbers in [`[tool.pydeprecate.policy]`](policy.md#enforcing-a-deprecation-policy).
 2. Install your project and `pyDeprecate[audit]` in CI.
 3. Run the CLI as its own CI step (since v0.16):
 
@@ -150,7 +150,7 @@ repos:
 
 !!! warning "A missing dependency can pass silently"
 
-    A failed submodule import emits `UserWarning: audit: skipped <module>`. The scan skips that module and continues. See [Troubleshooting](../troubleshooting.md).
+    A failed submodule import emits `UserWarning: audit: skipped <module>`. The scan skips that module and continues. See [Troubleshooting](../../troubleshooting.md).
 
     pre-commit hides output from passing hooks. A missing dependency can therefore leave modules unaudited <u>without a visible failure</u>.
 
@@ -454,11 +454,11 @@ permissions:
 
 ## See also
 
-- [Python audit API](audit.md)
-- [Deprecation policy](audit-policy.md)
-- [Testing deprecated code](testing.md)
-- [Classes](classes.md)
-- [Selective attribute deprecation](attributes.md)
-- [Use Cases](use-cases.md) — Deprecation patterns and scenarios.
-- [Getting Started](../getting-started.md) — The decorator parameters.
-- [Troubleshooting](../troubleshooting.md) — Common configuration errors and fixes.
+- [Python audit API](index.md)
+- [Deprecation policy](policy.md)
+- [Testing deprecated code](../testing.md)
+- [Classes](../classes.md)
+- [Selective attribute deprecation](../attributes.md)
+- [Use Cases](../use-cases.md) — Deprecation patterns and scenarios.
+- [Getting Started](../../getting-started.md) — The decorator parameters.
+- [Troubleshooting](../../troubleshooting.md) — Common configuration errors and fixes.

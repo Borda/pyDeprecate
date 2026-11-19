@@ -197,9 +197,9 @@ print(clean_session)
 
 ## See also
 
-- [Python audit API](audit.md)
-- [Deprecation policy](audit-policy.md)
-- [CI integration](ci-integration.md)
+- [Python audit API](audit/index.md)
+- [Deprecation policy](audit/policy.md)
+- [CI integration](audit/ci-integration.md)
 - [Classes](classes.md)
 - [Selective attribute deprecation](attributes.md)
 - [Use Cases](use-cases.md) — Deprecation patterns and scenarios.

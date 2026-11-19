@@ -5,7 +5,7 @@ description: "Scan Python deprecations, validate wrappers, detect chains and map
 
 # Audit Tools
 
-See [policy enforcement](audit-policy.md), [CI integration](ci-integration.md), and [testing deprecated code](testing.md) for the companion guides.
+See [policy enforcement](policy.md), [CI integration](ci-integration.md), and [testing deprecated code](../testing.md) for the companion guides.
 
 Audit tools catch four common problems before they reach users:
 
@@ -44,7 +44,7 @@ Audit tools catch four common problems before they reach users:
     | `func.__deprecated__.deprecated_in`                  | `get_deprecation_config(func).deprecated_in` |
     | `isinstance(func.__deprecated__, DeprecationConfig)` | `get_deprecation_config(func) is not None`   |
 
-    Every wrapper kind is affected — functions, methods, class proxies, instance proxies, and modules. See the [v0.12-to-v0.13 migration guide](migration.md) for the full list.
+    Every wrapper kind is affected — functions, methods, class proxies, instance proxies, and modules. See the [v0.12-to-v0.13 migration guide](../migration.md) for the full list.
 
 ## Scanning from Python without importing
 
@@ -135,7 +135,7 @@ Policy violations: 9
 
     Use an import-mode audit with the package dependencies available for full runtime discovery.
 
-The API shares the [CLI `--static` source reader](cli.md#static-mode) and its [blind spots](../limitations.md#audit-tooling).
+The API shares the [CLI `--static` source reader](cli.md#static-mode) and its [blind spots](../../limitations.md#audit-tooling).
 
 The Python API also accepts module files and renders tables from results. CLI `status` has no `--static` mode.
 
@@ -457,7 +457,7 @@ Use `row.pep702_message is not None` to identify these rows. Every pyDeprecate r
 
     Drop PEP 702-only rows before applying your own `empty_deprecated_in`, expiry, or report filters to an opt-in scan.
 
-    A pyDeprecate wrapper with PEP 702 stacked on top remains a regular row with its full schedule. See the [static-checker pattern](functions.md#static-type-checkers-pep-702).
+    A pyDeprecate wrapper with PEP 702 stacked on top remains a regular row with its full schedule. See the [static-checker pattern](../functions.md#static-type-checkers-pep-702).
 
 ```python
 from deprecate import find_deprecation_wrappers
@@ -828,11 +828,11 @@ The table derives all data from `__deprecation_config__` decorator metadata so i
 
 ## See also
 
-- [Deprecation policy](audit-policy.md)
+- [Deprecation policy](policy.md)
 - [CI integration](ci-integration.md)
-- [Testing deprecated code](testing.md)
-- [Classes](classes.md)
-- [Selective attribute deprecation](attributes.md)
-- [Use Cases](use-cases.md) — Deprecation patterns and scenarios.
-- [Getting Started](../getting-started.md) — The decorator parameters.
-- [Troubleshooting](../troubleshooting.md) — Common configuration errors and fixes.
+- [Testing deprecated code](../testing.md)
+- [Classes](../classes.md)
+- [Selective attribute deprecation](../attributes.md)
+- [Use Cases](../use-cases.md) — Deprecation patterns and scenarios.
+- [Getting Started](../../getting-started.md) — The decorator parameters.
+- [Troubleshooting](../../troubleshooting.md) — Common configuration errors and fixes.

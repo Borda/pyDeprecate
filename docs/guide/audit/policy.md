@@ -7,7 +7,7 @@ description: "Enforce removal deadlines and deprecation policy rules with Python
 
 ## Enforcing Removal Deadlines
 
-![Deprecation lifecycle cycle: old API in blue, new API and decorator in yellow, callers migrate, pre-commit, CI and pytest flag the expired wrapper, delete it and repeat](../assets/images/pydeprecate-lifecycle.svg)
+![Deprecation lifecycle cycle: old API in blue, new API and decorator in yellow, callers migrate, pre-commit, CI and pytest flag the expired wrapper, delete it and repeat](../../assets/images/pydeprecate-lifecycle.svg)
 
 `remove_in` commits you to **delete code** when that version ships. Forgotten deadlines leave *zombie code* behind.
 
@@ -300,11 +300,11 @@ Found 4 violations
 
 ## See also
 
-- [Python audit API](audit.md)
+- [Python audit API](index.md)
 - [CI integration](ci-integration.md)
-- [Testing deprecated code](testing.md)
-- [Classes](classes.md)
-- [Selective attribute deprecation](attributes.md)
-- [Use Cases](use-cases.md) — Deprecation patterns and scenarios.
-- [Getting Started](../getting-started.md) — The decorator parameters.
-- [Troubleshooting](../troubleshooting.md) — Common configuration errors and fixes.
+- [Testing deprecated code](../testing.md)
+- [Classes](../classes.md)
+- [Selective attribute deprecation](../attributes.md)
+- [Use Cases](../use-cases.md) — Deprecation patterns and scenarios.
+- [Getting Started](../../getting-started.md) — The decorator parameters.
+- [Troubleshooting](../../troubleshooting.md) — Common configuration errors and fixes.

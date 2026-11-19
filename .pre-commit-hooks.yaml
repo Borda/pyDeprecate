@@ -6,7 +6,7 @@
 # pass the path only for another location or for a root holding several packages (e.g. `mypkg/` plus `tests/`),
 # which otherwise fails loudly: `args: [mypkg]`.
 # The scan imports the scanned package, so this isolated hook environment only works for packages whose imports
-# resolve without their own runtime dependencies; see the "Pre-commit Integration" section of docs/guide/audit.md.
+# resolve without their own runtime dependencies; see the "Pre-commit Integration" section of docs/guide/audit/index.md.
 # The `-static` hooks read the source with `ast` instead and import nothing from the package, so they work for any
 # package; they cover `expiry` and `policy` only. Recognized unresolved forms produce a
 # `not statically resolvable` gap without failing the hook; other forms can be invisible without a gap. pre-commit shows a passing hook's output only when the hook

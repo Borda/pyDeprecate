@@ -45,7 +45,7 @@ To install directly from source (for pre-release or development versions):
 pip install https://github.com/Borda/pyDeprecate/archive/main.zip
 ```
 
-The `audit` extra adds `packaging` for version comparison, needed only by [`validate_deprecation_expiry`](guide/audit-policy.md#enforcing-removal-deadlines) and [`validate_deprecation_policy`](guide/audit-policy.md#enforcing-a-deprecation-policy). Install it when you want to enforce removal deadlines or a deprecation policy in CI:
+The `audit` extra adds `packaging` for version comparison, needed only by [`validate_deprecation_expiry`](guide/audit/policy.md#enforcing-removal-deadlines) and [`validate_deprecation_policy`](guide/audit/policy.md#enforcing-a-deprecation-policy). Install it when you want to enforce removal deadlines or a deprecation policy in CI:
 
 ```bash
 pip install 'pyDeprecate[audit]'
@@ -181,9 +181,9 @@ ______________________________________________________________________
 ![Deprecation lifecycle cycle: old API in blue, new API and decorator in yellow, callers migrate, pre-commit, CI and pytest flag the expired wrapper, delete it and repeat](assets/images/pydeprecate-lifecycle.svg)
 
 - **Fatal deprecations** — `as_exception=True` (or `deprecate.as_exceptions()` / `DEPRECATE_AS_EXCEPTIONS=1`) raises `DeprecatedError` instead of warning, so a test run can refuse deprecated calls. See [Fatal deprecations](guide/functions.md#fatal-deprecations).
-- **CLI** — `pydeprecate check`, `expiry`, `policy`, `chains` and `all` audit a package from the shell with CI-friendly exit codes. See the [CLI Reference](guide/cli.md).
-- **pre-commit and GitHub Action** — run the same checks as a [pre-commit hook](guide/ci-integration.md#pre-commit-integration) or a [GitHub Action](guide/ci-integration.md#github-action) step.
+- **CLI** — `pydeprecate check`, `expiry`, `policy`, `chains` and `all` audit a package from the shell with CI-friendly exit codes. See the [CLI Reference](guide/audit/cli.md).
+- **pre-commit and GitHub Action** — run the same checks as a [pre-commit hook](guide/audit/ci-integration.md#pre-commit-integration) or a [GitHub Action](guide/audit/ci-integration.md#github-action) step.
 
 ______________________________________________________________________
 
-Next: [Use Cases](guide/use-cases.md) — overview of all deprecation patterns with links to each topic. See also: [Customization](guide/customization.md) · [Audit Tools](guide/audit.md) · [Troubleshooting](troubleshooting.md)
+Next: [Use Cases](guide/use-cases.md) — overview of all deprecation patterns with links to each topic. See also: [Customization](guide/customization.md) · [Audit Tools](guide/audit/index.md) · [Troubleshooting](troubleshooting.md)

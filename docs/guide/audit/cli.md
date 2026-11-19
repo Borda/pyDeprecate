@@ -5,7 +5,7 @@ description: 'Command-line interface reference for pyDeprecate: scan deprecated 
 
 # CLI Reference
 
-The `pydeprecate` CLI runs all four [audit checks](audit.md) directly from the command line, without writing a Python script. These checks cover wrapper configuration, expiry enforcement, policy linting, and chain detection.
+The `pydeprecate` CLI runs all four [audit checks](index.md) directly from the command line, without writing a Python script. These checks cover wrapper configuration, expiry enforcement, policy linting, and chain detection.
 
 ## Installation
 
@@ -45,7 +45,7 @@ pydeprecate status tests --version 1.2
 
 === "check"
 
-    This subcommand validates wrapper configuration: invalid `args_mapping` keys, identity mappings, no-effect wrappers, and deprecated-to-deprecated chains. It is backed by [`find_deprecation_wrappers()`](audit.md#validating-wrapper-configuration).
+    This subcommand validates wrapper configuration: invalid `args_mapping` keys, identity mappings, no-effect wrappers, and deprecated-to-deprecated chains. It is backed by [`find_deprecation_wrappers()`](index.md#validating-wrapper-configuration).
 
     ```bash
     pydeprecate check path/to/your/package
@@ -67,7 +67,7 @@ pydeprecate status tests --version 1.2
 
 === "expiry"
 
-    This subcommand checks whether any deprecated wrappers have passed their `remove_in` deadline using [`validate_deprecation_expiry()`](audit-policy.md#enforcing-removal-deadlines). It requires the `[audit]` extra.
+    This subcommand checks whether any deprecated wrappers have passed their `remove_in` deadline using [`validate_deprecation_expiry()`](policy.md#enforcing-removal-deadlines). It requires the `[audit]` extra.
 
     ```bash
     # explicit version
@@ -85,7 +85,7 @@ pydeprecate status tests --version 1.2
 
 === "policy"
 
-    This subcommand checks whether each deprecation was *scheduled* responsibly, using [`validate_deprecation_policy()`](audit-policy.md#enforcing-a-deprecation-policy). Every violation message is prefixed with the slug of the rule it broke. `policy` never needs a package version, so it takes no `--version` flag.
+    This subcommand checks whether each deprecation was *scheduled* responsibly, using [`validate_deprecation_policy()`](policy.md#enforcing-a-deprecation-policy). Every violation message is prefixed with the slug of the rule it broke. `policy` never needs a package version, so it takes no `--version` flag.
 
     | Rule               | Default         | Dependency                       |
     | ------------------ | --------------- | -------------------------------- |
@@ -126,7 +126,7 @@ pydeprecate status tests --version 1.2
 
 === "chains"
 
-    This subcommand detects two kinds of chains using [`validate_deprecation_chains()`](audit.md#detecting-deprecation-chains):
+    This subcommand detects two kinds of chains using [`validate_deprecation_chains()`](index.md#detecting-deprecation-chains):
 
     - `ChainType.TARGET` identifies wrappers whose `target` is itself a deprecated callable.
     - `ChainType.STACKED` identifies stacked argument mappings that should be collapsed.
@@ -141,10 +141,10 @@ pydeprecate status tests --version 1.2
 
     This subcommand runs all four checks in a single scan pass, then appends a compact markdown deprecation table:
 
-    - [`find_deprecation_wrappers()`](audit.md#validating-wrapper-configuration) validates wrapper configuration.
-    - [`validate_deprecation_expiry()`](audit-policy.md#enforcing-removal-deadlines) enforces removal deadlines.
-    - [`validate_deprecation_policy()`](audit-policy.md#enforcing-a-deprecation-policy) checks policy.
-    - [`validate_deprecation_chains()`](audit.md#detecting-deprecation-chains) detects chains.
+    - [`find_deprecation_wrappers()`](index.md#validating-wrapper-configuration) validates wrapper configuration.
+    - [`validate_deprecation_expiry()`](policy.md#enforcing-removal-deadlines) enforces removal deadlines.
+    - [`validate_deprecation_policy()`](policy.md#enforcing-a-deprecation-policy) checks policy.
+    - [`validate_deprecation_chains()`](index.md#detecting-deprecation-chains) detects chains.
 
     !!! warning "Missing `packaging` leaves some checks running"
 
@@ -395,7 +395,7 @@ It survives moved code, a version bump and reworded messages. It changes only wh
 
 The rule slugs are `invalid-args`, `misconfigured-target`, `inner-order-property`, `identity-mapping`, `no-effect`, `positional-only-mapping`, `chain`, `expired`, `min-grace` and `message-required`.
 
-The layout is described by the JSON Schema [`docs/schemas/report-1.schema.json`](../schemas/report-1.schema.json). `schema` is bumped *only* when a key is removed or renamed, or its meaning or type changes. Adding a key does not bump it, so readers must ignore keys they do not know.
+The layout is described by the JSON Schema [`docs/schemas/report-1.schema.json`](../../schemas/report-1.schema.json). `schema` is bumped *only* when a key is removed or renamed, or its meaning or type changes. Adding a key does not bump it, so readers must ignore keys they do not know.
 
 The keys added in v0.16 (per-finding records, `gate`, `mode`, …) did not bump it. Every key a v0.15 report has (`schema`, `table`, `gaps[].kind`/`detail`/`hint`) keeps its type and meaning. A v0.15 reader therefore still reads a v0.16 report.
 
@@ -436,7 +436,7 @@ The CLI can therefore run from any directory of the checkout. Scan the package i
 
 !!! note "PEP 702-only symbols"
 
-    There is intentionally no `--include-pep702` flag. Every subcommand evaluates pyDeprecate schedule metadata (`deprecated_in`, `remove_in`, a replacement) that symbols deprecated only with `warnings.deprecated` lack. List those with the Python API: `find_deprecation_wrappers(..., include_pep702=True)`; see [PEP 702-only deprecations](audit.md#pep-702-only-deprecations).
+    There is intentionally no `--include-pep702` flag. Every subcommand evaluates pyDeprecate schedule metadata (`deprecated_in`, `remove_in`, a replacement) that symbols deprecated only with `warnings.deprecated` lack. List those with the Python API: `find_deprecation_wrappers(..., include_pep702=True)`; see [PEP 702-only deprecations](index.md#pep-702-only-deprecations).
 
 ### Policy rule flags
 
@@ -721,7 +721,7 @@ A static run's findings carry the same `location` as an import run's: the file a
 | External factories                                   | A factory imported from outside the scanned package (`from compat import deprecated`, or a star import of one) is invisible. The exception is a call passing `remove_in` by keyword, which produces a `not statically resolvable` gap.  |
 | Report target names                                  | Static mode cannot reproduce these exactly as import mode prints them: `New API` shows the source text. A dataclass whose `attrs_mapping` import mode expands into `args_mapping` reads `dataclass` rather than `dataclass attributes`. |
 
-See [Limitations](../limitations.md). Run without `--static` in an environment with the package's dependencies for a full audit.
+See [Limitations](../../limitations.md). Run without `--static` in an environment with the package's dependencies for a full audit.
 
 ## Exit codes
 

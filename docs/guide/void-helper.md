@@ -310,4 +310,4 @@ print(result)
 
 ______________________________________________________________________
 
-Next: [Audit Tools](audit.md) — validate decorator configuration, enforce removal deadlines, and detect deprecation chains in CI.
+Next: [Audit Tools](audit/index.md) — validate decorator configuration, enforce removal deadlines, and detect deprecation chains in CI.

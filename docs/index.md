@@ -73,11 +73,11 @@ Calling `addition(1, 2)` now **emits a `FutureWarning`** and transparently **for
 - **Custom streams:** The `stream` parameter routes warnings to `logging`, standard `warnings`, or any callable. `stream=None` silences output while forwarding continues.
 - **Custom message templates:** `message_template` overrides the default message with `%`-style placeholders. Available placeholders include `source_name`, `target_path`, `deprecated_in`, `remove_in`, and `argument_map`.
 - **Conditional skip:** `skip_if=callable` suppresses deprecation machinery when a runtime condition holds, such as callers adopting a newer dependency. It works on decorators and proxies.
-- **CI audit tools:** [`validate_deprecation_expiry()`](guide/audit-policy.md#enforcing-removal-deadlines) catches overdue removals. [`validate_deprecation_policy()`](guide/audit-policy.md#enforcing-a-deprecation-policy) checks your release policy. [`validate_deprecation_chains()`](guide/audit.md#detecting-deprecation-chains) detects double-deprecation chains.
-- **Wrapper validation:** [`find_deprecation_wrappers()`](guide/audit.md#validating-wrapper-configuration) surfaces misconfigured `args_mapping` keys before they silently do nothing.
+- **CI audit tools:** [`validate_deprecation_expiry()`](guide/audit/policy.md#enforcing-removal-deadlines) catches overdue removals. [`validate_deprecation_policy()`](guide/audit/policy.md#enforcing-a-deprecation-policy) checks your release policy. [`validate_deprecation_chains()`](guide/audit/index.md#detecting-deprecation-chains) detects double-deprecation chains.
+- **Wrapper validation:** [`find_deprecation_wrappers()`](guide/audit/index.md#validating-wrapper-configuration) surfaces misconfigured `args_mapping` keys before they silently do nothing.
 - **Static type-checker signals:** Native PEP 702 diagnostics come from `warnings.deprecated`, which type checkers recognise by name. For static hints with runtime forwarding, stack `@warnings.deprecated("literal message", category=None)` directly above `@deprecated(...)`. See [Static type checkers](guide/functions.md#static-type-checkers-pep-702).
-- **CLI:** `pydeprecate check src/` scans for misconfigured wrappers and chains. `pydeprecate all src/` also checks expiry and policy, then appends a deprecation table. See [CLI Reference](guide/cli.md).
-- **CI integration:** Ready-made [pre-commit hooks](guide/ci-integration.md#pre-commit-integration) and a [GitHub Action](guide/ci-integration.md#github-action) run the checks in CI.
+- **CLI:** `pydeprecate check src/` scans for misconfigured wrappers and chains. `pydeprecate all src/` also checks expiry and policy, then appends a deprecation table. See [CLI Reference](guide/audit/cli.md).
+- **CI integration:** Ready-made [pre-commit hooks](guide/audit/ci-integration.md#pre-commit-integration) and a [GitHub Action](guide/audit/ci-integration.md#github-action) run the checks in CI.
 - **Fatal mode:** `as_exception=True` or `deprecate.as_exceptions()` raises `DeprecatedError` instead of warning. Test runs can refuse deprecated calls. See [Fatal deprecations](guide/functions.md#fatal-deprecations).
 - **Testing helpers:** The `assert_no_warnings()` context manager checks that no warnings of a given type escape a block. `no_warning_call` remains a legacy alias.
 - **Zero runtime dependencies:** Nothing is added to `install_requires`.
@@ -125,7 +125,7 @@ Choose pyDeprecate for call forwarding, argument mapping, proxies, and CI audits
 - [Use Cases](guide/use-cases.md) — overview of all deprecation patterns with links to each topic page.
 - [Customization](guide/customization.md) — custom message templates and output redirection to loggers.
 - [void() Helper](guide/void-helper.md) — sentinel function for self-documenting deprecated stubs.
-- [Audit Tools](guide/audit.md) — enforce removal deadlines and catch deprecation chains in CI.
+- [Audit Tools](guide/audit/index.md) — enforce removal deadlines and catch deprecation chains in CI.
 - [Compare Python Deprecation Tools](guide/compare-python-deprecation-tools.md) — compare `warnings.warn`, `deprecation`, `Deprecated`, and `warnings.deprecated`.
 - [Agent Recipes](guide/agent-recipes.md) — copy-paste patterns for AI coding assistants.
 - [Troubleshooting](troubleshooting.md) — common errors and how to fix them.

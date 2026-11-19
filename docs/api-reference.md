@@ -2,7 +2,7 @@
 
 This reference is auto-generated from source docstrings. For usage examples, see the [Use Cases](guide/use-cases.md) guide. For installation and a first deprecation, see [Getting Started](getting-started.md).
 
-The `pydeprecate` command-line tool is documented in the [CLI Reference](guide/cli.md).
+The `pydeprecate` command-line tool is documented in the [CLI Reference](guide/audit/cli.md).
 
 ## Decorator
 
@@ -90,4 +90,4 @@ These aliases are deprecated since v0.6 and removed in v1.0. Use the replacement
 
 ## Command line
 
-The `pydeprecate` command wraps the audit functions above for CI and pre-commit use. Its subcommands, flags and exit codes are listed in the [CLI Reference](guide/cli.md).
+The `pydeprecate` command wraps the audit functions above for CI and pre-commit use. Its subcommands, flags and exit codes are listed in the [CLI Reference](guide/audit/cli.md).

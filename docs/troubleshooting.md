@@ -519,7 +519,7 @@ print(my_func(3))
 
 !!! danger "This misconfiguration will become a TypeError in v1.0"
 
-    Migrate now to avoid a hard break on upgrade. Use the [audit tools](guide/audit.md) to detect this combination across your codebase automatically — `find_deprecation_wrappers()` reports it via the `misconfigured_target` flag on `DeprecationWrapperInfo`.
+    Migrate now to avoid a hard break on upgrade. Use the [audit tools](guide/audit/index.md) to detect this combination across your codebase automatically — `find_deprecation_wrappers()` reports it via the `misconfigured_target` flag on `DeprecationWrapperInfo`.
 
 ### TypeError at decoration time: cross-class method target
 
@@ -2641,7 +2641,7 @@ Choose a setup matching your audit needs:
 
 - For removal deadlines and policy rules only, use the import-free `pydeprecate-expiry-static` and `pydeprecate-policy-static` hooks, which need none of your dependencies (from `v0.16.0`).
 
-The [audit guide](guide/ci-integration.md#pre-commit-integration) contains the hook recipes.
+The [audit guide](guide/audit/ci-integration.md#pre-commit-integration) contains the hook recipes.
 
 ### Can pydeprecate audit a package whose dependencies are not installed?
 
@@ -2665,7 +2665,7 @@ Recognized wrappers can be checked when the required settings are statically res
 
     - Wrappers imported from outside the scanned package are invisible.
 
-`check`, `chains`, `all`, and `status` need imported wrappers and have no static mode. See [Static mode](guide/cli.md#static-mode). For reusable Python rows, see the [Python static API](#how-do-i-audit-deprecations-without-importing-my-package).
+`check`, `chains`, `all`, and `status` need imported wrappers and have no static mode. See [Static mode](guide/audit/cli.md#static-mode). For reusable Python rows, see the [Python static API](#how-do-i-audit-deprecations-without-importing-my-package).
 
 ### How do I audit deprecations without importing my package?
 
@@ -2677,9 +2677,9 @@ Pass its frozen `StaticScanResult` directly to `validate_deprecation_expiry`, `v
 
     Always inspect `.gaps` for incomplete coverage, even when `.wrappers` is empty. Never call a row's stand-in target: it raises `TypeError`.
 
-This suits missing dependencies, docs builds, and isolated audit scripts. Supply `current_version` to expiry when `.version` is `None`; otherwise expiry raises `ImportError`. The result shares the [CLI `--static` blind spots](guide/cli.md#static-mode): dynamic forms can remain invisible without a gap.
+This suits missing dependencies, docs builds, and isolated audit scripts. Supply `current_version` to expiry when `.version` is `None`; otherwise expiry raises `ImportError`. The result shares the [CLI `--static` blind spots](guide/audit/cli.md#static-mode): dynamic forms can remain invisible without a gap.
 
-See the [runnable Python example](guide/audit.md#scanning-from-python-without-importing) and [limitations](limitations.md#audit-tooling).
+See the [runnable Python example](guide/audit/index.md#scanning-from-python-without-importing) and [limitations](limitations.md#audit-tooling).
 
 ### My pydeprecate pre-commit hook fails: contains multiple packages
 
@@ -2694,7 +2694,7 @@ Src-layout repositories and single-package roots resolve automatically. For mult
   args: [mypkg]
 ```
 
-The same error, a usage error with exit `2`, applies to every subcommand; see the [audit guide](guide/ci-integration.md#pre-commit-integration).
+The same error, a usage error with exit `2`, applies to every subcommand; see the [audit guide](guide/audit/ci-integration.md#pre-commit-integration).
 
 ### `pydeprecate gap: other copy audited`
 

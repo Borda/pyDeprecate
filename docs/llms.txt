@@ -323,11 +323,9 @@ What is being deprecated?
   │
   ├─ A class, Enum, or dataclass?
   │    → use @deprecated_class(target=NewCls, ...) — preferred, explicit, no extra notice
-  │      (@deprecated(target=NewCls, ...) on a class also works — a permanent dispatch,
-  │      not itself deprecated — and emits a one-time informational UserWarning per class
-  │      when it does; only that notice is removed, in v1.0. The cache retains 4096 class keys;
-  │      evicted keys may warn again. Use deprecated_class directly
-  │      to skip the notice and to reach proxy-only knobs like attrs_mapping without an extra hop)
+  │      (@deprecated(target=NewCls, ...) on a class also works — a permanent dispatch, not itself deprecated — and emits a one-time informational UserWarning per class when it does; only that notice is removed, in v1.0.
+  │      The cache retains 4096 class keys; evicted keys may warn again.
+  │      Use deprecated_class directly to skip the notice and to reach proxy-only knobs like attrs_mapping without an extra hop)
   │      └─ Only some attributes deprecated (rename or misspelling fix)?
   │           → also add attrs_mapping={"old_attr": "new_attr"} (or None for warn-only)
   │              only listed attrs warn; all others pass through silently
@@ -335,55 +333,39 @@ What is being deprecated?
   │                   → stack two @deprecated_class() calls, each with its own deprecated_in/remove_in
   │
   ├─ A `@property`?
-  │    → use `@deprecated @property` (outer order); all three accessors (`fget`/`fset`/`fdel`)
-  │      auto-wrap — chain-style `@x.setter` / `@x.deleter` re-wrap via `_DeprecatedProperty`.
-  │      Inner order (`@property @deprecated`) only wraps `fget`. Do NOT stack `@deprecated` twice
-  │      (raises `TypeError`) — apply once; use `.setter()` / `.deleter()` for additional accessors.
-  │      `target=<callable>` and `target=TargetMode.ARGS_REMAP` / `True` both raise `TypeError` —
-  │      property deprecation is warn-only; redirect by delegating manually in the accessor body.
-  │      Dataclass field alias: add a deprecated `@property` with the old name delegating to the
-  │      new field — do NOT use the same name as an existing dataclass field (conflicts with
-  │      `@dataclass`-generated `__init__`).
+  │    → use `@deprecated @property` (outer order); all three accessors (`fget`/`fset`/`fdel`) auto-wrap — chain-style `@x.setter` / `@x.deleter` re-wrap via `_DeprecatedProperty`.
+  │      Inner order (`@property @deprecated`) only wraps `fget`.
+  │      Do NOT stack `@deprecated` twice (raises `TypeError`) — apply once; use `.setter()` / `.deleter()` for additional accessors.
+  │      `target=<callable>` and `target=TargetMode.ARGS_REMAP` / `True` both raise `TypeError` — property deprecation is warn-only; redirect by delegating manually in the accessor body.
+  │      Dataclass field alias: add a deprecated `@property` with the old name delegating to the new field — do NOT use the same name as an existing dataclass field (conflicts with `@dataclass`-generated `__init__`).
   ├─ A `@cached_property`?
-  │    → use `@deprecated @cached_property` (outer order); wraps the getter function (`.func`) only —
-  │      `cached_property` has no setter or deleter. The warning fires once per instance (first access)
-  │      while the value stays cached; `num_warns` cannot raise that. Deleting the cached attribute
-  │      re-runs the getter, which warns again when the budget allows.
+  │    → use `@deprecated @cached_property` (outer order); wraps the getter function (`.func`) only — `cached_property` has no setter or deleter.
+  │      The warning fires once per instance (first access) while the value stays cached; `num_warns` cannot raise that.
+  │      Deleting the cached attribute re-runs the getter, which warns again when the budget allows.
   │
-  └─ A function or method (including generator functions — `def gen(): yield` — async functions —
-     `async def fn()` — and async generator functions — `async def gen(): yield`)?
+  └─ A function or method (including generator functions — `def gen(): yield` — async functions — `async def fn()` — and async generator functions — `async def gen(): yield`)?
        → use @deprecated; then choose target= based on the replacement:
          ├─ Has a replacement function/method?
          │    → target=<callable>; leave body empty (pass / void())
          │      ├─ Argument names differ between old and new?
          │      │    → also add args_mapping={"old_name": "new_name"}
          │      └─ Renaming a @staticmethod or @classmethod inside the same class?
-         │           → target=new_method (raw descriptor in class body) — NO .__func__ needed;
-         │             pyDeprecate unwraps it automatically.
+         │           → target=new_method (raw descriptor in class body) — NO .__func__ needed; pyDeprecate unwraps it automatically.
          │             Anti-pattern: target=new_method.__func__ (unnecessary — omit .__func__)
-         │             Note: @classmethod descriptor target requires source to also be a @classmethod
-         │             (symmetric same-class pattern only); the receiver may have any name (cls, klass,
-         │             mcs); @deprecated above @staticmethod raises TypeError at decoration; any other
-         │             static/plain source forwards its first argument (or that parameter's default
-         │             when omitted) as the receiver: TypeError before any warning when it is not a
-         │             class, but a class passed there or given as the default is used;
-         │             a later source parameter, args_extra key or args_mapping value named like the
-         │             target's receiver raises TypeError at decoration (args_mapping that renames the
-         │             source's own receiver onto it, e.g. {"klass": "cls"}, is allowed)
+         │             Note: @classmethod descriptor target requires source to also be a @classmethod (symmetric same-class pattern only); the receiver may have any name (cls, klass, mcs)
+         │             Note: @deprecated above @staticmethod raises TypeError at decoration
+         │             Note: any other static/plain source forwards its first argument (or that parameter's default when omitted) as the receiver: TypeError before any warning when it is not a class, but a class passed there or given as the default is used
+         │             Note: a later source parameter, args_extra key or args_mapping value named like the target's receiver raises TypeError at decoration (args_mapping that renames the source's own receiver onto it, e.g. {"klass": "cls"}, is allowed)
          ├─ Only renaming an argument within the same function?
          │    → target=TargetMode.ARGS_REMAP with args_mapping; keep working body
          ├─ No replacement, warn-only?
-              → target=TargetMode.NOTIFY (explicit — preferred); keep working body
-                (omitting target also resolves to NOTIFY via the AUTO default, but pass it explicitly)
+         │    → target=TargetMode.NOTIFY (explicit — preferred); keep working body
+         │      (omitting target also resolves to NOTIFY via the AUTO default, but pass it explicitly)
          └─ Already deprecated (args renamed earlier) and now the whole function is going away?
               → keep ARGS_REMAP decorator on top; add @deprecated(NOTIFY) below it
                 (ARGS_REMAP outer + NOTIFY inner — both layers fire independently)
-         Note: for generator functions and async generator functions the wrapper is itself a generator
-               (async generator) function — inspect.isgeneratorfunction / isasyncgenfunction stay True —
-               so the warning fires on the first next() / async for step, not on call; a generator that
-               is never iterated never warns.
-         Note: for async def functions, the wrapper is async def; inspect.iscoroutinefunction(wrapper)
-               returns True. Warning fires on await, not on call.
+         Note: for generator functions and async generator functions the wrapper is itself a generator (async generator) function — inspect.isgeneratorfunction / isasyncgenfunction stay True — so the warning fires on the first next() / async for step, not on call; a generator that is never iterated never warns.
+         Note: for async def functions, the wrapper is async def; inspect.iscoroutinefunction(wrapper) returns True. Warning fires on await, not on call.
 ```
 
 ### Enforce removal deadlines in CI
@@ -488,9 +470,9 @@ Reading `pyproject.toml` needs a TOML parser: built in on Python 3.11+, the `tom
     - Expiry defaults to `result.version` and raises `ImportError` if it is `None`. The table defaults to that version but shows unknown status if unavailable.
     - Each policy rule checks only resolved settings and never reads `pyproject.toml` policy settings.
     - Set `recursive` and `include_members` during discovery. Consumers reject `False` for either on a completed result.
-    - Always inspect `.gaps`. The [CLI static blind spots](https://borda.github.io/pyDeprecate/dev/guide/cli.html#static-mode) also apply, including dynamic forms invisible without a gap.
+    - Always inspect `.gaps`. The [CLI static blind spots](https://borda.github.io/pyDeprecate/dev/guide/audit/cli.html#static-mode) also apply, including dynamic forms invisible without a gap.
     - Synthetic targets raise `TypeError` if called.
-    - See the [Python static guide](https://borda.github.io/pyDeprecate/dev/guide/audit.html#scanning-from-python-without-importing).
+    - See the [Python static guide](https://borda.github.io/pyDeprecate/dev/guide/audit/index.html#scanning-from-python-without-importing).
 - For a classmethod target, caller keywords passed through `**kwargs` that match its receiver name raise `TypeError` before warning unless `args_mapping` renames or drops them. An empty-string mapping keeps the name unchanged, so it still raises without spending the warning budget.
 - Callable targets whose signatures cannot be inspected still decorate successfully. Forwarding that requires the target signature raises the original introspection error at call time, including keyword validation without `args_mapping`. An empty call requiring no signature validation can still succeed.
 - `deprecated_class(update_docstring=True)` injects notices only into existing class documentation. A source class whose `__doc__` is `None` keeps `None` through its proxy, without leaking internal proxy documentation. The source class docstring is unchanged.
@@ -1026,12 +1008,12 @@ Use `warnings.warn` for a one-off internal warning that does not need API compat
 - [Python deprecation decorator](https://borda.github.io/pyDeprecate/stable/getting-started.html)
 - [Replace warnings.warn](https://borda.github.io/pyDeprecate/stable/guide/migration.html)
 - [Deprecate arguments](https://borda.github.io/pyDeprecate/stable/guide/functions.html)
-- [API migration CI](https://borda.github.io/pyDeprecate/stable/guide/audit.html)
+- [API migration CI](https://borda.github.io/pyDeprecate/stable/guide/audit/index.html)
 - [Agent recipes](https://borda.github.io/pyDeprecate/stable/guide/agent-recipes.html)
 - [Class and object deprecation](https://borda.github.io/pyDeprecate/stable/guide/classes.html)
 - [Compare Python deprecation tools](https://borda.github.io/pyDeprecate/stable/guide/compare-python-deprecation-tools.html)
-- [Audit tools](https://borda.github.io/pyDeprecate/stable/guide/audit.html)
-- [CLI](https://borda.github.io/pyDeprecate/stable/guide/cli.html)
+- [Audit tools](https://borda.github.io/pyDeprecate/stable/guide/audit/index.html)
+- [CLI](https://borda.github.io/pyDeprecate/stable/guide/audit/cli.html)
 - [Troubleshooting](https://borda.github.io/pyDeprecate/stable/troubleshooting.html)
 - [Limitations and non-goals](https://borda.github.io/pyDeprecate/stable/limitations.html)
 
@@ -1044,8 +1026,8 @@ Use `warnings.warn` for a one-off internal warning that does not need API compat
 - [Properties Markdown](https://borda.github.io/pyDeprecate/stable/guide/properties.html.md)
 - [Async Markdown](https://borda.github.io/pyDeprecate/stable/guide/async.html.md)
 - [Advanced Markdown](https://borda.github.io/pyDeprecate/stable/guide/advanced.html.md)
-- [Audit Markdown](https://borda.github.io/pyDeprecate/stable/guide/audit.html.md)
-- [CLI Markdown](https://borda.github.io/pyDeprecate/stable/guide/cli.html.md)
+- [Audit Markdown](https://borda.github.io/pyDeprecate/stable/guide/audit/index.html.md)
+- [CLI Markdown](https://borda.github.io/pyDeprecate/stable/guide/audit/cli.html.md)
 - [Migration Markdown](https://borda.github.io/pyDeprecate/stable/guide/migration.html.md)
 - [Home Markdown](https://borda.github.io/pyDeprecate/stable/index.html.md)
 - [Modules Markdown](https://borda.github.io/pyDeprecate/stable/guide/modules.html.md)

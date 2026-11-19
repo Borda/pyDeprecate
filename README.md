@@ -72,7 +72,7 @@ See [customization](https://borda.github.io/pyDeprecate/stable/guide/customizati
 - Generate deprecation status tables for release planning.
 - Test warning behavior with `assert_no_warnings`.
 
-See the [audit guide](https://borda.github.io/pyDeprecate/stable/guide/audit.html) for Python and CI workflows.
+See the [audit guide](https://borda.github.io/pyDeprecate/stable/guide/audit/index.html) for Python and CI workflows.
 
 ## 💾 Installation
 
@@ -603,7 +603,7 @@ pydeprecate status path/to/your/package                   # deprecation status t
 pydeprecate all path/to/your/package --version 2.0.0      # every check in one scan, plus the table
 ```
 
-`check` exits `1` on configuration errors and *only reports* advisory findings such as identity mappings. `expiry` exits `1` on any expired wrapper, and `status` *only reports*. See [CLI exit codes](https://borda.github.io/pyDeprecate/stable/guide/cli.html#exit-codes) before making one a required CI gate.
+`check` exits `1` on configuration errors and *only reports* advisory findings such as identity mappings. `expiry` exits `1` on any expired wrapper, and `status` *only reports*. See [CLI exit codes](https://borda.github.io/pyDeprecate/stable/guide/audit/cli.html#exit-codes) before making one a required CI gate.
 
 ### 🪝 Run on every commit
 
@@ -617,7 +617,7 @@ repos:
       - id: pydeprecate-check
 ```
 
-The hook **imports the scanned package**, so its imports must resolve without your project's runtime dependencies. The `pydeprecate-expiry`, `pydeprecate-policy`, `pydeprecate-chains` and `pydeprecate-all` hooks run the other checks. See [pre-commit integration](https://borda.github.io/pyDeprecate/stable/guide/ci-integration.html#pre-commit-integration) for options.
+The hook **imports the scanned package**, so its imports must resolve without your project's runtime dependencies. The `pydeprecate-expiry`, `pydeprecate-policy`, `pydeprecate-chains` and `pydeprecate-all` hooks run the other checks. See [pre-commit integration](https://borda.github.io/pyDeprecate/stable/guide/audit/ci-integration.html#pre-commit-integration) for options.
 
 ### ⚙ Run in GitHub Actions
 
@@ -630,7 +630,7 @@ Add a step after checking out the repository and installing your package:
     path: src/mypackage
 ```
 
-The step returns the CLI exit code. See the [GitHub Action recipe](https://borda.github.io/pyDeprecate/stable/guide/ci-integration.html#github-action) for every input.
+The step returns the CLI exit code. See the [GitHub Action recipe](https://borda.github.io/pyDeprecate/stable/guide/audit/ci-integration.html#github-action) for every input.
 
 ### 🐍 Check from Python
 
@@ -650,7 +650,7 @@ def test_no_expired_deprecations():
 
 `find_deprecation_wrappers(my_package)` lists every wrapper and its configuration, and `generate_deprecation_table(my_package)` renders the release-planning table.
 
-The [audit guide](https://borda.github.io/pyDeprecate/stable/guide/audit.html) covers the Python API, deprecation tables, [policy checks](https://borda.github.io/pyDeprecate/stable/guide/audit-policy.html#enforcing-a-deprecation-policy) and [chain detection](https://borda.github.io/pyDeprecate/stable/guide/audit.html#detecting-deprecation-chains).
+The [audit guide](https://borda.github.io/pyDeprecate/stable/guide/audit/index.html) covers the Python API, deprecation tables, [policy checks](https://borda.github.io/pyDeprecate/stable/guide/audit/policy.html#enforcing-a-deprecation-policy) and [chain detection](https://borda.github.io/pyDeprecate/stable/guide/audit/index.html#detecting-deprecation-chains).
 
 ## 🧪 Testing
 

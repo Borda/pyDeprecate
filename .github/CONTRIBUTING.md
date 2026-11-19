@@ -428,7 +428,7 @@ pyDeprecate/
 │   ├── limitations.md          # Known limitations and non-goals
 │   ├── api-reference.md        # mkdocstrings reference pages
 │   ├── brand.md, changelog.md  # Brand guide; changelog page
-│   ├── llms.txt                # Authoritative agent contract; llms-full.txt is generated from it plus an __all__ API map by .github/scripts/generate_llms_full.py
+│   ├── llms.txt                # Authoritative agent contract; llms-full.txt (gitignored) is generated from it plus an __all__ API map at docs build by .github/scripts/generate_llms_full.py (make llms-full)
 │   ├── robots.txt              # AI crawler access policy
 │   ├── schemas/                # JSON Schema of the CLI's `--report-json` file (report-1.schema.json)
 │   ├── mkdocs_hooks.py         # MkDocs build hooks (Markdown mirrors, sitemap)
@@ -438,7 +438,8 @@ pyDeprecate/
 │   ├── assets/
 │   │   ├── brand/              # Curated brand subset (logos, icons, PNG touch icon, banners, social card) used by the site and README; full kit lives in the wiki
 │   │   └── images/             # README and docs screenshots, path illustration, animated flow, lifecycle and per-case SVG diagrams
-│   └── guide/                  # Topic pages: functions, classes, properties, async, modules, audit, cli, ...
+│   └── guide/                  # Topic pages: functions, classes, properties, async, modules, ...
+│       ├── audit/              # Audit group: index.md (audit tools), policy.md, ci-integration.md, cli.md
 │       ├── migration.md        # Source-version upgrade paths assembled from compatibility deltas
 │       ├── agent-recipes.md     # Coding-agent recipes and local plugin installation
 │       └── _deltas/
@@ -592,7 +593,7 @@ The integration suite also keeps characterization for positional and keyword for
 
 > [!NOTE]
 >
-> **Several docs examples import a `tests/collections/` module and print hardcoded counts from it** (currently: `README.md`, `docs/guide/audit.md`, `docs/troubleshooting.md`). When you add or remove entries from a collection module:
+> **Several docs examples import a `tests/collections/` module and print hardcoded counts from it** (currently: `README.md`, `docs/guide/audit/index.md`, `docs/troubleshooting.md`). When you add or remove entries from a collection module:
 >
 > - Update every doc example's expected-count code block that scans the changed module — check `README.md`, every `docs/guide/*.md` page, and `docs/troubleshooting.md`, not just one of them.
 > - Regenerate the affected test files: `make docs-tests`
@@ -970,7 +971,7 @@ The project ships two separate documentation surfaces:
 | Migration guide    | `docs/guide/migration.md`   | Source-version upgrade paths to the current API                       |
 | Migration deltas   | `docs/guide/_deltas/`       | Heading-free interval snippets split into `breaking/` and `behavior/` |
 | void() helper      | `docs/guide/void-helper.md` | void() stub helper reference                                          |
-| Audit tools        | `docs/guide/audit.md`       | validate\_\* and find_deprecation_wrappers()                          |
+| Audit tools        | `docs/guide/audit/index.md` | validate\_\* and find_deprecation_wrappers()                          |
 | Troubleshooting    | `docs/troubleshooting.md`   | Q&A; also drives FAQPage JSON-LD                                      |
 | Theme override     | `docs/overrides/main.html`  | Jinja2 template — OG tags + JSON-LD per page; **prettier-excluded**   |
 | AI discoverability | `docs/llms.txt`             | Spec-compliant link directory for AI crawlers                         |
@@ -1010,6 +1011,17 @@ When making changes, keep all surfaces in sync:
    - Patch and post releases are folded into the minor interval whose destination contains them. Do not create patch-specific fragments or `Coming from` sections.
    - Fragments intentionally omit headings and outer admonitions. The `Coming from ...` section and its `Breaking changes` / `Behavior changes` tabs provide that context after injection. Keep each compatibility item in exactly one category.
    - Atomic minor intervals can be composed. A verified cumulative file such as `v0.4-to-v0.12.md` may replace a long include chain when it stays self-contained.
+
+### Moving or Renaming Pages
+
+Readers arrive from README links on PyPI, search results, bookmarks and `docs/llms.txt`. A moved, renamed or deleted page, or a heading that moves to another page, must keep its old address working:
+
+- **Page moved or renamed:** add `old/path.md: new/path.md` to `plugins.redirects.redirect_maps` in `mkdocs.yml`. The plugin writes a stub at the old URL that keeps the `#anchor`. Never delete a line from that map.
+- **Section moved to another page:** add `old-anchor: new/page.html` under `extra.anchor_moves` in `mkdocs.yml`. `docs/overrides/main.html` follows it when the anchor is missing on the page the old link reached.
+- **Links:** update every link to the old address in `docs/`, `README.md`, `docs/llms.txt`, `plugins/**/SKILL.md`, `.github/` and docstrings, plus the nav and the structure tree here.
+- **Check:** run `make docs-build` with no new warnings, then open the old URL in the built site and confirm it lands on the new page.
+
+Older releases keep their own versioned copy of the site, so this protects the `stable` and `latest` aliases.
 
 ### Code Example Conventions
 

@@ -209,7 +209,7 @@ asyncio.run(main())
 - Start with [Use Cases overview](use-cases.md) for a guided tour of all deprecation patterns.
 - [Functions](functions.md) covers sync function deprecation (includes sync generators).
 - [Advanced](advanced.md) covers sync generators, class/static methods, and testing helpers.
-- Use [Audit Tools](audit.md) to enforce removal deadlines in CI.
+- Use [Audit Tools](audit/index.md) to enforce removal deadlines in CI.
 - [Troubleshooting](../troubleshooting.md) covers common errors and fixes.
 
 ______________________________________________________________________

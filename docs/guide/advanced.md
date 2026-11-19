@@ -578,7 +578,7 @@ print(list(old_range(1, 4)))
 - [Async](async.md) covers async functions and async generators.
 - [Customization](customization.md) covers custom message templates and output streams.
 - [void() Helper](void-helper.md) explains when and why to use `void()` in the function body.
-- Use [Audit Tools](audit.md) to enforce removal deadlines and detect deprecation chains in CI.
+- Use [Audit Tools](audit/index.md) to enforce removal deadlines and detect deprecation chains in CI.
 - [Troubleshooting](../troubleshooting.md) covers common errors and fixes.
 
 ______________________________________________________________________
