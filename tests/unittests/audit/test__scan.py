@@ -8,6 +8,7 @@ from collections.abc import Callable
 from enum import Enum
 from functools import cached_property
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -1123,15 +1124,36 @@ class TestFindDeprecationWrappersClassScan:
         assert any("delete_only" in n for n in names)
 
     @pytest.mark.parametrize(
-        ("members", "no_effect"),
+        ("members", "wrap", "no_effect"),
         [
-            pytest.param(("Color",), {"Host.Color": False}, id="rename-only"),
-            pytest.param(("ThemeColor",), {"Host.ThemeColor": True}, id="in-place"),
-            pytest.param(("Color", "ThemeColor"), {"Host.Color": True, "Host.ThemeColor": True}, id="both-bindings"),
+            pytest.param(("Color",), {}, {"Host.Color": False}, id="rename-only"),
+            pytest.param(("ThemeColor",), {}, {"Host.ThemeColor": True}, id="in-place"),
+            pytest.param(
+                ("Color", "ThemeColor"), {}, {"Host.Color": True, "Host.ThemeColor": True}, id="both-bindings"
+            ),
+            pytest.param(
+                ("Color", "ThemeColor"),
+                {"ThemeColor": staticmethod},
+                {"Host.Color": True, "Host.ThemeColor": True},
+                id="own-name-in-staticmethod",
+            ),
+            pytest.param(
+                ("Color", "ThemeColor"),
+                {"Color": staticmethod},
+                {"Host.Color": True, "Host.ThemeColor": True},
+                id="alias-in-staticmethod",
+            ),
+            pytest.param(
+                ("Color", "ThemeColor"),
+                {"ThemeColor": classmethod},
+                {"Host.Color": True, "Host.ThemeColor": True},
+                id="own-name-in-classmethod",
+            ),
+            pytest.param(("Color",), {"Color": staticmethod}, {"Host.Color": False}, id="rename-in-staticmethod"),
         ],
     )
     def test_self_target_class_proxy_member_is_no_effect_only_without_a_rename(
-        self, members: tuple[str, ...], no_effect: dict[str, bool]
+        self, members: tuple[str, ...], wrap: dict[str, Callable[[Any], Any]], no_effect: dict[str, bool]
     ) -> None:
         """A self-targeting class proxy on a class attribute keeps the finding while the class's own name holds it too.
 
@@ -1139,7 +1161,8 @@ class TestFindDeprecationWrappersClassScan:
         deprecated alias of the proxy. A ``Host.Color`` binding alone is a real rename: callers get the warning and
         the audit must not call it a no-op. Once the same proxy also sits on ``Host.ThemeColor``, every binding warns
         callers to use a name that is itself the deprecated proxy, so ``Host.Color`` must keep the self-reference
-        finding exactly as a module-level alias does.
+        finding exactly as a module-level alias does. Wrapping either binding in a ``staticmethod`` or ``classmethod``
+        changes nothing: the descriptor only carries the proxy, so the own-name binding still counts.
 
         """
 
@@ -1149,7 +1172,8 @@ class TestFindDeprecationWrappersClassScan:
         mod = types.ModuleType("test_mod_member_alias")
         proxy = deprecated_class(target=ThemeColor, deprecated_in="1.0", remove_in="2.0")(ThemeColor)
         # the scan only descends into classes whose ``__module__`` matches the scanned module
-        vars(mod)["Host"] = type("Host", (), {"__module__": mod.__name__, **dict.fromkeys(members, proxy)})
+        namespace = {name: wrap.get(name, lambda value: value)(proxy) for name in members}
+        vars(mod)["Host"] = type("Host", (), {"__module__": mod.__name__, **namespace})
 
         results = find_deprecation_wrappers(mod)
 

@@ -273,13 +273,16 @@ def _scan_class_member(
 ) -> Optional[DeprecationWrapperInfo]:
     """Scan one class member for pyDeprecate metadata, peeking through its descriptor.
 
-    ``bindings`` maps every member name of the class to its raw value, so a self-targeting class proxy bound both under
-    an alias and under its wrapped class's own name keeps the self-reference finding on the alias.
+    ``bindings`` maps every member name of the class to its value, with a ``staticmethod``/``classmethod`` resolved to
+    the callable it wraps, so a self-targeting class proxy bound both under an alias and under its wrapped class's own
+    name keeps the self-reference finding on the alias, plain or descriptor-wrapped.
 
     """
     if isinstance(obj, (classmethod, staticmethod)):
         kind = _descriptor_kind(obj)
-        return _scan_callable(obj.__func__, module_name, qualified, member_name=attr_name, descriptor_kind=kind)
+        return _scan_callable(
+            obj.__func__, module_name, qualified, member_name=attr_name, descriptor_kind=kind, bindings=bindings
+        )
     if isinstance(obj, property):
         _prop_accessor = next(
             (c for c in _descriptor_underlying_callables(obj) if _has_deprecation_meta(c)),
@@ -389,7 +392,10 @@ def _scan_class(
     except (AttributeError, TypeError):
         return results
     # A proxy aliased under another member name is a rename only while the class's own name does not hold it too.
-    bindings = dict(members)
+    # A ``staticmethod``/``classmethod`` binding holds its proxy one level down, so it is compared by that proxy.
+    bindings = {
+        name: value.__func__ if isinstance(value, (classmethod, staticmethod)) else value for name, value in members
+    }
     for attr_name, obj in members:
         # Looked up once per owned member; the private-member gate and the row below share it.
         pep702_message = _descriptor_pep702_message(obj) if attr_name in pep702_names else None
