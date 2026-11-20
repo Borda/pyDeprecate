@@ -261,6 +261,7 @@ def _inert_call_options(
         []
 
     """
+    # nothing is inert: the target is callable, or the mode itself consumes or ignores the mappings
     if active_callable or mode is TargetMode.ATTRS_REMAP or mode is TargetMode.NOTIFY:
         return []
     return [name for name, value in (("args_mapping", args_mapping), ("args_extra", args_extra)) if value]
@@ -347,13 +348,13 @@ def _validate_proxy_mode(
             "`attrs_mapping`. Omit `target` to auto-resolve to `TargetMode.ATTRS_REMAP`, or pass "
             f"`TargetMode.ATTRS_REMAP` explicitly. This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
         )
+    # ARGS_REMAP describes the call-time mode even though attribute reads use their own mapping.
     if mode is TargetMode.ARGS_REMAP and args_mapping and attrs_mapping:
         messages.append(
             f"`{factory}` on `{source_name}` has both `args_mapping` and `attrs_mapping` "
             "configured with `target=TargetMode.ARGS_REMAP`. `ARGS_REMAP` governs call-time argument "
-            "renames only; `attrs_mapping` is inactive in this mode. "
-            "`DeprecationConfig.target` no longer reflects that `attrs_mapping` is also active. "
-            "Pass an explicit callable `target=<class>` to activate both mappings on the same proxy. "
+            "renames; attribute reads still use `attrs_mapping`. "
+            "Pass an explicit callable `target=<class>` to configure both mappings with an explicit target. "
             f"This will be `TypeError` in `{_MAJOR_BREAK_VERSION}`."
         )
     if mode is TargetMode.ATTRS_REMAP and not attrs_mapping:
@@ -408,6 +409,14 @@ def _reject_bare_decorator(source: Any) -> None:  # noqa: ANN401
     Args:
         source: The object ``packing`` received as its decoration target.
 
+    Example:
+        >>> _reject_bare_decorator(len)
+        >>> try:
+        ...     _reject_bare_decorator(5)
+        ... except TypeError as exc:
+        ...     print("must be called with parentheses" in str(exc))
+        True
+
     """
     _reject_functools_wrapper_source(source)
     if not callable(source) and not isinstance(source, _DESCRIPTOR_SOURCE_TYPES):
@@ -450,6 +459,14 @@ def _reject_functools_wrapper_source(source: Any) -> None:  # noqa: ANN401
     Raises:
         TypeError: When ``source`` is an instance of one of :data:`_FUNCTOOLS_WRAPPER_SOURCE_TYPES`.
 
+    Example:
+        >>> _reject_functools_wrapper_source(len)
+        >>> try:
+        ...     _reject_functools_wrapper_source(partial(len))
+        ... except TypeError as exc:
+        ...     print("functools.partial" in str(exc))
+        True
+
     """
     if isinstance(source, _FUNCTOOLS_WRAPPER_SOURCE_TYPES):
         kind = f"{type(source).__module__}.{type(source).__qualname__}"
@@ -481,6 +498,13 @@ def _reject_non_callable_source(source: Any, target: Any) -> None:  # noqa: ANN4
 
     Raises:
         TypeError: When ``source`` is neither a descriptor, functools wrapper, nor callable.
+
+    Example:
+        >>> _reject_non_callable_source(len, None)
+        >>> _reject_non_callable_source(5, TargetMode.AUTO)
+        Traceback (most recent call last):
+        ...
+        TypeError: cannot deprecate a plain object with `@deprecated` — use `deprecated_instance(obj, ...)`
 
     """
     if not isinstance(source, (*_DESCRIPTOR_SOURCE_TYPES, *_FUNCTOOLS_WRAPPER_SOURCE_TYPES)) and not callable(source):
@@ -655,7 +679,13 @@ _STACKING_MESSAGES: dict[tuple[str, str], Optional[str]] = {
 
 
 def _stacking_kind(target: object) -> str:
-    """Classify a normalized target for the stacking compatibility table."""
+    """Classify a normalized target as callable, notify, args-remap or other, the keys of the stacking table.
+
+    Example:
+        >>> _stacking_kind(len), _stacking_kind(TargetMode.NOTIFY), _stacking_kind(TargetMode.ARGS_REMAP)
+        ('callable', 'notify', 'args_remap')
+
+    """
     if callable(target):
         return _STACKING_CALLABLE
     if target is TargetMode.NOTIFY:
@@ -1013,6 +1043,13 @@ def _resolve_stored_target(
         ``class → __init__`` at decoration time for the wrapper closure, but the stored
         value must preserve the user-facing class so audit and docstring consumers see
         the original target.
+
+    Example:
+        >>> _resolve_stored_target(True) is TargetMode.ARGS_REMAP
+        True
+        >>> def func(): pass
+        >>> _resolve_stored_target(staticmethod(func)) is func
+        True
 
     """
     if target is None or isinstance(target, bool):

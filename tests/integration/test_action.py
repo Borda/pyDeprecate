@@ -1799,7 +1799,8 @@ class TestActionMetadata:
         step_env = next(step for step in _load_action()["runs"]["steps"] if "run" in step)["env"]
         delivered = {variable: distinct[_input_named_by(expression)] for variable, expression in step_env.items()}
         assert set(distinct) == set(action_runner.INPUT_DEFAULTS)
-        assert action_runner.read_inputs(delivered) == action_runner.ActionInputs(
+        actual = action_runner.read_inputs(delivered)
+        expected = action_runner.ActionInputs(
             subcommand="check",
             paths=("pkg/path",),
             args=("--flag", "value"),
@@ -1809,6 +1810,7 @@ class TestActionMetadata:
             summary=True,
             sarif=True,
         )
+        assert actual == expected
 
     def test_subcommands_match_cli(self) -> None:
         """The runner accepts exactly the CLI's subcommands.

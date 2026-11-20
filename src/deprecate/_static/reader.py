@@ -138,6 +138,7 @@ class _TreeReader:
         rebinds = _globals_rebinds(parsed.tree)
         global_names = {name for node in ast.walk(parsed.tree) if isinstance(node, ast.Global) for name in node.names}
         for name in set(aliases.names) | set(aliases.modules):
+            # the name may be rebound at runtime (computed ``globals()`` key, literal key, or a ``global`` statement)
             if rebinds is None or name in rebinds or name in global_names:
                 kind = aliases.names.pop(name, None)
                 aliases.modules.pop(name, None)
@@ -180,6 +181,7 @@ class _TreeReader:
                     module_nodes = _module_level_nodes(parsed.tree)
                     for node in ast.walk(parsed.tree):
                         if (
+                            # a module-level ``from sibling import ...`` whose sibling is a file or package here
                             isinstance(node, ast.ImportFrom)
                             and id(node) in module_nodes
                             and node.module
@@ -245,6 +247,7 @@ class _TreeReader:
                 continue
             found = self.configured(origin, name, seen)
             star = self.table(origin)
+            # stop at the latest star import that binds the name, whether to a configured factory or to anything else
             if found is not None or (star is not None and name in star.bindings):
                 return found  # this star import binds the name, to a configured factory or to something else
         if name in table.configured:
@@ -256,6 +259,7 @@ class _TreeReader:
         """Tell whether ``from origin import *`` may copy *name*: listed by a literal ``__all__``, else public."""
         parsed = self.parse(origin)
         exports = _literal_all(parsed.tree) if parsed is not None else None
+        # no literal ``__all__``: every public name is copied; with one, only the names it lists
         return (exports is None and _is_public(name)) or (isinstance(exports, set) and name in exports)
 
     def name_kind(self, module: str, name: str, seen: frozenset[tuple[str, str]] = frozenset()) -> tuple[str, bool]:
@@ -357,6 +361,7 @@ class _TreeReader:
         base, root = _base_expression(base)
         facts = self.facts(module)
         parsed = self.parse(module)
+        # the base must be a name (or attribute chain on one) of a module the reader could analyze
         if not isinstance(root, ast.Name) or facts is None or parsed is None:
             return "not a name the source settles"
         scope = _module_scope(parsed)
@@ -388,6 +393,7 @@ class _TreeReader:
 
     def _qualified_base(self, base: ast.expr, event: _NameBinding, origin: str, root: str) -> Optional[_PlainClass]:
         """Resolve a module-qualified base only when its imported module is in the scanned tree."""
+        # only ``module.Class`` shapes qualify: an attribute read off a plain name
         if not isinstance(base, ast.Attribute) or not isinstance(base.value, ast.Name):
             return None
         imported_module = None
@@ -409,7 +415,17 @@ class _TreeReader:
 
 
 def _base_expression(base: ast.expr) -> tuple[ast.expr, ast.expr]:
-    """Unwrap generic subscripts and find the root name of a base expression."""
+    """Unwrap generic subscripts and find the root name of a base expression.
+
+    Returns the base without its subscripts (``Base[T]`` is ``Base``) and the leftmost name of its attribute chain
+    (``pkg.mod.Base`` roots at ``pkg``).
+
+    Examples:
+        >>> base, root = _base_expression(ast.parse("pkg.Base[int]", mode="eval").body)
+        >>> ast.unparse(base), ast.unparse(root)
+        ('pkg.Base', 'pkg')
+
+    """
     while isinstance(base, ast.Subscript):  # ``Base[T]`` subclasses ``Base``
         base = base.value
     root = base
@@ -419,12 +435,29 @@ def _base_expression(base: ast.expr) -> tuple[ast.expr, ast.expr]:
 
 
 def _is_public(name: str) -> bool:
-    """Whether a star import without ``__all__`` copies *name*."""
+    """Whether a star import without ``__all__`` copies *name*: any name not starting with an underscore.
+
+    Examples:
+        >>> _is_public("exported"), _is_public("_internal")
+        (True, False)
+
+    """
     return not name.startswith("_")
 
 
 def _c3_merge(head: _PlainClass, sequences: list[list[_PlainClass]]) -> list[_PlainClass]:
-    """Merge base linearizations as Python's C3 does; an inconsistent order falls back to depth-first."""
+    """Merge base linearizations as Python's C3 does; an inconsistent order falls back to depth-first.
+
+    The result is the method resolution order of *head*, which decides whose member wins when several bases define it.
+
+    Examples:
+        >>> first, second, head = _PlainClass("A", {}, []), _PlainClass("B", {}, []), _PlainClass("Head", {}, [])
+        >>> [cls.module for cls in _c3_merge(head, [[first], [second], [first, second]])]
+        ['Head', 'A', 'B']
+        >>> [cls.module for cls in _c3_merge(head, [[first, second], [second, first]])]  # contradictory: no C3 order
+        ['Head', 'A', 'B']
+
+    """
     result = [head]
     pending = [list(seq) for seq in sequences if seq]
     while pending:

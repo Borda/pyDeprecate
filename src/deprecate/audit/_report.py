@@ -42,7 +42,7 @@ def _resolve_table_version(
     current_version: Optional[str],
     version_explicit: bool = True,
 ) -> tuple[Optional[str], Optional["Version"]]:
-    """Resolve report version string and optional parsed version object.
+    """Resolve the current package version for a report: its string and, when ``packaging`` can read it, parsed form.
 
     An unparsable version is fatal only when the caller typed it: *version_explicit* ``False`` marks a
     *current_version* the caller auto-detected on this function's behalf, which degrades to an unparsed
@@ -70,7 +70,19 @@ def _resolve_table_version(
 
 
 def _format_report_target(target: Any) -> str:  # noqa: ANN401
-    """Format replacement target name for report rows."""
+    """Name a replacement target for the ``New API`` column of a report row: ``—`` when it has none.
+
+    Examples:
+        >>> _format_report_target(None)
+        '—'
+        >>> _format_report_target(TargetMode.ARGS_REMAP)
+        'args_remap'
+        >>> _format_report_target(len)
+        'builtins.len'
+        >>> _format_report_target(3.5)
+        'float'
+
+    """
     if target is None or target is TargetMode.NOTIFY:
         return "—"
     if issubclass(type(target), _DeprecatedProxy):
@@ -96,6 +108,11 @@ def _format_callable_target(target: Callable[..., Any]) -> str:
     no string ``__qualname__``/``__name__`` of its own, such as a callable instance, is named the way the runtime
     warning names it (:func:`~deprecate.messaging._callable_display_name`).
 
+    Examples:
+        >>> from functools import partial
+        >>> _format_callable_target(len), _format_callable_target(partial(len))
+        ('builtins.len', 'builtins.len')
+
     """
     chain = _partial_chain(target)
     base = chain[-1].func if chain else target
@@ -109,7 +126,12 @@ def _format_callable_target(target: Callable[..., Any]) -> str:
 
 
 def _format_report_api_type(info: DeprecationWrapperInfo) -> str:
-    """Return api_type with backward-compatible fallback."""
+    """Return the ``api_type`` label of a report row, deriving it for a wrapper recorded without one.
+
+    A wrapper whose ``api_type`` is empty is labelled ``args`` when it carries an ``args_mapping`` and ``callable``
+    otherwise, which is how rows were labelled before ``api_type`` was recorded.
+
+    """
     if info.api_type:
         return info.api_type
     return (_ApiType.ARGS if info.deprecated_info.args_mapping else _ApiType.CALLABLE).value

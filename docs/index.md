@@ -8,8 +8,6 @@ description: >-
 
 ![pyDeprecate — seamless API migration](assets/brand/banner-light.svg#only-light) ![pyDeprecate — seamless API migration](assets/brand/banner-dark.svg#only-dark)
 
-# pyDeprecate
-
 **Author:** [Jiri Borovec](https://github.com/Borda) · **License:** Apache 2.0 · **Python:** 3.9+ · **Install:** `pip install pyDeprecate` · **Import:** `from deprecate import deprecated` · **PyPI:** https://pypi.org/project/pyDeprecate/
 
 Renaming a function or retiring an argument often means writing a wrapper and manual forwarding. You must also configure the warning category and `stacklevel`, then *enforce* the removal deadline. **pyDeprecate** replaces that boilerplate with a decorator and CI checks for overdue removals.
@@ -19,8 +17,6 @@ Renaming a function or retiring an argument often means writing a wrapper and ma
     **pyDeprecate has broad PyPI usage**. For current download statistics, see [pepy.tech](https://pepy.tech/project/pyDeprecate).
 
     Read [Mastering API Deprecation in Python — the pain points and how pyDeprecate can help](https://medium.com/codex/mastering-api-deprecation-in-python-the-pain-points-and-how-pydeprecate-can-help-1dbfd90e2b62) on CodeX / Medium.
-
-![pyDeprecate — navigate API transitions smoothly without the chaos or crashes](assets/images/path-illustration.webp)
 
 ```python
 from deprecate import deprecated
@@ -82,6 +78,8 @@ Calling `addition(1, 2)` now **emits a `FutureWarning`** and transparently **for
 - **Testing helpers:** The `assert_no_warnings()` context manager checks that no warnings of a given type escape a block. `no_warning_call` remains a legacy alias.
 - **Zero runtime dependencies:** Nothing is added to `install_requires`.
 - **Python compatibility:** Python 3.9+ is supported.
+
+![pyDeprecate — navigate API transitions smoothly without the chaos or crashes](assets/images/path-illustration.webp)
 
 ## Installation
 

@@ -24,7 +24,15 @@ from deprecate._static.consts import (
 
 
 def _dotted(node: ast.expr) -> Optional[str]:
-    """Return ``a.b.c`` for a name or attribute chain, else ``None``."""
+    """Return ``a.b.c`` for a name or attribute chain, else ``None``.
+
+    Examples:
+        >>> _dotted(ast.parse("a.b.c", mode="eval").body)
+        'a.b.c'
+        >>> _dotted(ast.parse("f().x", mode="eval").body) is None
+        True
+
+    """
     if isinstance(node, ast.Name):
         return node.id
     if isinstance(node, ast.Attribute):
@@ -54,6 +62,8 @@ class _PyDeprecateNames:
             else:
                 self.ambiguous[name] = kind
         for name, module in bound.modules.items():
+            # settled when this import is the module's only binding of the name, or every binding is a plain
+            # ``import deprecate...`` (they all bind the same package)
             if settled and (len(scope.get(name, [])) == 1 or _binds_package_only(scope.get(name, []), name)):
                 self.modules[name] = module
             else:
@@ -107,7 +117,12 @@ def _binds_package_only(events: Sequence["_NameBinding"], name: str) -> bool:
 
 
 def _module_level_nodes(tree: ast.Module) -> set[int]:
-    """Return the ids of the nodes that run at module level: everything outside function, class and lambda bodies."""
+    """Return the ids of the nodes that run at module level: everything outside function, class and lambda bodies.
+
+    Used to tell an import that always runs at import time from one hidden inside a function (a lazy import), whose
+    binding is not settled.
+
+    """
     found: set[int] = set()
     stack: list[ast.AST] = list(tree.body)
     while stack:
@@ -119,7 +134,12 @@ def _module_level_nodes(tree: ast.Module) -> set[int]:
 
 
 def _direct_aliases(tree: ast.Module) -> _PyDeprecateNames:
-    """Collect the pyDeprecate names and modules a module's own import statements bind."""
+    """Collect the pyDeprecate names and modules a module's own import statements bind, without following re-exports.
+
+    This is the per-file starting point; the tree reader then adds the names a module re-exports from other modules of
+    the scanned tree.
+
+    """
     aliases = _PyDeprecateNames()
     top = _module_level_nodes(tree)
     scope = _scope_events(tree.body)
@@ -131,6 +151,7 @@ def _direct_aliases(tree: ast.Module) -> _PyDeprecateNames:
                     continue
                 # ``import deprecate.proxy`` binds ``deprecate``
                 bound.modules[alias.asname or "deprecate"] = alias.name if alias.asname else "deprecate"
+        # an absolute ``from <pyDeprecate module> import ...``; relative imports and other packages bind nothing here
         elif isinstance(node, ast.ImportFrom) and not node.level and node.module in _DEPRECATE_MODULES:
             for alias in node.names:
                 _bind_from_deprecate(bound, node.module, alias)
@@ -142,7 +163,7 @@ def _direct_aliases(tree: ast.Module) -> _PyDeprecateNames:
 
 
 def _bind_from_deprecate(aliases: _PyDeprecateNames, module: str, alias: ast.alias) -> None:
-    """Record what one ``from <pyDeprecate module> import <alias>`` binds."""
+    """Record what one ``from <pyDeprecate module> import <alias>`` binds: a factory, a star export or a submodule."""
     if alias.name == "*":
         aliases.names.update(_module_exports(module, star=True))
         return
@@ -183,6 +204,7 @@ def _node_events(node: ast.AST, events: dict[str, list[_NameBinding]]) -> list[a
         return rest
     if isinstance(node, (ast.Import, ast.ImportFrom)):
         _import_events(node, events)
+    # a name stored or deleted anywhere else (loop target, ``with ... as``, walrus, ``del``) binds it opaquely
     elif isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)):
         events[node.id].append(_NameBinding("other"))
     elif not isinstance(node, ast.Lambda):
@@ -258,22 +280,27 @@ def _globals_rebinds(tree: ast.Module) -> Optional[set[str]]:
     found: set[str] = set()
     for node in ast.walk(tree):
         key: Optional[ast.expr] = None
+        # ``globals()["NAME"] = ...``: a subscript write into a module namespace; its slice is the key
         if isinstance(node, ast.Subscript) and isinstance(node.ctx, (ast.Store, ast.Del)) and _is_namespace(node.value):
             key = node.slice
+        # ``sys.modules[__name__].NAME = ...``: an attribute write into a module namespace
         elif isinstance(node, ast.Attribute) and isinstance(node.ctx, (ast.Store, ast.Del)):
             if _is_namespace(node.value):
                 found.add(node.attr)  # ``sys.modules[__name__].NAME = ...``
             continue
+        # ``globals().update(...)`` and kin change a namespace with no literal key, so any name may be rebound
         elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in _DICT_MUTATORS:
             if _is_namespace(node.func.value):
                 return None
             continue
+        # ``setattr(<namespace>, key, value)`` and ``delattr(<namespace>, key)``: the second argument is the key
         elif isinstance(node, ast.Call) and _dotted(node.func) in ("setattr", "delattr") and len(node.args) >= 2:
             if not _is_namespace(node.args[0]):
                 continue
             key = node.args[1]
         else:
             continue
+        # a key that is not a string literal may name any global
         if not (isinstance(key, ast.Constant) and isinstance(key.value, str)):
             return None
         found.add(key.value)
@@ -281,7 +308,17 @@ def _globals_rebinds(tree: ast.Module) -> Optional[set[str]]:
 
 
 def _is_namespace(node: ast.expr) -> bool:
-    """Tell whether *node* spells a module namespace: ``globals()``, ``vars()`` or ``sys.modules[...]``."""
+    """Tell whether *node* spells a module namespace: ``globals()``, ``vars()`` or ``sys.modules[...]``.
+
+    Examples:
+        >>> _is_namespace(ast.parse("globals()", mode="eval").body)
+        True
+        >>> _is_namespace(ast.parse("sys.modules['m']", mode="eval").body)
+        True
+        >>> _is_namespace(ast.parse("namespace", mode="eval").body)
+        False
+
+    """
     if isinstance(node, ast.Call):
         return _dotted(node.func) in ("globals", "vars") and not node.args and not node.keywords
     return isinstance(node, ast.Subscript) and _dotted(node.value) == "sys.modules"
@@ -311,22 +348,37 @@ def _is_memberless_module(module: str) -> bool:
 
 
 def _single(events: Mapping[str, list[_NameBinding]], name: str) -> Optional[_NameBinding]:
-    """Return the binding of *name* when the scope binds it exactly once, else ``None``."""
+    r"""Return the binding of *name* when the scope binds it exactly once, else ``None``.
+
+    A name bound twice (or never) holds a value the source does not settle, so callers treat ``None`` as a gap.
+
+    Examples:
+        >>> events = _scope_events(ast.parse("a = 1\nb = 1\nb = 2").body)
+        >>> _single(events, "a").kind, _single(events, "b"), _single(events, "c")
+        ('assign', None, None)
+
+    """
     found = events.get(name, [])
     return found[0] if len(found) == 1 else None
 
 
 def _is_dataclass(node: ast.ClassDef, qualify: Callable[[ast.expr], Optional[str]]) -> bool:
-    """Tell whether a class definition carries a ``dataclasses.dataclass`` decorator (called or not).
+    r"""Tell whether a class definition carries a ``dataclasses.dataclass`` decorator (called or not).
 
     *qualify* resolves a decorator's name through the imports of the module that defines the class, so an alias (``from
     dataclasses import dataclass as record``) counts, as does a ``dataclasses`` module of another distribution
     (``pydantic.dataclasses.dataclass`` builds a runtime dataclass too), while a local function named ``dataclass`` does
     not.
 
+    Examples:
+        >>> node = ast.parse("@record\nclass C: ...").body[0]
+        >>> _is_dataclass(node, lambda _: "dataclasses.dataclass"), _is_dataclass(node, lambda _: "mine.dataclass2")
+        (True, False)
+
     """
     for decorator in node.decorator_list:
         name = qualify(decorator.func if isinstance(decorator, ast.Call) else decorator)
+        # the stdlib decorator, or a look-alike such as ``pydantic.dataclasses.dataclass``
         if name is not None and (name == _DATACLASS or name.endswith(f".{_DATACLASS}")):
             return True
     return False

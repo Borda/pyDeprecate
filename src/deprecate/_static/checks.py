@@ -17,12 +17,29 @@ from deprecate.audit._wrappers import DeprecationWrapperInfo
 
 
 def _unresolved(info: DeprecationWrapperInfo) -> Mapping[str, str]:
-    """Return the settings of *info* the source did not settle (none for an imported wrapper)."""
+    """Return the settings of *info* the source did not settle, each with its gap detail (none for an imported wrapper).
+
+    Examples:
+        >>> _unresolved(DeprecationWrapperInfo())
+        {}
+        >>> _unresolved(_StaticWrapperInfo(unresolved={"remove_in": "`remove_in` is `VERSION`, not a literal"}))
+        {'remove_in': '`remove_in` is `VERSION`, not a literal'}
+
+    """
     return info.unresolved if isinstance(info, _StaticWrapperInfo) else {}
 
 
 def _resolved(wrappers: Sequence[DeprecationWrapperInfo], keywords: Sequence[str]) -> list[DeprecationWrapperInfo]:
-    """Return the wrappers whose settings among *keywords* the source settled."""
+    """Return the wrappers whose settings among *keywords* the source settled, so a rule never judges a guessed value.
+
+    Examples:
+        >>> unsettled = _StaticWrapperInfo(unresolved={"remove_in": "not a literal"})
+        >>> len(_resolved([unsettled, DeprecationWrapperInfo()], ["remove_in"]))
+        1
+        >>> len(_resolved([unsettled], ["target"]))
+        1
+
+    """
     return [info for info in wrappers if not any(key in _unresolved(info) for key in keywords)]
 
 

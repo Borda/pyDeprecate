@@ -44,6 +44,10 @@ def _getmembers_static_compat(obj: Any) -> list[tuple[str, Any]]:  # noqa: ANN40
     Uses ``inspect.getmembers_static`` when available (Python 3.11+). For Python
     3.9/3.10 compatibility, falls back to ``dir()`` + ``inspect.getattr_static``.
 
+    Examples:
+        >>> dict(_getmembers_static_compat(type("Sample", (), {"limit": 3})))["limit"]
+        3
+
     """
     # ``dir`` can execute application hooks, including imports; those must observe the live proxy view.
     token = _STATIC_TYPE_VIEW.set(False)
@@ -62,6 +66,22 @@ def _getmembers_static_compat(obj: Any) -> list[tuple[str, Any]]:  # noqa: ANN40
         _STATIC_TYPE_VIEW.reset(token)
 
 
+def _is_renamed_class_proxy(
+    obj: object,
+    name: str,
+    bindings: Optional[dict[str, Any]],
+) -> bool:
+    """Identify a class proxy published only under a different name in this scope."""
+    if not isinstance(obj, _DeprecatedProxy):
+        return False
+    wrapped = obj.wrapped
+    if not issubclass(type(wrapped), type):
+        return False
+    # Use the built-in descriptor to avoid a custom metaclass name hook.
+    class_name = type.__dict__["__name__"].__get__(wrapped)
+    return name != class_name and (bindings is None or bindings.get(class_name) is not obj)
+
+
 def _scan_callable(
     obj: Any,  # noqa: ANN401
     module_name: str,
@@ -69,11 +89,15 @@ def _scan_callable(
     *,
     member_name: Optional[str] = None,
     descriptor_kind: Optional[str] = None,
+    bindings: Optional[dict[str, Any]] = None,
 ) -> Optional[DeprecationWrapperInfo]:
     """Emit a result if ``obj`` carries ``__deprecation_config__`` metadata."""
     if _has_deprecation_meta(obj):
         info = validate_deprecation_wrapper(obj)
         api_type = _classify_wrapper_api_type(obj, info, member_name=member_name, descriptor_kind=descriptor_kind)
+        # A rename still has an effect. An alias of an in-place proxy keeps the self-reference finding.
+        if info.self_reference and _is_renamed_class_proxy(obj, qualified_name.rpartition(".")[2], bindings):
+            info = replace(info, self_reference=False, no_effect=False)
         return replace(info, module=module_name, function=qualified_name, api_type=api_type)
     return None
 
@@ -130,7 +154,13 @@ def _pep702_message(obj: Any) -> Optional[str]:  # noqa: ANN401
 
 
 def _descriptor_kind(obj: Any) -> Optional[str]:  # noqa: ANN401
-    """Return the descriptor kind that API-type classification distinguishes, or ``None`` for any other member."""
+    """Return the descriptor kind that API-type classification distinguishes, or ``None`` for any other member.
+
+    Examples:
+        >>> _descriptor_kind(classmethod(len)), _descriptor_kind(staticmethod(len)), _descriptor_kind(len)
+        ('classmethod', 'staticmethod', None)
+
+    """
     if isinstance(obj, classmethod):
         return "classmethod"
     if isinstance(obj, staticmethod):
@@ -139,7 +169,18 @@ def _descriptor_kind(obj: Any) -> Optional[str]:  # noqa: ANN401
 
 
 def _descriptor_pep702_message(obj: Any) -> Optional[str]:  # noqa: ANN401
-    """Return the message of the first PEP 702-only callable behind ``obj``, peeking through descriptors."""
+    """Return the message of the first PEP 702-only callable behind ``obj``, peeking through descriptors.
+
+    Examples:
+        >>> import typing_extensions
+        >>> @typing_extensions.deprecated("Use `new` instead.")
+        ... def old() -> None: ...
+        >>> _descriptor_pep702_message(staticmethod(old))
+        'Use `new` instead.'
+        >>> _descriptor_pep702_message(staticmethod(len)) is None
+        True
+
+    """
     messages = map(_pep702_message, _descriptor_underlying_callables(obj))
     return next((item for item in messages if item is not None), None)
 
@@ -207,6 +248,10 @@ def _descriptor_underlying_callables(obj: Any) -> tuple[Any, ...]:  # noqa: ANN4
 def _member_has_deprecation_meta(obj: Any) -> bool:  # noqa: ANN401
     """Return whether a class member carries deprecation metadata through its descriptor.
 
+    Examples:
+        >>> _member_has_deprecation_meta(classmethod(len))
+        False
+
     Descriptors store the deprecation metadata on the underlying callable (``classmethod``/``staticmethod``
     ``__func__``, ``property`` accessors, ``cached_property`` ``func``), so a plain :func:`_has_deprecation_meta`
     on the raw member would miss deprecated descriptors.
@@ -223,11 +268,21 @@ def _scan_class_member(
     module_name: str,
     qualified: str,
     attr_name: str,
+    *,
+    bindings: Optional[dict[str, Any]] = None,
 ) -> Optional[DeprecationWrapperInfo]:
-    """Scan one class member for pyDeprecate metadata, peeking through its descriptor."""
+    """Scan one class member for pyDeprecate metadata, peeking through its descriptor.
+
+    ``bindings`` maps every member name of the class to its value, with a ``staticmethod``/``classmethod`` resolved to
+    the callable it wraps, so a self-targeting class proxy bound both under an alias and under its wrapped class's own
+    name keeps the self-reference finding on the alias, plain or descriptor-wrapped.
+
+    """
     if isinstance(obj, (classmethod, staticmethod)):
         kind = _descriptor_kind(obj)
-        return _scan_callable(obj.__func__, module_name, qualified, member_name=attr_name, descriptor_kind=kind)
+        return _scan_callable(
+            obj.__func__, module_name, qualified, member_name=attr_name, descriptor_kind=kind, bindings=bindings
+        )
     if isinstance(obj, property):
         _prop_accessor = next(
             (c for c in _descriptor_underlying_callables(obj) if _has_deprecation_meta(c)),
@@ -250,7 +305,7 @@ def _scan_class_member(
         return result
     if isinstance(obj, cached_property):
         return _scan_callable(obj.func, module_name, qualified, member_name=attr_name)
-    return _scan_callable(obj, module_name, qualified, member_name=attr_name)
+    return _scan_callable(obj, module_name, qualified, member_name=attr_name, bindings=bindings)
 
 
 #: Hooks ``warnings.deprecated`` / ``typing_extensions.deprecated`` install on a class they decorate with a warning
@@ -336,19 +391,25 @@ def _scan_class(
         pep702_names = _pep702_member_names(cls) if include_pep702 else frozenset()
     except (AttributeError, TypeError):
         return results
+    # A proxy aliased under another member name is a rename only while the class's own name does not hold it too.
+    # A ``staticmethod``/``classmethod`` binding holds its proxy one level down, so it is compared by that proxy.
+    bindings = {
+        name: value.__func__ if isinstance(value, (classmethod, staticmethod)) else value for name, value in members
+    }
     for attr_name, obj in members:
         # Looked up once per owned member; the private-member gate and the row below share it.
         pep702_message = _descriptor_pep702_message(obj) if attr_name in pep702_names else None
         if pep702_message is not None and _member_defined_in_other_package(obj, module_name):
             pep702_message = None
         if (
+            # skip private helpers and dunders; keep ``__init__``, and any private member that is itself deprecated
             attr_name.startswith("_")
             and attr_name != "__init__"
             and not (_member_has_deprecation_meta(obj) or pep702_message is not None)
         ):
             continue
         qualified = f"{cls_name}.{attr_name}"
-        result = _scan_class_member(obj, module_name, qualified, attr_name)
+        result = _scan_class_member(obj, module_name, qualified, attr_name, bindings=bindings)
         if result is None and pep702_message is not None:
             result = _pep702_row(obj, module_name, qualified, pep702_message, member_name=attr_name)
         if result is not None:
@@ -367,6 +428,10 @@ def _reexport_module(obj: Any) -> Optional[str]:  # noqa: ANN401
     proxy class's own ``__module__`` and the wrapped object commonly lives in a different module than where the proxy
     was created — so this returns ``None`` for them and the caller falls back to id-based dedup.
 
+    Examples:
+        >>> _reexport_module(len)
+        'builtins'
+
     """
     if isinstance(obj, _DeprecatedProxy):
         return None
@@ -374,7 +439,13 @@ def _reexport_module(obj: Any) -> Optional[str]:  # noqa: ANN401
 
 
 def _same_top_package(mod_a: str, mod_b: str) -> bool:
-    """Return True when ``mod_a`` and ``mod_b`` share the same top-level package."""
+    """Return True when ``mod_a`` and ``mod_b`` share the same top-level package.
+
+    Examples:
+        >>> _same_top_package("pkg.a", "pkg.b.c"), _same_top_package("pkg.a", "other.a")
+        (True, False)
+
+    """
     return mod_a.split(".")[0] == mod_b.split(".")[0]
 
 
@@ -401,7 +472,20 @@ def _should_skip_reexported_wrapper(
     mod_name: str,
     attribute_to_defining_module: bool,
 ) -> bool:
-    """Return True when a re-exported wrapper should be attributed elsewhere."""
+    """Return True when a re-exported wrapper should be attributed elsewhere.
+
+    That is the case when the wrapper was defined in a different module of the same top-level package than the one
+    being scanned, and *attribute_to_defining_module* asks to report it there instead.
+
+    Examples:
+        >>> _should_skip_reexported_wrapper(len, "builtins.extra", True)
+        True
+        >>> _should_skip_reexported_wrapper(len, "builtins.extra", False)
+        False
+        >>> _should_skip_reexported_wrapper(len, "builtins", True)
+        False
+
+    """
     if not attribute_to_defining_module:
         return False
     defining_module = _reexport_module(obj)
@@ -414,7 +498,14 @@ def _claim_wrapper(
     attribute_to_defining_module: bool,
     seen: set[int],
 ) -> bool:
-    """Return True — and mark ``obj`` seen — when this module is where ``obj`` should be reported."""
+    """Return True — and mark ``obj`` seen — when this module is where ``obj`` should be reported.
+
+    Examples:
+        >>> seen = set()
+        >>> _claim_wrapper(len, "builtins", True, seen), _claim_wrapper(len, "builtins", True, seen)
+        (True, False)
+
+    """
     if _should_skip_reexported_wrapper(obj, mod_name, attribute_to_defining_module) or id(obj) in seen:
         return False
     seen.add(id(obj))
@@ -430,6 +521,16 @@ def _claim_class_members(cls: Any, name: str, seen: set[int], canonical: frozens
     (every public name is an alias) falls back to the first name scanned. ``canonical`` holds the ``id`` of every class
     that has a binding named like itself. The negative id keeps this claim apart from the class-row claim, which is
     keyed on ``id(cls)`` itself.
+
+    Examples:
+        >>> class Sample: ...
+        >>> seen = set()
+        >>> _claim_class_members(Sample, "Sample", seen, frozenset([id(Sample)]))
+        True
+        >>> _claim_class_members(Sample, "Sample", seen, frozenset([id(Sample)]))
+        False
+        >>> _claim_class_members(Sample, "Alias", set(), frozenset([id(Sample)]))
+        False
 
     """
     if name != cls.__name__ and id(cls) in canonical:
@@ -448,6 +549,12 @@ def _wrapper_own_name(obj: Any) -> Optional[str]:  # noqa: ANN401
     is the one a reader expects the finding to name. A proxy (:class:`~deprecate.proxy._DeprecatedProxy`) answers
     ``__name__`` from the object it wraps or forwards to, which is not its own, so it has none; neither does an object
     without a string ``__name__``.
+
+    Examples:
+        >>> _wrapper_own_name(len)
+        'len'
+        >>> _wrapper_own_name(object()) is None
+        True
 
     """
     if isinstance(obj, _DeprecatedProxy):
@@ -485,6 +592,7 @@ def _scan_module_member(
     include_pep702: bool = False,
     canonical_classes: frozenset[int] = frozenset(),
     canonical_wrappers: frozenset[int] = frozenset(),
+    bindings: Optional[dict[str, Any]] = None,
 ) -> list[DeprecationWrapperInfo]:
     """Scan one module member for deprecated wrappers or nested class members."""
     if name.startswith("_") or inspect.ismodule(obj):
@@ -496,7 +604,7 @@ def _scan_module_member(
             return []
         if not _claim_wrapper(obj, mod_name, attribute_to_defining_module, seen):
             return []
-        result = _scan_callable(obj, mod_name, name)
+        result = _scan_callable(obj, mod_name, name, bindings=bindings)
         return [result] if result is not None else []
     results: list[DeprecationWrapperInfo] = []
     pep702_message = _descriptor_pep702_message(obj) if include_pep702 else None
@@ -508,6 +616,7 @@ def _scan_module_member(
         and _claim_wrapper(obj, mod_name, attribute_to_defining_module, seen)
     ):
         results.append(_pep702_row(obj, mod_name, name, pep702_message))
+    # descend into a class only when asked to, and only into one defined here, not one imported from elsewhere
     if include_members and inspect.isclass(obj) and getattr(obj, "__module__", None) == mod_name:
         # Only the PEP 702 rows are claimed once per class: pyDeprecate member rows keep their long-standing
         # one-per-binding behaviour, so the default scan and every gate built on it stay unchanged.
@@ -557,6 +666,7 @@ def _scan_module(
         id(obj) for name, obj in members if not name.startswith("_") and inspect.isclass(obj) and name == obj.__name__
     )
     canonical_wrappers = _canonical_wrapper_ids(members)
+    bindings = dict(members)
     for name, obj in members:
         results.extend(
             _scan_module_member(
@@ -569,6 +679,7 @@ def _scan_module(
                 include_pep702=include_pep702,
                 canonical_classes=canonical_classes,
                 canonical_wrappers=canonical_wrappers,
+                bindings=bindings,
             )
         )
     return results

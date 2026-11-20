@@ -81,7 +81,7 @@ class _DeprecatedProperty(property):
         self._wrap = _wrap
 
     def _rewrap(self, accessor: Optional[Callable]) -> Optional[Callable]:
-        """Apply the stored ``_wrap`` closure to ``accessor`` when present."""
+        """Wrap one accessor with the stored deprecation closure, passing ``None`` (no accessor) through unchanged."""
         if accessor is None:
             return accessor
         return self._wrap(accessor)

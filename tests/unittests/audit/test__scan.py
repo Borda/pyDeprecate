@@ -5,8 +5,10 @@ import importlib
 import pkgutil
 import types
 from collections.abc import Callable
+from enum import Enum
 from functools import cached_property
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -29,7 +31,7 @@ from deprecate.audit import (
     validate_deprecation_wrapper,
 )
 from deprecate.audit._scan import _SKIPPED_MODULES, _collect_skipped_modules, _member_has_deprecation_meta, _scan_class
-from deprecate.proxy import _DeprecatedProxy, _ProxySpec, deprecated_class
+from deprecate.proxy import _DeprecatedProxy, _ProxySpec, deprecated_class, deprecated_instance
 
 
 class _SideEffectScanModule:
@@ -117,7 +119,8 @@ class TestFindDeprecationWrappersPep702:
 
         """
         infos = find_deprecation_wrappers(pep702_module, recursive=False)
-        assert {(info.function, info.pep702_message) for info in infos} == {
+        actual = {(info.function, info.pep702_message) for info in infos}
+        expected = {
             ("stacked_callable", None),
             ("StackedAlias", None),
             ("StackedMembers.legacy_method", None),
@@ -126,6 +129,7 @@ class TestFindDeprecationWrappersPep702:
             ("Pep702MixedMembers.old_wrapped", None),
             ("Pep702AliasFirst.old_wrapped", None),
         }
+        assert actual == expected
 
     def test_opt_in_reports_pep702_only_objects(self) -> None:
         """With ``include_pep702=True`` every PEP 702-only symbol is listed, its ``api_type`` naming its shape.
@@ -137,7 +141,8 @@ class TestFindDeprecationWrappersPep702:
 
         """
         infos = find_deprecation_wrappers(pep702_module, recursive=False, include_pep702=True)
-        assert {(info.function, info.api_type) for info in infos if info.pep702_message is not None} == {
+        actual = {(info.function, info.api_type) for info in infos if info.pep702_message is not None}
+        expected = {
             ("pep702_only_function", "callable"),
             ("pep702_empty_message", "callable"),
             ("Pep702OnlyClass", "class"),
@@ -155,6 +160,7 @@ class TestFindDeprecationWrappersPep702:
             ("Pep702OnlyMembers.old_total", "class method"),
             ("Pep702MixedMembers.old_pep702", "class method"),
         }
+        assert actual == expected
 
     @pytest.mark.parametrize("marker", [None, pytest.param(b"Use `pep702_target` instead.", id="bytes")])
     def test_non_string_marker_is_not_reported(self, marker: object, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -409,6 +415,95 @@ class TestFindDeprecationWrappersReexport:
         results = find_deprecation_wrappers(mod)
 
         assert len([r for r in results if r.function in ("canonical", "alias")]) == 1
+
+    @pytest.mark.parametrize(
+        ("symbol", "also_bound_to_class_name", "no_effect"),
+        [
+            pytest.param("Color", False, False, id="rename-alias"),
+            pytest.param("ThemeColor", False, True, id="in-place-self-reference"),
+            pytest.param("Color", True, True, id="alias-before-original"),
+            pytest.param("ZColor", True, True, id="alias-after-original"),
+        ],
+    )
+    def test_self_target_class_proxy_is_no_effect_only_without_a_rename(
+        self, symbol: str, also_bound_to_class_name: bool, no_effect: bool
+    ) -> None:
+        """A class proxy that targets its own wrapped class is a rename alias unless it keeps the class's own name.
+
+        A maintainer renames ``ThemeColor`` and keeps the old name working as ``Color = deprecated_class(target=
+        ThemeColor, ...)(ThemeColor)``: callers of ``Color`` get the warning, so the audit must not call it a no-op.
+        Binding the proxy back to ``ThemeColor`` itself warns callers to use the very name they already use, which is
+        the real self-reference.
+        """
+
+        class ThemeColor(Enum):
+            RED = "red"
+
+        ThemeColor.__module__ = "alias_rename_mod"
+        mod = types.ModuleType("alias_rename_mod")
+        proxy = deprecated_class(target=ThemeColor, deprecated_in="1.0", remove_in="2.0")(ThemeColor)
+        bindings = dict.fromkeys(("ThemeColor", symbol) if also_bound_to_class_name else (symbol,), proxy)
+        vars(mod).update(bindings)
+
+        (info,) = find_deprecation_wrappers(mod)
+
+        assert (info.function, info.self_reference, info.no_effect) == (min(bindings), no_effect, no_effect)
+
+    def test_self_target_instance_never_reads_wrapped_name(self) -> None:
+        """An application object's dynamic name lookup is outside audit discovery.
+
+        A self-targeting instance still has no effect, and its raising ``__name__`` property must never run
+        during the check for a renamed class alias.
+        """
+
+        class Payload:
+            """Track accidental name reads by raising."""
+
+            @property
+            def __name__(self) -> str:
+                """Fail whenever a caller treats this instance as a named class."""
+                raise RuntimeError("name was accessed")
+
+        payload = Payload()
+        module = types.ModuleType("legacy")
+        vars(module)["alias"] = deprecated_instance(
+            payload, name="alias", target=payload, deprecated_in="1.0", remove_in="2.0"
+        )
+
+        (info,) = find_deprecation_wrappers(module)
+
+        assert (info.function, info.self_reference, info.no_effect) == ("alias", True, True)
+
+    def test_class_rename_does_not_use_metaclass_name_hook(self) -> None:
+        """A renamed class can customize attribute access without affecting scan classification.
+
+        Arm the application hook after constructing the proxy so this tests only the auditor's name lookup. The hook
+        records every dynamic read of the class name and then answers it unchanged, so nothing in the scan can swallow
+        the detection; the stored type name remains available without invoking the hook.
+        """
+        name_reads: list[str] = []
+
+        class NameGuard(type):
+            """Record name access once the proxy has been built."""
+
+            guard_name = False
+
+            def __getattribute__(cls, name: str) -> object:
+                """Record dynamic reads of the class name after setup, then answer them as usual."""
+                if name == "__name__" and cls.guard_name:
+                    name_reads.append(name)
+                return super().__getattribute__(name)
+
+        class ThemeColor(metaclass=NameGuard):
+            """Stand in for a renamed framework class."""
+
+        module = types.ModuleType("legacy")
+        vars(module)["Color"] = deprecated_class(target=ThemeColor, deprecated_in="1.0", remove_in="2.0")(ThemeColor)
+        ThemeColor.guard_name = True
+
+        (info,) = find_deprecation_wrappers(module)
+
+        assert (info.function, info.self_reference, info.no_effect, name_reads) == ("Color", False, False, [])
 
     @pytest.mark.parametrize(
         "aliases",
@@ -1027,6 +1122,64 @@ class TestFindDeprecationWrappersClassScan:
 
         names = [r.function for r in results]
         assert any("delete_only" in n for n in names)
+
+    @pytest.mark.parametrize(
+        ("members", "wrap", "no_effect"),
+        [
+            pytest.param(("Color",), {}, {"Host.Color": False}, id="rename-only"),
+            pytest.param(("ThemeColor",), {}, {"Host.ThemeColor": True}, id="in-place"),
+            pytest.param(
+                ("Color", "ThemeColor"), {}, {"Host.Color": True, "Host.ThemeColor": True}, id="both-bindings"
+            ),
+            pytest.param(
+                ("Color", "ThemeColor"),
+                {"ThemeColor": staticmethod},
+                {"Host.Color": True, "Host.ThemeColor": True},
+                id="own-name-in-staticmethod",
+            ),
+            pytest.param(
+                ("Color", "ThemeColor"),
+                {"Color": staticmethod},
+                {"Host.Color": True, "Host.ThemeColor": True},
+                id="alias-in-staticmethod",
+            ),
+            pytest.param(
+                ("Color", "ThemeColor"),
+                {"ThemeColor": classmethod},
+                {"Host.Color": True, "Host.ThemeColor": True},
+                id="own-name-in-classmethod",
+            ),
+            pytest.param(("Color",), {"Color": staticmethod}, {"Host.Color": False}, id="rename-in-staticmethod"),
+        ],
+    )
+    def test_self_target_class_proxy_member_is_no_effect_only_without_a_rename(
+        self, members: tuple[str, ...], wrap: dict[str, Callable[[Any], Any]], no_effect: dict[str, bool]
+    ) -> None:
+        """A self-targeting class proxy on a class attribute keeps the finding while the class's own name holds it too.
+
+        A framework exposes its enums as class attributes and renames ``ThemeColor``, keeping ``Host.Color`` as a
+        deprecated alias of the proxy. A ``Host.Color`` binding alone is a real rename: callers get the warning and
+        the audit must not call it a no-op. Once the same proxy also sits on ``Host.ThemeColor``, every binding warns
+        callers to use a name that is itself the deprecated proxy, so ``Host.Color`` must keep the self-reference
+        finding exactly as a module-level alias does. Wrapping either binding in a ``staticmethod`` or ``classmethod``
+        changes nothing: the descriptor only carries the proxy, so the own-name binding still counts.
+
+        """
+
+        class ThemeColor(Enum):
+            RED = "red"
+
+        mod = types.ModuleType("test_mod_member_alias")
+        proxy = deprecated_class(target=ThemeColor, deprecated_in="1.0", remove_in="2.0")(ThemeColor)
+        # the scan only descends into classes whose ``__module__`` matches the scanned module
+        namespace = {name: wrap.get(name, lambda value: value)(proxy) for name in members}
+        vars(mod)["Host"] = type("Host", (), {"__module__": mod.__name__, **namespace})
+
+        results = find_deprecation_wrappers(mod)
+
+        assert {r.function: (r.self_reference, r.no_effect) for r in results} == {
+            name: (flag, flag) for name, flag in no_effect.items()
+        }
 
 
 class TestValidateMappingCompatibility:

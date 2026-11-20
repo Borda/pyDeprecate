@@ -185,6 +185,7 @@ class _ScopedSwitch(ContextDecorator):
         self._enabled = enabled
 
     def _recreate_cm(self) -> "_ScopedSwitch":
+        """Return a fresh switch with the same setting for each call of a decorated function."""
         # a fresh instance per decorated call: ``__exit__`` matches entries by object identity, so each call then
         # removes exactly its own entry
         return _ScopedSwitch(self._enabled)

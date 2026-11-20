@@ -443,7 +443,15 @@ def validate_deprecation_expiry(
 
 
 def _safe_parse_version(version: str) -> Optional["Version"]:
-    """Best-effort version parser for report status evaluation."""
+    """Best-effort version parser for report status evaluation: ``None`` for an empty or unparsable string.
+
+    Examples:
+        >>> _safe_parse_version("") is None
+        True
+        >>> _safe_parse_version("not a version") is None
+        True
+
+    """
     if not version:
         return None
     try:
@@ -453,7 +461,15 @@ def _safe_parse_version(version: str) -> Optional["Version"]:
 
 
 def _format_version(version: Optional[str], *, missing: str = "—") -> str:
-    """Format version values with a stable ``v`` prefix for report output."""
+    """Format version values with a stable ``v`` prefix for report output.
+
+    Examples:
+        >>> _format_version("1.2.0"), _format_version("v1.2.0")
+        ('v1.2.0', 'v1.2.0')
+        >>> _format_version(None), _format_version("", missing="n/a")
+        ('—', 'n/a')
+
+    """
     if not version:
         return missing
     # Strip a single left-anchored leading ``v``/``V`` (``lstrip`` would remove *all* leading v's).
@@ -492,6 +508,7 @@ def _removal_status(current_version: "Version", remove_version: "Version") -> De
     # base_version strips pre/post/dev/local markers and always re-parses, so "1.8" == "1.8.0" compare equal.
     version_type = type(current_version)
     same_base = version_type(current_version.base_version) == version_type(remove_version.base_version)
+    # a final release, or a pre-release of some other release line, is still in its ordinary warning period
     if not (current_version.is_prerelease and same_base):
         return DeprecationStatus.ACTIVE_WARNING
     if current_version.pre is not None and current_version.pre[0] == "rc":

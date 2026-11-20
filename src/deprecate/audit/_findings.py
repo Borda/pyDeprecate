@@ -151,7 +151,20 @@ def _misconfiguration(info: DeprecationWrapperInfo) -> str:
         options = " and ".join(f"`{name}`" for name in ("args_mapping", "args_extra") if getattr(config, name))
         return f"{options or 'call-time options'} on a served object that is not callable"
     if config.target is TargetMode.ARGS_REMAP:
-        return "`TargetMode.ARGS_REMAP` with an empty `args_mapping`"
+        if not config.args_mapping:
+            return "`TargetMode.ARGS_REMAP` with an empty `args_mapping`"
+        if config.attrs_mapping:
+            return "`TargetMode.ARGS_REMAP` with both mappings (attribute redirects remain active)"
+        return "misconfigured `TargetMode.ARGS_REMAP`"
+    if config.target is TargetMode.ATTRS_REMAP:
+        # ``ATTRS_REMAP`` needs an ``attrs_mapping`` and ignores call-time options such as ``args_mapping``
+        if not config.attrs_mapping:
+            return "`TargetMode.ATTRS_REMAP` without an `attrs_mapping`"
+        ignored = next((name for name in ("args_mapping", "args_extra") if getattr(config, name)), None)
+        if ignored is not None:
+            return f"`TargetMode.ATTRS_REMAP` with `{ignored}`"
+        # Legacy target normalization can preserve the misconfiguration flag without any call-time options.
+        return "misconfigured `TargetMode.ATTRS_REMAP` (for example, normalized from `target=False`)"
     for field_name in ("args_mapping", "attrs_mapping", "args_extra"):
         if getattr(config, field_name):
             return f"`TargetMode.NOTIFY` with `{field_name}`"
@@ -159,7 +172,14 @@ def _misconfiguration(info: DeprecationWrapperInfo) -> str:
 
 
 def _no_effect_reasons(info: DeprecationWrapperInfo) -> tuple[str, ...]:
-    """Return why *info* has no effect on its callers, in report order."""
+    """Return why *info* has no effect on its callers, in report order.
+
+    Examples:
+        >>> info = DeprecationWrapperInfo(module="pkg", function="old", empty_args_mapping=True, self_reference=True)
+        >>> _no_effect_reasons(info)
+        ('Empty mapping', 'Self reference')
+
+    """
     reasons = (
         (info.empty_args_mapping, "Empty mapping"),
         (info.self_reference, "Self reference"),

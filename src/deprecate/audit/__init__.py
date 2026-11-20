@@ -95,7 +95,7 @@ __all__ = [
 ]
 
 # ---------------------------------------------------------------------------
-# Backward-compatibility shims — deprecated since 0.6, removed in 1.0
+# Backward-compatibility shims — deprecated since v0.6, removed in v1.0
 # ---------------------------------------------------------------------------
 
 

@@ -145,7 +145,8 @@ class TestSignatureFacts:
         positional-only, positional-or-keyword, ``*args``, keyword-only and ``**kwargs`` parameters must come back
         fully and correctly classified.
         """
-        assert _signature_facts(every_parameter_kind_target) == _SigFacts(
+        actual = _signature_facts(every_parameter_kind_target)
+        expected = _SigFacts(
             names=frozenset({"a", "b", "rest", "c", "d", "extra"}),
             positional_names=("a", "b"),
             positional_only=frozenset({"a"}),
@@ -155,6 +156,7 @@ class TestSignatureFacts:
             defaults={"b": 2, "d": 4},
             var_positional_index=2,
         )
+        assert actual == expected
 
     def test_class_reports_constructor_without_self(self) -> None:
         """A class reports its constructor parameters, ``self`` excluded.

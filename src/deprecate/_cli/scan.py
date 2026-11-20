@@ -59,6 +59,7 @@ def _names_missing_module(error: Exception, path: str) -> bool:
         False
 
     """
+    # not about a missing module when the path exists, the error is another kind, or it names no missing module at all
     if Path(path).exists() or not isinstance(error, ModuleNotFoundError) or error.name is None:
         return False
     return path == error.name or path.startswith(f"{error.name}.")
@@ -103,7 +104,15 @@ def _top_level_findable(name: str) -> bool:
 
 
 def _spec_location(spec: Optional[ModuleSpec]) -> Optional[Path]:
-    """Return where an import spec loads from: a package's first directory, a module's file, ``None`` for a built-in."""
+    """Return where an import spec loads from: a package's first directory, a module's file, ``None`` for a built-in.
+
+    Examples:
+        >>> _spec_location(importlib.util.find_spec("json")).name
+        'json'
+        >>> _spec_location(importlib.util.find_spec("sys")) is None
+        True
+
+    """
     if spec is None:
         return None
     if spec.submodule_search_locations:
@@ -155,7 +164,7 @@ class _Planned(Protocol):
 
     @property
     def target(self) -> _ScanTarget:
-        """The checked path."""
+        """The path as the preflight described it: what it imports as and where that name resolves."""
 
     @property
     def exclude(self) -> tuple[str, ...]:
@@ -213,13 +222,21 @@ def _walk_route(scan: _ScanTarget, other: _ScanTarget) -> Optional[tuple[Path, l
     parts: by name (``pkg`` holds ``pkg.sub``) or by directory (the package directory ``src/pkg`` holds
     ``src/pkg/sub``, named ``pkg.sub``).
 
+    Examples:
+        >>> pkg = _ScanTarget("pkg", "pkg", "pkg", Path("/src/pkg"))
+        >>> sub = _ScanTarget("pkg.sub", "pkg", "pkg.sub", Path("/src/pkg"))
+        >>> _walk_route(pkg, sub)[1], _walk_route(sub, pkg)
+        (['pkg', 'sub'], None)
+
     """
+    # no route when either side is a plain directory, or *scan* is a built-in that has no directory to walk
     if scan.import_name is None or scan.module is None or other.module is None or scan.location is None:
         return None
     if scan.import_name == other.import_name and scan.location == other.location:
         inside = other.module.startswith(f"{scan.module}.")
         return (scan.location, other.module.split(".")) if inside else None
     whole_package = scan.module == scan.import_name and scan.location.is_dir()
+    # *other* is reachable by directory only when *scan* is a whole package and *other*'s location lies below it
     if not whole_package or other.location is None or scan.location not in other.location.parents:
         return None
     return scan.location, [scan.import_name, *other.location.relative_to(scan.location).parts]
@@ -232,6 +249,13 @@ def _covers(scan: _Planned, other: _Planned, *, recursive: bool) -> bool:
     *scan*'s package imports: every directory between them is a package (:func:`_walk_reaches`) and *scan*'s ``exclude``
     does not leave the subpackage out. A subpackage under a directory without ``__init__.py``, a submodule that does not
     exist, or one *scan* excludes is not covered, so it keeps its own scan (and its own usage error).
+
+    Examples:
+        >>> from types import SimpleNamespace
+        >>> pkg = SimpleNamespace(target=_ScanTarget("pkg", "pkg", "pkg", Path("/src/pkg")), exclude=())
+        >>> other = SimpleNamespace(target=_ScanTarget("other", "other", "other", Path("/src/other")), exclude=())
+        >>> _covers(pkg, pkg, recursive=False), _covers(pkg, other, recursive=True)
+        (True, False)
 
     """
     first, second = scan.target, other.target
@@ -385,6 +409,10 @@ def _bound_names(target: _ScanTarget, exclude: Sequence[str] = ()) -> dict[str, 
     A package or module binds its top-level name; a plain directory binds the bare name of each top-level file it scans,
     which leaves out a file whose name matches one of the target's *exclude* patterns, as :func:`_scan_directory` does.
 
+    Examples:
+        >>> _bound_names(_ScanTarget("pkg.sub", "pkg", "pkg.sub", None))
+        {'pkg': None}
+
     """
     if target.import_name is not None:
         return {target.import_name: target.location}
@@ -398,6 +426,13 @@ def _shared_name(first: _Planned, second: _Planned) -> Optional[str]:
 
     Each path counts only what its own scan imports by name, so a file its resolved ``exclude`` leaves out takes no
     part.
+
+    Examples:
+        >>> from types import SimpleNamespace
+        >>> one = SimpleNamespace(target=_ScanTarget("pkg", "pkg", "pkg", Path("/one/pkg")), exclude=())
+        >>> two = SimpleNamespace(target=_ScanTarget("pkg", "pkg", "pkg", Path("/two/pkg")), exclude=())
+        >>> _shared_name(one, two), _shared_name(one, one)
+        ('pkg', None)
 
     """
     first_names = _bound_names(first.target, first.exclude)
@@ -615,6 +650,7 @@ def _import_and_scan(
 
     """
     recorded = version
+    # no version was given, yet the subcommand compares against one or the report records one: detect it
     if version is None and (resolve_version or record_version):
         # Dynamic project versions and the __version__ fallback import code before the wrapper scan does, so they run
         # with the same import root as the scan: in a run over several paths, each package resolves its own version.
@@ -685,6 +721,7 @@ def _scan_for_command(
     resolved_exclude = _resolve_exclude(path, exclude, config)
     if resolved_exclude is None:
         return None
+    # *path* is no package, no existing path and not spelled as a dotted module name: nothing to scan
     if package_dir is None and not Path(path).exists() and not _is_module_name(path):
         # `./typo` or `.pkg` is no path and no module name; importing it would fail as a relative import
         _print(f"No such path or importable module: {path!r}", stderr=True)
@@ -811,6 +848,7 @@ def _static_scan(
         _print(str(err), stderr=True)
         return None
     recorded = version
+    # no version was given, yet the subcommand compares against one or the report records one: use the detected one
     if version is None and (resolve_version or record_version):
         recorded = source_scan.version
         if resolve_version:

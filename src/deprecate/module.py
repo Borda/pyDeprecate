@@ -68,6 +68,19 @@ def _build_module_warn_msg(
     target: Optional[types.ModuleType],
     message_template: Optional[str],
 ) -> str:
+    """Build the warning text for a deprecated module: the caller's template, else the redirect or no-target notice.
+
+    Args:
+        module_name: ``__name__`` of the deprecated module.
+        deprecated_in: Version in which the module was deprecated.
+        remove_in: Version in which the module will be removed.
+        target: The replacement module, or ``None`` for a warn-only deprecation.
+        message_template: Caller-supplied template, which replaces the built-in notice when set.
+
+    Returns:
+        The rendered warning message.
+
+    """
     target_name = getattr(target, "__name__", None) if target is not None else None
     # A caller-supplied ``message_template`` replaces the built-in notice (consistent with the other
     # factories); plain text renders verbatim, while ``%``-placeholders are substituted. Otherwise pick the
@@ -311,6 +324,10 @@ def _resolve_module_name(name: Optional[str], caller_frame: types.FrameType) -> 
             (``f_locals`` differs from ``f_globals``) rather than at module top level.
         ValueError: If ``name`` is omitted and the caller frame's ``__name__`` cannot be determined.
 
+    Example:
+        >>> _resolve_module_name("pkg.legacy", sys._getframe())
+        'pkg.legacy'
+
     """
     if name is not None:
         return name
@@ -398,10 +415,11 @@ def deprecated_module(
             bodies coexist): a listed name is always resolved via the mapping, never returned as its stale local
             value.  When supplied alongside ``target``, listed names resolve via the mapping and all other names fall
             through to ``target``.
-        deprecated_in: Version string when this module was deprecated (e.g. ``"1.0"``).  Defaults to ``""``;
-            when omitted a decoration-time :class:`UserWarning` fires (the notice omits the version and expiry
-            audits cannot gate the module), matching :func:`~deprecate.deprecated`.
-        remove_in: Version string when this module will be removed (e.g. ``"2.0"``).  Defaults to ``""``.
+        deprecated_in: Version string when this module was deprecated (e.g. ``"1.0"``). Defaults to ``""``.
+            Omitting it emits a decoration-time :class:`UserWarning` unless a nonempty ``message_template``
+            supplies the notice.
+        remove_in: Version string when this module will be removed (e.g. ``"2.0"``). Defaults to ``""``.
+            Expiry audits enforce an explicit deadline even when ``deprecated_in`` is omitted.
         stream: Callable used to emit the warning instead of :func:`warnings.warn`.  Omit it (the default, which
             :func:`help` and :func:`inspect.signature` show as ``<warnings.warn>``) to use the standard
             :mod:`warnings` machinery.  An explicit ``None`` still selects :func:`warnings.warn` but emits a
@@ -482,11 +500,9 @@ def deprecated_module(
     # instead of a cryptic TypeError/KeyError (or silent dict-dump corruption) on the first warn emit.
     _validate_message_template(message_template)
 
-    # Missing-version notice, mirroring `@deprecated`: a deprecation without a `deprecated_in` version
-    # produces a vaguer notice and cannot be gated by expiry audits. Fired once here at call time (module
-    # deprecation runs once at import) so the gap surfaces during development, not silently at runtime.
-    # Both notices below follow every argument check above, so a rejected call raises without announcing.
-    if not deprecated_in:
+    # Announce a missing deprecation version at installation if the built-in notice will need it.
+    # A nonempty custom template supplies its own wording. Expiry audits still use an explicit `remove_in`.
+    if not deprecated_in and not message_template:
         warnings.warn(
             f"`deprecated_module` on {module_name!r} has no `deprecated_in` set."
             " Deprecation notices and expiry audits will omit the `deprecated_in` version."

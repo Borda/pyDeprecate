@@ -41,6 +41,10 @@ def _get_static_attr_owner(proxy_type: Any, obj: Any) -> Any:  # noqa: ANN401
     :class:`~deprecate._types.DeprecationConfig` prevents reassignment of ``target`` after construction),
     but the guard breaks the loop on the unlikely case of a circular chain so this helper never blocks.
 
+    Example:
+        >>> _get_static_attr_owner(type(None), 3)
+        3
+
     """
     seen: set[int] = set()
     while issubclass(type(obj), proxy_type):
@@ -102,6 +106,15 @@ def _validate_attrs_mapping(
         ValueError: If *attrs_mapping* contains a cycle, a missing redirect target, or a
             warn-only key absent from both classes.
 
+    Example:
+        >>> _validate_attrs_mapping(type(None), {"old": "copy"}, dict, dict) is None
+        True
+        >>> try:
+        ...     _validate_attrs_mapping(type(None), {"a": "b", "b": "a"}, dict, dict)
+        ... except ValueError as exc:
+        ...     print(str(exc).split(" — ")[0])
+        `attrs_mapping` has circular redirects
+
     """
     # Reject true cycles in ``attrs_mapping`` at decoration time. Non-cyclic chains are allowed at runtime
     # and surfaced by audit as mapping chains.
@@ -144,6 +157,15 @@ def _validate_attrs_redirect_targets(
 
     Raises:
         ValueError: If any non-``None`` redirect target is absent from *attr_check_obj*.
+
+    Example:
+        >>> _validate_attrs_redirect_targets(type(None), {"old": "copy"}, dict) is None
+        True
+        >>> try:
+        ...     _validate_attrs_redirect_targets(type(None), {"old": "nope"}, dict)
+        ... except ValueError as exc:
+        ...     print(str(exc).split(": ")[0])
+        `attrs_mapping` redirect targets not found on the active object
 
     """
     # For @dataclass targets, required fields (no default) are not visible via getattr_static
@@ -192,6 +214,15 @@ def _validate_attrs_warn_only_keys(
     Raises:
         ValueError: If any warn-only key is absent from both *attr_check_obj* and *obj*.
 
+    Example:
+        >>> _validate_attrs_warn_only_keys(type(None), {"copy": None}, dict, dict) is None
+        True
+        >>> try:
+        ...     _validate_attrs_warn_only_keys(type(None), {"nope": None}, dict, dict)
+        ... except ValueError as exc:
+        ...     print(str(exc).split(": ")[0])
+        `attrs_mapping` warn-only keys not found on either class
+
     """
     missing_keys = [
         k
@@ -223,7 +254,18 @@ def _expand_dc_attrs_to_args(
     ``None``) when ``attrs_mapping`` is empty/``None`` or ``dc_check`` is not a dataclass.  Keys already present in
     ``args_mapping`` are never overwritten.
 
+    Example:
+        >>> from dataclasses import dataclass
+        >>> @dataclass
+        ... class Point:
+        ...     x: int
+        >>> _expand_dc_attrs_to_args(Point, {"old_x": "x", "gone": "y"}, None)
+        ({'old_x': 'x'}, ['old_x'])
+        >>> _expand_dc_attrs_to_args(dict, {"old_x": "x"}, None)
+        (None, [])
+
     """
+    # nothing to expand: no attribute aliases, or the active object is not a dataclass with ``__init__`` fields
     if not (attrs_mapping and _is_dataclass_target(dc_check)):
         return args_mapping, []
     auto_expanded: list[str] = []
@@ -255,6 +297,15 @@ def _resolve_proxy_target(
     returned tuple tells the proxy to ignore the mapping at runtime (the validators emit the misconfig ``UserWarning``).
 
     Returns ``(resolved_target, args_mapping, auto_expanded_keys, explicit_notify_attrs)``.
+
+    Example:
+        >>> target, args_mapping, expanded, notify_attrs = _resolve_proxy_target(dict, None, {"old": "new"}, None, dict)
+        >>> target.name, args_mapping, expanded, notify_attrs
+        ('ARGS_REMAP', {'old': 'new'}, [], False)
+        >>> _resolve_proxy_target(dict, TargetMode.NOTIFY, None, {"old": "new"}, dict)[0].name
+        'NOTIFY'
+        >>> _resolve_proxy_target(dict, None, None, None, dict)[0] is None
+        True
 
     """
     explicit_notify_attrs = target is TargetMode.NOTIFY and bool(attrs_mapping)
@@ -300,7 +351,14 @@ def _detect_proxy_positional_only(
         ctor_positional_only: POSITIONAL_ONLY parameter names of ``dc_check``'s call signature (a class's
             constructor).
 
+    Example:
+        >>> _detect_proxy_positional_only(dict, "old_dict", None, frozenset())
+        ()
+        >>> _detect_proxy_positional_only(len, "old_len", {"old": "new"}, frozenset({"obj"}))
+        ()
+
     """
+    # nothing to check: no argument renames, or the active object cannot be called with them
     if not (args_mapping and callable(dc_check)):
         return ()
     incompatible = tuple(old_key for old_key, new_key in args_mapping.items() if new_key in ctor_positional_only)

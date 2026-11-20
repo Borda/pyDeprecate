@@ -1,9 +1,9 @@
 """Caller-frame walk that points every pyDeprecate warning at user code.
 
-Every warning pyDeprecate raises — deprecation notices at call time and configuration notices at decoration time —
-must report the first frame outside the ``deprecate`` package, whatever internal path led to the warn call (stacked
-wrappers, the class front door, proxy dunders, descriptor accessors).  Counting those frames by hand at each site broke
-whenever a helper was extracted; :func:`_caller_stacklevel` measures the distance at the moment of warning instead.
+Every warning pyDeprecate raises — deprecation notices at call time and configuration notices at decoration time — must
+report the first frame outside the ``deprecate`` package, whatever internal path led to the warn call (stacked wrappers,
+the class front door, proxy dunders, descriptor accessors).  Counting those frames by hand at each site broke whenever a
+helper was extracted; :func:`_caller_stacklevel` measures the distance at the moment of warning instead.
 
 The module is private and dependency-free so every other ``deprecate`` module can import it without cycles.
 
@@ -91,6 +91,7 @@ def _caller_stacklevel() -> int:
     except ValueError:
         return 1
     level = 1
+    # keep walking outward while inside this package, up to the frame cap
     while frame is not None and level < _MAX_FRAMES and _is_internal(frame):
         frame = frame.f_back
         while frame is not None and _is_import_bootstrap(frame):

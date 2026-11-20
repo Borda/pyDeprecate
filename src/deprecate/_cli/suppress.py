@@ -81,6 +81,14 @@ def _parse_ignore(entries: list[str], source: str) -> list[_IgnoreEntry]:
     Raises:
         ValueError: Naming the first bad entry and *source* (the ``--ignore`` flag or the ``pyproject.toml``).
 
+    Examples:
+        >>> [(entry.rule, entry.module) for entry in _parse_ignore(["pkg.a:f", "chain:pkg.b:*"], "`--ignore`")]
+        [('*', 'pkg.a'), ('chain', 'pkg.b')]
+        >>> _parse_ignore(["nope"], "`--ignore`")
+        Traceback (most recent call last):
+        ...
+        ValueError: Invalid ignore entry `nope` from `--ignore`: expected `module:symbol` or `rule:module:symbol`.
+
     """
     parsed = []
     for entry in entries:
@@ -117,11 +125,22 @@ def _baseline_records(data: dict[str, Any], key: str, regenerate: str) -> list[d
     Raises:
         ValueError: Naming *regenerate* and the first malformed part.
 
+    Examples:
+        >>> _baseline_records({"findings": [{"id": "expired:pkg:f"}]}, "findings", "regenerate")
+        [{'id': 'expired:pkg:f'}]
+        >>> _baseline_records({}, "suppressed", "regenerate")
+        []
+        >>> _baseline_records({"findings": [{"id": 1}]}, "findings", "regenerate")
+        Traceback (most recent call last):
+        ...
+        ValueError: regenerate (`findings[0]` is not a finding with a string `id`)
+
     """
     records = data.get(key, [])
     if not isinstance(records, list):
         raise ValueError(f"{regenerate} (`{key}` is not a list)")
     for index, record in enumerate(records):
+        # a record that is not a JSON object, or whose `id` is missing or not text, cannot be matched to a finding
         if not isinstance(record, dict) or not isinstance(record.get("id"), str):
             raise ValueError(f"{regenerate} (`{key}[{index}]` is not a finding with a string `id`)")
     return records
@@ -146,6 +165,7 @@ def _load_baseline(path: str) -> frozenset[str]:
     if not isinstance(data, dict):
         raise ValueError(regenerate)
     schema = data.get("schema")
+    # not a report: `schema` is missing, not a whole number (a boolean is one in Python, too), or too old
     if not isinstance(schema, int) or isinstance(schema, bool) or schema < _BASELINE_MIN_SCHEMA:
         raise ValueError(regenerate)
     if "findings" not in data:
@@ -205,6 +225,7 @@ class _Suppressor:
         expected = set()
         for item in self.baseline:
             rule, _, rest = item.partition(":")
+            # expected only when this run evaluated the id's rule and audited the id's module (all, with no *audited*)
             if rule in evaluated_rules and (audited is None or audited(rest.split(":", 1)[0])):
                 expected.add(item)
         return expected

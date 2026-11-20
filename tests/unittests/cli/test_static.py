@@ -71,6 +71,16 @@ def _expiry_ids(wrappers: list[DeprecationWrapperInfo]) -> list[str]:
     return [f.id for f in _expiry_findings(_resolved(wrappers, ("remove_in",)), "99.0")]
 
 
+def _json_gap(detail: str) -> dict[str, str]:
+    """Return the report row of a ``not statically resolvable`` gap of ``static_forms`` that carries ``detail``."""
+    return {
+        "kind": "not statically resolvable",
+        "detail": detail,
+        "hint": "run without `--static` for a full audit, or use literal version strings",
+        "path": "static_forms",
+    }
+
+
 def _run_static_cli(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -148,35 +158,22 @@ class TestStaticGapOutput:
         monkeypatch.chdir(_ROOT / "tests" / "collections")
         monkeypatch.syspath_prepend(str(_ROOT / "tests" / "collections"))
         _, gaps = _run_static_cli(tmp_path, monkeypatch, capsys, "static_forms")
-        assert gaps == [
-            {
-                "kind": "not statically resolvable",
-                "detail": "static_forms.py:237: unrecognized use of `deprecated`",
-                "hint": "run without `--static` for a full audit, or use literal version strings",
-                "path": "static_forms",
-            },
-            {
-                "kind": "not statically resolvable",
-                "detail": "static_forms.py:213: `remove_in` is `REMOVAL`, not a literal "
-                "(Callable `static_forms.ambiguous_removal` not checked)",
-                "hint": "run without `--static` for a full audit, or use literal version strings",
-                "path": "static_forms",
-            },
-            {
-                "kind": "not statically resolvable",
-                "detail": "static_forms.py:225: arguments come from "
-                "`**dict(deprecated_in='1.0', remove_in='2.0')` (Callable `static_forms.called_splat` not checked)",
-                "hint": "run without `--static` for a full audit, or use literal version strings",
-                "path": "static_forms",
-            },
-            {
-                "kind": "not statically resolvable",
-                "detail": "static_forms.py:219: `remove_in` is `f'{_MAJOR}.0'`, not a literal "
-                "(Callable `static_forms.formatted_removal` not checked)",
-                "hint": "run without `--static` for a full audit, or use literal version strings",
-                "path": "static_forms",
-            },
+        expected = [
+            _json_gap("static_forms.py:237: unrecognized use of `deprecated`"),
+            _json_gap(
+                "static_forms.py:213: `remove_in` is `REMOVAL`, not a literal "
+                "(Callable `static_forms.ambiguous_removal` not checked)"
+            ),
+            _json_gap(
+                "static_forms.py:225: arguments come from `**dict(deprecated_in='1.0', remove_in='2.0')` "
+                "(Callable `static_forms.called_splat` not checked)"
+            ),
+            _json_gap(
+                "static_forms.py:219: `remove_in` is `f'{_MAJOR}.0'`, not a literal "
+                "(Callable `static_forms.formatted_removal` not checked)"
+            ),
         ]
+        assert gaps == expected
 
     def test_policy_collection_has_no_gaps(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]

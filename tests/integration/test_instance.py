@@ -180,14 +180,14 @@ class TestInstanceTarget:
         assert (old, current, caught) == ("teal", ("teal", 7), [])
 
     @pytest.mark.parametrize(
-        ("alias", "call_kwargs", "expected"),
+        ("alias", "call_kwargs", "expected", "message"),
         [
-            pytest.param(depr_resize, {"size_px": 4, "margin": 1}, 5, id="function-target"),
-            pytest.param(depr_scaler, {"quantity": 3}, 6, id="callable-instance"),
+            pytest.param(depr_resize, {"size_px": 4, "margin": 1}, 5, "in favor of", id="function-target"),
+            pytest.param(depr_scaler, {"quantity": 3}, 6, "uses deprecated arguments", id="callable-instance"),
         ],
     )
     def test_renamed_keyword_reaches_positional_only_parameter(
-        self, alias: Callable[..., int], call_kwargs: dict[str, int], expected: int
+        self, alias: Callable[..., int], call_kwargs: dict[str, int], expected: int, message: str
     ) -> None:
         """A call by the old keyword is forwarded positionally when the new parameter is positional-only.
 
@@ -196,7 +196,7 @@ class TestInstanceTarget:
         place the value positionally, as the ``@deprecated`` decorator does.
 
         """
-        with pytest.warns(FutureWarning, match="uses deprecated arguments"):
+        with pytest.warns(FutureWarning, match=message):
             result = alias(**call_kwargs)
         assert result == expected
 
@@ -233,10 +233,10 @@ class TestInstanceTarget:
         ],
     )
     @pytest.mark.parametrize(
-        ("alias", "call_kwargs", "expected"),
+        ("alias", "call_kwargs", "expected", "message"),
         [
-            pytest.param(depr_resize, {"size_px": 4, "margin": 1}, 5, id="function-target"),
-            pytest.param(depr_scaler, {"quantity": 3}, 6, id="callable-instance"),
+            pytest.param(depr_resize, {"size_px": 4, "margin": 1}, 5, "in favor of", id="function-target"),
+            pytest.param(depr_scaler, {"quantity": 3}, 6, "uses deprecated arguments", id="callable-instance"),
         ],
     )
     def test_duplicate_of_callable_alias_keeps_renamed_keyword(
@@ -245,6 +245,7 @@ class TestInstanceTarget:
         alias: Callable[..., int],
         call_kwargs: dict[str, int],
         expected: int,
+        message: str,
     ) -> None:
         """A copied or pickled callable alias still forwards a call by the old keyword to its positional-only target.
 
@@ -253,7 +254,7 @@ class TestInstanceTarget:
 
         """
         duplicated = duplicate(alias)
-        with pytest.warns(FutureWarning, match="uses deprecated arguments"):
+        with pytest.warns(FutureWarning, match=message):
             result = duplicated(**call_kwargs)
         assert result == expected
 

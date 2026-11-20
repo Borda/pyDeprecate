@@ -165,10 +165,12 @@ def deprecated_class(
             - ``%(source_name)s`` — the deprecated class name (taken from ``cls.__name__``)
             - ``%(deprecated_in)s`` — value of the ``deprecated_in`` argument
             - ``%(remove_in)s`` — value of the ``remove_in`` argument
-            - ``%(target_name)s`` — target class name (only when *target* is callable)
-            - ``%(target_path)s`` — fully-qualified target path (only when *target* is callable)
+            - ``%(target_name)s`` — replacement callable, renamed keyword, or replacement attribute name,
+              depending on the warning kind
+            - ``%(target_path)s`` — fully-qualified replacement callable or replacement attribute path
             - ``%(argument_map)s`` — formatted ``\`old\` -> \`new\``` string, or ``\`old\` (kept)`` for an argument
-              mapped to ``""`` (only for per-argument warnings emitted by ``args_mapping``)
+              mapped to ``""``. Available in per-argument warnings from ``ARGS_REMAP`` and dataclass field aliases
+              that automatically map constructor keywords on the wrapped class.
 
             Example: ``"v%(deprecated_in)s: ``%(source_name)s`` -> ``%(target_name)s``"``.
         args_mapping: Optional dict remapping keyword argument names when the decorated class is called.  Keys are
@@ -327,6 +329,7 @@ def deprecated_class(
             cls_name = cls_config.name
         else:
             cls_name = cls.__name__
+        # nudge the author when the notice would be shown (a stream is set) yet nothing names the deprecation version
         if stream is not None and not deprecated_in and not message_template:
             _warn_missing_deprecated_in(f"`@deprecated_class` on `{cls_name}`")
         proxy = _DeprecatedProxy(
@@ -437,10 +440,10 @@ def deprecated_instance(
             than once per proxy operation; a callable that returns a non-``bool`` raises :class:`TypeError` at
             access time.  For picklable proxies, use a module-level callable or a plain ``bool`` (same constraint
             as *stream*).
-        read_only: If ``True``, raise :class:`AttributeError` on any write attempt through the proxy.
-            Only the following standard collection mutator names are intercepted: ``append``, ``clear``,
-            ``discard``, ``extend``, ``insert``, ``pop``, ``remove``, ``setdefault``, ``update``, ``add``.
-            Custom method names (e.g. ``register()``, ``reload()``, ``set_value()``) are not blocked.
+        read_only: If ``True``, block attribute and item writes, in-place operators, and calls to methods named
+            ``append``, ``clear``, ``discard``, ``extend``, ``insert``, ``pop``, ``remove``, ``setdefault``, ``update``,
+            ``add``, ``sort``, ``reverse``, ``popitem``, ``difference_update``, ``intersection_update``, or
+            ``symmetric_difference_update``. A custom method with a guarded name also raises :class:`AttributeError`.
         args_extra: Optional dict of extra keyword arguments merged into the forwarded call when the proxy is invoked.
             ``args_extra`` values win over any caller-supplied value with the same key.
         template_mgs: Deprecated alias for ``message_template`` (renamed in ``v0.12``; the old spelling was a
@@ -491,6 +494,7 @@ def deprecated_instance(
     message_template = _resolve_message_template_alias(message_template, template_mgs)
     _reject_instance_target(target)
     resolved_name = name or type(obj).__name__
+    # nudge the author when the notice would be shown (a stream is set) yet nothing names the deprecation version
     if stream is not None and not deprecated_in and not message_template:
         _warn_missing_deprecated_in(f"`deprecated_instance()` on `{resolved_name}`")
     return _proxy_type_for(obj)(

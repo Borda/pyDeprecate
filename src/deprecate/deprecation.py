@@ -49,7 +49,7 @@ _CLASS_DISPATCH_NOTICE_LIMIT = 4096
 _CLASS_DISPATCH_NOTICE_LOCK = threading.Lock()
 
 #: Insertion-ordered cache of class dispatch notices, keyed by module + qualified name. The oldest key
-#: is evicted at the limit, so an evicted class may receive the notice again. Remove in 1.0.
+#: is evicted at the limit, so an evicted class may receive the notice again. Remove in v1.0.
 _CLASS_DISPATCH_NOTIFIED: OrderedDict[str, None] = OrderedDict()
 
 
@@ -110,6 +110,7 @@ def _packing_class_source(
                 should_notify = True
     if should_notify:
         message = f"`@deprecated` on class `{source.__name__}` now dispatches to `@deprecated_class`."
+        # the target is a plain callable (not a class or mode), which class deprecation ignores
         if target is not None and not inspect.isclass(target) and not isinstance(target, TargetMode):
             # The non-class-``target``-ignored hint stays — it is a real misconfig signal for the class path.
             message += (
@@ -127,6 +128,7 @@ def _packing_class_source(
         # (``None``) so a configured mapping auto-resolves exactly like a direct ``deprecated_class(...)``
         # call with ``target`` omitted. ``TargetMode.AUTO`` itself never reaches the strict factories.
         forward_target: Any = None
+    # an explicit mode, or a class target, passes through unchanged
     elif isinstance(target, TargetMode) or callable(target) and inspect.isclass(target):
         forward_target = target
     elif target is None or isinstance(target, bool):
@@ -311,6 +313,7 @@ def deprecated(
         source: Union[Callable, classmethod, staticmethod, property, cached_property],
         _is_static: bool = False,
     ) -> Union[Callable, classmethod, staticmethod, property, cached_property]:
+        """Decorate ``source``: a class goes to ``deprecated_class``, anything else to the strict callable decorator."""
         # Class sources delegate to ``deprecated_class`` (Phase 1 warn-and-delegate); every callable routes
         # to the strict ``deprecated_callable`` arm.  The extra frames this delegation adds need no offset:
         # every warning measures its own location (``_caller_stacklevel``).

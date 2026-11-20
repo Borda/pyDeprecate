@@ -101,6 +101,7 @@ def find_docstring_insertion_index(lines: list[str]) -> int:
         if line.strip().lower() in GOOGLE_DOCSTRING_SECTIONS:
             return idx
         if (
+            # a NumPy section is a known header word with a ``-----`` underline on the next line, not just prose
             idx + 1 < len(lines)
             and line.strip().lower() in NUMPY_DOCSTRING_SECTIONS
             and is_numpy_underline(lines[idx + 1])
@@ -198,6 +199,12 @@ def _find_google_args_section(lines: list[str]) -> tuple[int, int]:
     Returns:
         A 2-tuple ``(section_start, section_indent)``.
 
+    Examples:
+        >>> _find_google_args_section(["Do it.", "", "Args:", "    x: Value."])
+        (2, 0)
+        >>> _find_google_args_section(["Do it.", "Args: see below"])
+        (-1, 0)
+
     """
     _section_re = re.compile(r"^\s*(Args|Arguments):\s*$")
     for i, line in enumerate(lines):
@@ -221,6 +228,12 @@ def _get_google_arg_indents(lines: list[str], section_start: int, section_indent
 
     Returns:
         A 2-tuple ``(arg_indent, continuation_indent)``.
+
+    Examples:
+        >>> _get_google_arg_indents(["Args:", "    x: Value.", "        More."], 0, 0)
+        (4, 8)
+        >>> _get_google_arg_indents(["Args:", ""], 0, 0)
+        (-1, -1)
 
     """
     arg_indent = -1
@@ -266,6 +279,11 @@ def _find_google_arg_line(
     Returns:
         Line index of the matching argument entry, or ``-1``.
 
+    Examples:
+        >>> doc = ["Args:", "    lr (float): Rate.", "    old: Old one."]
+        >>> _find_google_arg_line(doc, 0, 0, 4, "lr"), _find_google_arg_line(doc, 0, 0, 4, "missing")
+        (1, -1)
+
     """
     for i in range(section_start + 1, len(lines)):
         line = lines[i]
@@ -277,6 +295,7 @@ def _find_google_arg_line(
         if current_indent == arg_indent:
             rest = line[arg_indent:]
             has_arg_boundary = len(rest) > len(arg_name) and rest[len(arg_name)] in " :(,"
+            # this entry is the argument: its name is the whole line, or is followed by ``:``, ``(``, ``,`` or a space
             if rest == arg_name or (rest.startswith(arg_name) and has_arg_boundary):
                 return i
     return -1
@@ -301,6 +320,10 @@ def _find_entry_end(lines: list[str], entry_idx: int, entry_indent: int) -> int:
 
     Returns:
         Index of the last line belonging to the entry (>= *entry_idx*).
+
+    Examples:
+        >>> _find_entry_end(["    x: Value,", "        continued.", "    y: Next."], 0, 4)
+        1
 
     """
     end_idx = entry_idx
@@ -337,6 +360,13 @@ def _annotate_google_style_arg(lines: list[str], arg_name: str, note: str) -> tu
             lr (float): Learning rate.
             old_cfg (object): Old config.
                 Deprecated — use cfg instead.  # <-- inserted here
+
+    Examples:
+        >>> doc = ["Args:", "    old: Old one.", "", "Returns:", "    Value."]
+        >>> _annotate_google_style_arg(doc, "old", "Deprecated.")[0][:3]
+        ['Args:', '    old: Old one.', '        Deprecated.']
+        >>> _annotate_google_style_arg(doc, "missing", "Deprecated.")[1]
+        False
 
     """
     section_start, section_indent = _find_google_args_section(lines)
@@ -382,6 +412,10 @@ def _annotate_sphinx_style_arg(lines: list[str], arg_name: str, note: str) -> tu
             Deprecated — use cfg instead.  # <-- inserted here
         :returns: Result.
 
+    Examples:
+        >>> _annotate_sphinx_style_arg([":param lr: Rate.", ":param old: Old."], "old", "Deprecated.")
+        ([':param lr: Rate.', ':param old: Old.', '    Deprecated.'], True)
+
     """
     pattern = re.compile(r"^(\s*):param\s+(?:\S+\s+)?" + re.escape(arg_name) + r"\s*:")
 
@@ -420,6 +454,15 @@ def _build_general_notice_lines(dep_info: DeprecationConfig) -> list[str]:
     Returns:
         A list of rendered notice lines (without leading body indentation).
 
+    Examples:
+        >>> from dataclasses import replace
+        >>> from deprecate._types import DeprecationConfig
+        >>> config = DeprecationConfig(name="old", deprecated_in="1.0", remove_in="2.0", docstring_style="rst")
+        >>> _build_general_notice_lines(config)
+        ['.. deprecated:: 1.0', '   Will be removed in 2.0.']
+        >>> _build_general_notice_lines(replace(config, docstring_style="mkdocs"))
+        ['!!! warning "Deprecated in 1.0"', '    Will be removed in 2.0.']
+
     """
     remove_text = f"Will be removed in {dep_info.remove_in}." if dep_info.remove_in else ""
     target_text_rst = ""
@@ -455,6 +498,12 @@ def _has_deprecation_block(doc_lines: list[str], block_lines: list[str]) -> bool
 
     Lines are compared using ``.strip()`` to ignore leading/trailing whitespace.
 
+    Examples:
+        >>> _has_deprecation_block(["Do it.", "  .. deprecated:: 1.0", "     Gone soon."], [".. deprecated:: 1.0"])
+        True
+        >>> _has_deprecation_block(["Do it."], [".. deprecated:: 1.0"])
+        False
+
     """
     if not block_lines:
         return False
@@ -489,7 +538,13 @@ def _inject_args_mapping_section(lines: list[str], dep_info: DeprecationConfig) 
 
 
 def _append_notice_after_inline_args(lines: list[str], body_indent: str, deprecation_lines: list[str]) -> list[str]:
-    """Append general deprecation notice after inline per-arg annotations."""
+    """Append general deprecation notice after inline per-arg annotations.
+
+    Examples:
+        >>> _append_notice_after_inline_args(["Do it.", ""], "  ", ["NOTICE"])
+        ['Do it.', '', '  NOTICE']
+
+    """
     while lines and not lines[-1].strip():
         lines.pop()
     lines.append("")
@@ -498,7 +553,13 @@ def _append_notice_after_inline_args(lines: list[str], body_indent: str, depreca
 
 
 def _insert_notice_before_section(lines: list[str], body_indent: str, deprecation_lines: list[str]) -> str:
-    """Insert general deprecation notice before the first Google/NumPy section header."""
+    r"""Insert general deprecation notice before the first Google/NumPy section header.
+
+    Examples:
+        >>> _insert_notice_before_section(["Do it.", "", "Args:", "    x: Value."], "", ["NOTICE"])
+        'Do it.\n\nNOTICE\n\nArgs:\n    x: Value.'
+
+    """
     indented = [body_indent + ln for ln in deprecation_lines]
     insert_idx = find_docstring_insertion_index(lines)
     prefix = lines[:insert_idx]

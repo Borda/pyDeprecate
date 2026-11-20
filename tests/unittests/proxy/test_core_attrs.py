@@ -76,7 +76,7 @@ class TestCombinedArgAttrsMapping:
             num_warns=-1,
         )(_New)
 
-        with pytest.warns(FutureWarning, match="learning_rate"):
+        with pytest.warns(FutureWarning, match=r"was deprecated since v2\.0 in favor of `.*_New`"):
             instance = proxy(learning_rate=0.05)  # type: ignore[call-arg]
 
         assert instance.lr == 0.05
