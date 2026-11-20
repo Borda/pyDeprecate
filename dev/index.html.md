@@ -8,8 +8,6 @@ description: >-
 
 ![pyDeprecate — seamless API migration](assets/brand/banner-light.svg#only-light) ![pyDeprecate — seamless API migration](assets/brand/banner-dark.svg#only-dark)
 
-# pyDeprecate
-
 **Author:** [Jiri Borovec](https://github.com/Borda) · **License:** Apache 2.0 · **Python:** 3.9+ · **Install:** `pip install pyDeprecate` · **Import:** `from deprecate import deprecated` · **PyPI:** https://pypi.org/project/pyDeprecate/
 
 Renaming a function or retiring an argument often means writing a wrapper and manual forwarding. You must also configure the warning category and `stacklevel`, then *enforce* the removal deadline. **pyDeprecate** replaces that boilerplate with a decorator and CI checks for overdue removals.
