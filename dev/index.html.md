@@ -18,8 +18,6 @@ Renaming a function or retiring an argument often means writing a wrapper and ma
 
     Read [Mastering API Deprecation in Python — the pain points and how pyDeprecate can help](https://medium.com/codex/mastering-api-deprecation-in-python-the-pain-points-and-how-pydeprecate-can-help-1dbfd90e2b62) on CodeX / Medium.
 
-![pyDeprecate — navigate API transitions smoothly without the chaos or crashes](assets/images/path-illustration.webp)
-
 ```python
 from deprecate import deprecated
 
@@ -80,6 +78,8 @@ Calling `addition(1, 2)` now **emits a `FutureWarning`** and transparently **for
 - **Testing helpers:** The `assert_no_warnings()` context manager checks that no warnings of a given type escape a block. `no_warning_call` remains a legacy alias.
 - **Zero runtime dependencies:** Nothing is added to `install_requires`.
 - **Python compatibility:** Python 3.9+ is supported.
+
+![pyDeprecate — navigate API transitions smoothly without the chaos or crashes](assets/images/path-illustration.webp)
 
 ## Installation
 
