@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/brand/favicon.svg">
-      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.2">
     
     
       
@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-11-19",
-  "dateModified": "2026-11-19"
+  "dateModified": "2026-11-20"
 }
 </script>
 
@@ -2238,7 +2238,7 @@
 <p>Here, <code>attrs_mapping</code> applies only to class-level attribute access on the proxy. It does not apply to <u>the returned instance</u>.</p>
 </div>
 <h3 id="dataclass-field-renames">Dataclass field renames<a class="headerlink" href="#dataclass-field-renames" title="Permanent link">🔗</a></h3>
-<p>For dataclasses, <code>deprecated_class(attrs_mapping=...)</code> automatically covers two surfaces. Accessing mapped class attributes through the proxy and passing constructor kwargs (<code>DC(old_field=5)</code>) can emit <code>FutureWarning</code>. Returned instances are <strong>not wrapped</strong>, so their attribute reads are not remapped.</p>
+<p>For dataclasses, <code>deprecated_class(attrs_mapping=...)</code> automatically covers two surfaces. Accessing mapped class attributes through the proxy and passing constructor kwargs (<code>DC(old_field=5)</code>) can emit <code>FutureWarning</code> using separate budgets for attribute access and each old constructor keyword. A call with a canonical keyword uses the call-level budget. Returned instances are <strong>not wrapped</strong>, so their attribute reads are not remapped.</p>
 <p>The auto-expansion copies entries targeting dataclass fields from <code>attrs_mapping</code> into <code>args_mapping</code>. Pure field renames therefore need no separate <code>args_mapping</code>.</p>
 <p>Auto-expansion <em>never</em> overwrites entries already supplied in an explicit <code>args_mapping</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
@@ -2322,7 +2322,7 @@
 <a id="__codelineno-18-24" name="__codelineno-18-24" href="#__codelineno-18-24"></a>    <span class="k">pass</span>
 <a id="__codelineno-18-25" name="__codelineno-18-25" href="#__codelineno-18-25"></a>
 <a id="__codelineno-18-26" name="__codelineno-18-26" href="#__codelineno-18-26"></a>
-<a id="__codelineno-18-27" name="__codelineno-18-27" href="#__codelineno-18-27"></a><span class="c1"># Warning path 1 — args_mapping fires: old kwarg "learning_rate" remapped to "lr"</span>
+<a id="__codelineno-18-27" name="__codelineno-18-27" href="#__codelineno-18-27"></a><span class="c1"># The replacement call warns and remaps the keyword to lr.</span>
 <a id="__codelineno-18-28" name="__codelineno-18-28" href="#__codelineno-18-28"></a><span class="n">trainer</span> <span class="o">=</span> <span class="n">LegacyTrainer</span><span class="p">(</span><span class="n">learning_rate</span><span class="o">=</span><span class="mf">0.05</span><span class="p">)</span>  <span class="c1"># warns: FutureWarning</span>
 <a id="__codelineno-18-29" name="__codelineno-18-29" href="#__codelineno-18-29"></a><span class="nb">print</span><span class="p">(</span><span class="n">trainer</span><span class="o">.</span><span class="n">lr</span><span class="p">)</span>  <span class="c1"># NewTrainer instance has lr=0.05</span>
 <a id="__codelineno-18-30" name="__codelineno-18-30" href="#__codelineno-18-30"></a>
@@ -2339,7 +2339,7 @@
 
 </details>
 
-<p>Attribute and argument warning budgets are <strong>independent</strong>; exhausting one does not affect the other. Each deprecated name has its own counter. With <code>num_warns=1</code>, the default, every old name warns once before becoming silent.</p>
+<p>Each deprecated class attribute has its own warning budget. Calls forwarding to a replacement share a <strong>call-level budget</strong>, even when they use different deprecated keywords. With the default <code>num_warns=1</code>, the proxy emits one warning for calls and one for each deprecated attribute.</p>
 <h4 id="mixed-redirect-and-warn-only-entries">Mixed redirect and warn-only entries<a class="headerlink" href="#mixed-redirect-and-warn-only-entries" title="Permanent link">🔗</a></h4>
 <p><code>attrs_mapping</code> accepts string redirects and <code>None</code> for warnings without renaming. Both can coexist alongside <code>args_mapping</code>. One proxy then records every deprecated surface on the class.</p>
 <p>The example below deprecates a <code>Model</code> class that renamed its <code>gpu</code> attribute to <code>device</code> and retired the <code>cuda</code> flag entirely. The constructor kwarg <code>n_layers</code> was also renamed to <code>num_layers</code>:</p>
@@ -2674,7 +2674,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 19, 2026 14:21:25 UTC">2026-11-19</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 20, 2026 10:30:49 UTC">2026-11-20</span>
   </span>
 
     

@@ -163,7 +163,7 @@ The counter is **one budget shared** across every attribute name on the module. 
 
     In v1.0 `stream=None` will silence the module warning, as it already does for `@deprecated`, `deprecated_class` and `deprecated_instance`. In the same release the `num_warns` default changes from `-1` to `1`. Pass `num_warns=-1` explicitly to keep a warning on every access.
 
-**A missing `deprecated_in` warns at install time.** `deprecated_module` emits a `UserWarning` ("has no `deprecated_in` set") when `deprecated_in` is empty. Unlike `@deprecated`, `deprecated_class` and `deprecated_instance`, neither `stream=None` nor a `message_template` silences it; pass `deprecated_in`.
+**A missing `deprecated_in` warns at install time.** `deprecated_module` emits a `UserWarning` ("has no `deprecated_in` set") when `deprecated_in` is empty. A `message_template` silences it, as for `@deprecated`, `deprecated_class` and `deprecated_instance`; `stream=None` does not yet, because the module keeps delivering its warning until v1.0. Otherwise pass `deprecated_in`.
 
 ## Existing module hooks and repeat calls
 

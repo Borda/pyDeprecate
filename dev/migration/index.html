@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/brand/favicon.svg">
-      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.2">
     
     
       
@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-11-19",
-  "dateModified": "2026-11-19"
+  "dateModified": "2026-11-20"
 }
 </script>
 
@@ -1987,22 +1987,22 @@
 <p>v0.8 introduced <code>TargetMode</code> so deprecation intent no longer depends on the legacy <code>None</code>, <code>True</code>, and <code>False</code> sentinels. These examples show the current form and the caller behavior to preserve during migration.</p>
 <h3 id="targetnone-targetmodenotify"><code>target=None</code> → <code>TargetMode.NOTIFY</code><a class="headerlink" href="#targetnone-targetmodenotify" title="Permanent link">🔗</a></h3>
 <p><code>target=None</code> means "<strong>warn, then run the decorated body</strong>". It still works, but emits <code>FutureWarning</code> at decoration time.</p>
-<p>Omit <code>target</code> for the <strong>shortest current form</strong>; the <code>TargetMode.AUTO</code> default resolves to <code>TargetMode.NOTIFY</code> when no mapping is present. Use <code>target=TargetMode.NOTIFY</code> when being explicit helps the reader.</p>
+<p>For a warn-only migration without <code>args_mapping</code> or <code>attrs_mapping</code>, prefer an explicit <code>target=TargetMode.NOTIFY</code>, as the examples here do. Omitting <code>target</code> is the <strong>shortest form</strong> and resolves to the same mode, because the <code>TargetMode.AUTO</code> default picks <code>TargetMode.NOTIFY</code> when no mapping is present. A decorator that carries a mapping is a different case: see <a href="#misconfigured-targetmode-combinations">Misconfigured <code>TargetMode</code> combinations</a>, where choosing the remap mode activates a mapping that <code>target=None</code> left inert, and removing the mapping keeps the warn-only behavior.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gd">- # DEPRECATED API — legacy sentinel</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gd">- @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gi">+ # DEPRECATED API — current warn-only form</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gi">+ @deprecated(deprecated_in="1.0", remove_in="2.0")</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gi">+ @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">deprecated</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">deprecate</span><span class="w"> </span><span class="kn">import</span> <span class="n">TargetMode</span><span class="p">,</span> <span class="n">deprecated</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.0"</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">)</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nd">@deprecated</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">TargetMode</span><span class="o">.</span><span class="n">NOTIFY</span><span class="p">,</span> <span class="n">deprecated_in</span><span class="o">=</span><span class="s2">"1.0"</span><span class="p">,</span> <span class="n">remove_in</span><span class="o">=</span><span class="s2">"2.0"</span><span class="p">)</span>
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">def</span><span class="w"> </span><span class="nf">refresh_cache</span><span class="p">(</span><span class="n">cache_key</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="sd">"""Refresh one cached value."""</span>
 <a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="k">return</span> <span class="sa">f</span><span class="s2">"refreshed:</span><span class="si">{</span><span class="n">cache_key</span><span class="si">}</span><span class="s2">"</span>
 <a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
 <a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">refresh_cache</span><span class="p">(</span><span class="s2">"products"</span><span class="p">))</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">refresh_cache</span><span class="p">(</span><span class="s2">"products"</span><span class="p">))</span>  <span class="c1"># warns: FutureWarning</span>
 </code></pre></div>
 <details>
   <summary>Output: <code>refresh_cache("products")</code></summary>
@@ -4462,7 +4462,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 19, 2026 14:21:25 UTC">2026-11-19</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 20, 2026 10:30:49 UTC">2026-11-20</span>
   </span>
 
     

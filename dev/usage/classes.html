@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/brand/favicon.svg">
-      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.2">
     
     
       
@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-11-19",
-  "dateModified": "2026-11-19"
+  "dateModified": "2026-11-20"
 }
 </script>
 
@@ -1892,7 +1892,7 @@
 </details>
 
 <h2 id="constants-and-instances">Constants and instances<a class="headerlink" href="#constants-and-instances" title="Permanent link">🔗</a></h2>
-<p><code>deprecated_instance</code> wraps module-level dicts, lists, and custom objects in a <em>transparent proxy</em>. Attribute, item, and call access emit a deprecation notice. Use <code>read_only=True</code> to block attribute and item writes, in-place operators and ten standard collection mutators (<code>append</code>, <code>extend</code>, <code>insert</code>, <code>pop</code>, <code>remove</code>, <code>clear</code>, <code>update</code>, <code>setdefault</code>, <code>add</code>, <code>discard</code>) through the deprecated alias. Other built-in mutators such as <code>sort</code>, <code>reverse</code>, <code>popitem</code> and the set <code>*_update</code> methods, custom mutator methods and nested writes are not blocked; see <a href="../limitations.html#read_only-covers-only-the-standard-mutators">Limitations</a> for the detail.</p>
+<p><code>deprecated_instance</code> wraps module-level dicts, lists, and custom objects in a <em>transparent proxy</em>. Attribute, item, and call access emit a deprecation notice. Use <code>read_only=True</code> to block attribute and item writes, in-place operators and sixteen standard collection mutators (<code>append</code>, <code>extend</code>, <code>insert</code>, <code>pop</code>, <code>remove</code>, <code>clear</code>, <code>update</code>, <code>setdefault</code>, <code>add</code>, <code>discard</code>, <code>sort</code>, <code>reverse</code>, <code>popitem</code> and the set <code>difference_update</code>, <code>intersection_update</code>, <code>symmetric_difference_update</code>) through the deprecated alias. The guard matches method names on custom objects too. Other methods and nested writes can still mutate the object. See <a href="../limitations.html#read_only-covers-only-the-standard-mutators">Limitations</a> for the detail.</p>
 <p>The proxy carries only protocols supported by the wrapped object:</p>
 <ul>
 <li>A deprecated settings <code>dict</code> is neither <code>callable()</code>, an <code>Iterator</code>, nor <code>os.PathLike</code>.</li>
@@ -2043,7 +2043,7 @@
 <li>Without an explicit <code>target</code>, supplying <code>args_mapping</code> auto-resolves to <code>TargetMode.ARGS_REMAP</code>. Warnings occur <strong>only when an old argument name is used</strong>, matching <code>@deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...)</code>.</li>
 <li>For a no-target <code>ARGS_REMAP</code> proxy, calls using new argument names are silent. A callable replacement target still emits the class-level warning. Structural checks with <code>isinstance</code> and <code>issubclass</code> remain silent.</li>
 <li>Use <code>args_extra</code> to inject fixed kwargs into every forwarded call. Use <code>message_template</code> to override the warning; both options behave as their <code>@deprecated</code> counterparts do.</li>
-<li>An Enum rename alias that passes the replacement as its own <code>target</code> (<code>Color = deprecated_class(target=ThemeColor, ...)(ThemeColor)</code>) warns at runtime, but <code>pydeprecate check</code> reports it as a no-effect warning (exit 0). That is expected until the audit is taught this form; ignore that warning for such aliases.</li>
+<li>An Enum rename alias that passes the replacement as its own <code>target</code> (<code>Color = deprecated_class(target=ThemeColor, ...)(ThemeColor)</code>) warns at runtime, and <code>pydeprecate check</code> accepts it. Only a proxy bound back to the class's own name (<code>ThemeColor = deprecated_class(target=ThemeColor, ...)(ThemeColor)</code>) is reported as a no-effect self-reference.</li>
 </ul>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">Enum</span>
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
@@ -2359,7 +2359,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 19, 2026 14:21:25 UTC">2026-11-19</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 20, 2026 10:30:49 UTC">2026-11-20</span>
   </span>
 
     

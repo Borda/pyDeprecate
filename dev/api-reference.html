@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="assets/brand/favicon.svg">
-      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.2">
     
     
       
@@ -4185,10 +4185,12 @@ per-argument for <code>args_mapping</code>).  Available <code>%</code>-style pla
 <li><code>%(source_name)s</code> — the deprecated class name (taken from <code>cls.__name__</code>)</li>
 <li><code>%(deprecated_in)s</code> — value of the <code>deprecated_in</code> argument</li>
 <li><code>%(remove_in)s</code> — value of the <code>remove_in</code> argument</li>
-<li><code>%(target_name)s</code> — target class name (only when <em>target</em> is callable)</li>
-<li><code>%(target_path)s</code> — fully-qualified target path (only when <em>target</em> is callable)</li>
+<li><code>%(target_name)s</code> — replacement callable, renamed keyword, or replacement attribute name,
+  depending on the warning kind</li>
+<li><code>%(target_path)s</code> — fully-qualified replacement callable or replacement attribute path</li>
 <li><code>%(argument_map)s</code> — formatted <code>\`old\` -&gt; \`new\``` string, or</code>`old` (kept)<code>for an argument
-  mapped to</code>""<code>(only for per-argument warnings emitted by</code>args_mapping``)</li>
+  mapped to</code>""<code>. Available in per-argument warnings from</code>ARGS_REMAP`` and dataclass field aliases
+  that automatically map constructor keywords on the wrapped class.</li>
 </ul>
 <p>Example: <code>"v%(deprecated_in)s:</code>%(source_name)s<code>-&gt;</code>%(target_name)s<code>"</code>.</p>
               </div>
@@ -4828,10 +4830,10 @@ as <em>stream</em>).</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>If <code>True</code>, raise :class:<code>AttributeError</code> on any write attempt through the proxy.
-Only the following standard collection mutator names are intercepted: <code>append</code>, <code>clear</code>,
-<code>discard</code>, <code>extend</code>, <code>insert</code>, <code>pop</code>, <code>remove</code>, <code>setdefault</code>, <code>update</code>, <code>add</code>.
-Custom method names (e.g. <code>register()</code>, <code>reload()</code>, <code>set_value()</code>) are not blocked.</p>
+                <p>If <code>True</code>, block attribute and item writes, in-place operators, and calls to methods named
+<code>append</code>, <code>clear</code>, <code>discard</code>, <code>extend</code>, <code>insert</code>, <code>pop</code>, <code>remove</code>, <code>setdefault</code>, <code>update</code>,
+<code>add</code>, <code>sort</code>, <code>reverse</code>, <code>popitem</code>, <code>difference_update</code>, <code>intersection_update</code>, or
+<code>symmetric_difference_update</code>. A custom method with a guarded name also raises :class:<code>AttributeError</code>.</p>
               </div>
             </td>
             <td>
@@ -5133,9 +5135,9 @@ through to <code>target</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Version string when this module was deprecated (e.g. <code>"1.0"</code>).  Defaults to <code>""</code>;
-when omitted a decoration-time :class:<code>UserWarning</code> fires (the notice omits the version and expiry
-audits cannot gate the module), matching :func:<code>~deprecate.deprecated</code>.</p>
+                <p>Version string when this module was deprecated (e.g. <code>"1.0"</code>). Defaults to <code>""</code>.
+Omitting it emits a decoration-time :class:<code>UserWarning</code> unless a nonempty <code>message_template</code>
+supplies the notice.</p>
               </div>
             </td>
             <td>
@@ -5151,7 +5153,8 @@ audits cannot gate the module), matching :func:<code>~deprecate.deprecated</code
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Version string when this module will be removed (e.g. <code>"2.0"</code>).  Defaults to <code>""</code>.</p>
+                <p>Version string when this module will be removed (e.g. <code>"2.0"</code>). Defaults to <code>""</code>.
+Expiry audits enforce an explicit deadline even when <code>deprecated_in</code> is omitted.</p>
               </div>
             </td>
             <td>

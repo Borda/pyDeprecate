@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/brand/favicon.svg">
-      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.2">
     
     
       
@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-04-21",
-  "dateModified": "2026-10-29"
+  "dateModified": "2026-11-20"
 }
 </script>
 
@@ -1856,11 +1856,11 @@
 <li>a deprecated <code>attrs_mapping</code> attribute appends the attribute name, e.g. <code>"mypackage.LegacyConfig.old_attr"</code> (its <code>source_name</code> is the attribute name).</li>
 </ul>
 <p>The <code>TEMPLATE_WARNING_*</code> constants live in <code>deprecate.messaging</code> (for example <code>from deprecate.messaging import TEMPLATE_WARNING_CALLABLE</code>). An unknown placeholder or a malformed conversion in <code>message_template</code> raises <code>ValueError</code> at decoration time, listing the available placeholders.</p>
-<p>An empty <code>deprecated_in</code> emits a <code>UserWarning</code> at decoration time, except when <code>stream=None</code> or a <code>message_template</code> is set; <code>deprecated_module</code> always emits it.</p>
-<p>Proxy warnings pick their template and placeholder values by warning kind, which differs from <code>@deprecated</code>:</p>
+<p>An empty <code>deprecated_in</code> emits a <code>UserWarning</code> at decoration time, except when <code>stream=None</code> or a <code>message_template</code> is set; <code>deprecated_module</code> honours only the <code>message_template</code>, because <code>stream=None</code> still delivers its module warning until v1.0.</p>
+<p>Proxy warnings pick their template by warning kind, as <code>@deprecated</code> does:</p>
 <ul>
-<li>a call through <code>deprecated_class</code> or <code>deprecated_instance</code> uses <code>TEMPLATE_WARNING_CALLABLE</code> when a replacement target is set;</li>
-<li>a call that passes an old <code>args_mapping</code> name uses <code>TEMPLATE_WARNING_ARGUMENTS</code> even when a replacement class is the target, and <code>target_name</code> is the new argument name;</li>
+<li>a call through <code>deprecated_class</code> or <code>deprecated_instance</code> uses the shared call-level <code>TEMPLATE_WARNING_CALLABLE</code> budget when a replacement target is set, including calls with old <code>args_mapping</code> names. The default <code>num_warns=1</code> emits one warning per proxy and <code>num_warns=-1</code> emits one per call.</li>
+<li>a call with an old keyword in <code>TargetMode.ARGS_REMAP</code> or an automatically expanded dataclass field mapping to the wrapped class uses the keyword's own <code>TEMPLATE_WARNING_ARGUMENTS</code> budget. The new argument name fills <code>target_name</code>.</li>
 <li>an <code>attrs_mapping</code> access sets <code>source_name</code> to the old attribute and <code>target_name</code> to the new attribute name, and <code>target_path</code> to <code>Owner.attr</code>.</li>
 </ul>
 <h3 id="custom-template-example">Custom template example<a class="headerlink" href="#custom-template-example" title="Permanent link">🔗</a></h3>
@@ -2136,7 +2136,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="October 29, 2026 09:40:07 UTC">2026-10-29</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 20, 2026 10:30:49 UTC">2026-11-20</span>
   </span>
 
     

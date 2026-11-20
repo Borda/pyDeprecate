@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="assets/brand/favicon.svg">
-      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.2">
     
     
       
@@ -97,7 +97,7 @@
   "mainEntityOfPage": { "@type": "WebPage", "@id": "https://borda.github.io/pyDeprecate/stable/changelog.html" },
   "author": { "@type": "Person", "name": "Jiri Borovec", "url": "https://github.com/Borda" },
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
-  "dateModified": "2026-11-19"
+  "dateModified": "2026-11-20"
 }
 </script>
 
@@ -3340,6 +3340,9 @@
 <li><strong>A second positional argument on <code>expiry</code>, <code>all</code> and <code>status</code> is a path first; read as a version it is deprecated.</strong> With two positionals, the second is read as the version only when it names no path or findable module and parses as a version; that spelling prints a stderr notice and is removed in <code>1.0</code>. Pass <code>--version</code> instead; passing both exits <code>2</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/266">#266</a>)</li>
 <li><strong>Version detection stops at the nearest project.</strong> For a path scan, the nearest <code>pyproject.toml</code> with a <code>[project]</code> table owns version detection even when its version cannot be resolved; an ancestor project's version is not used. If the remaining metadata and package-version sources also fail, expiry reports a <code>version not resolved</code> gap. (<a href="https://github.com/Borda/pyDeprecate/pull/264">#264</a>)</li>
 <li><strong>An operand after <code>--</code> is always a path, never the legacy positional version.</strong> <code>pydeprecate expiry -- src/pkg 2.0</code> now scans <code>2.0</code> as a second path instead of reading it as <code>--version 2.0</code>; pass <code>--version 2.0</code>. (<a href="https://github.com/Borda/pyDeprecate/pull/266">#266</a>)</li>
+<li><strong>A callable-target proxy with <code>args_mapping</code> shares one warning budget per call.</strong> <code>deprecated_class</code> and <code>deprecated_instance</code> with a callable <code>target</code> and <code>args_mapping</code> now emit one call-level warning per call instead of one per renamed keyword; dataclass auto-expanded aliases keep a separate budget for each deprecated keyword. (<a href="https://github.com/Borda/pyDeprecate/pull/273">#273</a>)</li>
+<li><strong><code>read_only=True</code> proxies also block <code>sort</code>, <code>reverse</code>, <code>popitem</code>, <code>difference_update</code>, <code>intersection_update</code> and <code>symmetric_difference_update</code>.</strong> They raise <code>AttributeError</code> instead of changing the wrapped list, dict or set, which brings the guarded method names from 10 to 16; a custom method with one of these names is blocked too. (<a href="https://github.com/Borda/pyDeprecate/pull/273">#273</a>)</li>
+<li><strong><code>deprecated_module</code> with a <code>message_template</code> no longer warns about a missing <code>deprecated_in</code>.</strong> The template writes the whole message, as it does for <code>@deprecated</code>; <code>stream=None</code> still warns. (<a href="https://github.com/Borda/pyDeprecate/pull/273">#273</a>)</li>
 </ul>
 <h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">🔗</a></h3>
 <ul>
@@ -3347,6 +3350,7 @@
 <li><strong>Matrix audit tables have one column per release.</strong> <code>generate_deprecation_table(..., style="matrix")</code> and the CLI matrix output merge the spellings <code>1.0</code>, <code>v1.0</code> and <code>1.0.0</code> of one release into a single column, headed by the shortest spelling. Without <code>packaging</code> only spellings that differ by the <code>v</code> prefix merge. (<a href="https://github.com/Borda/pyDeprecate/pull/262">#262</a>)</li>
 <li><strong><code>validate_deprecation_expiry(&lt;module path&gt;)</code> without a version surfaces the package's real import error.</strong> The module path is now imported before the version lookup, so a package whose own import fails raises its actual exception instead of "Could not determine version". A degenerate module path such as an empty name raises importlib's own error. (<a href="https://github.com/Borda/pyDeprecate/pull/262">#262</a>)</li>
 <li><strong>Unparsed matrix columns are ordered by their displayed header text.</strong> Version strings that are not PEP 440 releases come after the parsed releases, now sorted by the <code>v</code>-prefixed header as rendered instead of the raw string, so columns such as <code>next</code> and <code>vlegacy</code> swap order (<code>vlegacy | vnext</code>). A committed matrix table that contains such columns re-renders with the new order. (<a href="https://github.com/Borda/pyDeprecate/pull/262">#262</a>)</li>
+<li><strong>Audit names <code>ATTRS_REMAP</code> and <code>ARGS_REMAP</code> misconfigurations correctly.</strong> The <code>misconfigured-target</code> finding text and <code>details</code> now say which contradiction the wrapper has, such as an <code>ATTRS_REMAP</code> without <code>attrs_mapping</code> or one with an ignored <code>args_mapping</code>; rule, level and exit code are unchanged. (<a href="https://github.com/Borda/pyDeprecate/pull/273">#273</a>)</li>
 </ul>
 <h3 id="removed">Removed<a class="headerlink" href="#removed" title="Permanent link">🔗</a></h3>
 <ul>
@@ -3868,7 +3872,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 19, 2026 14:21:25 UTC">2026-11-19</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 20, 2026 10:30:49 UTC">2026-11-20</span>
   </span>
 
     

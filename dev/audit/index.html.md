@@ -167,8 +167,8 @@ Both functions return `DeprecationWrapperInfo` dataclasses.
 **Contradictory targets.** `misconfigured_target` covers these cases:
 
 - `NOTIFY` has an `args_mapping`, `args_extra`, or `attrs_mapping`.
-- `ARGS_REMAP` has an empty `args_mapping`.
-- `deprecated_class(target=TargetMode.ATTRS_REMAP)` has no `attrs_mapping`.
+- `ARGS_REMAP` has an empty `args_mapping`, or an `attrs_mapping` next to its `args_mapping`.
+- `deprecated_class(target=TargetMode.ATTRS_REMAP)` has no `attrs_mapping`, or has an `args_mapping` or `args_extra`.
 - A served object is not callable but has an `args_mapping` or `args_extra`.
 - The target is the invalid `target=False`.
 

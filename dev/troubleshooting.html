@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="assets/brand/favicon.svg">
-      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.2">
     
     
       
@@ -258,7 +258,7 @@
         {
           "@type": "Question",
           "name": "My object mutated despite read_only=True",
-          "acceptedAnswer": { "@type": "Answer", "text": "read_only=True blocks attribute and item writes, in-place operators and ten standard collection mutator names: append, clear, discard, extend, insert, pop, remove, setdefault, update, add. Other built-in mutators such as sort, reverse, popitem and the set *_update methods are not blocked." }
+          "acceptedAnswer": { "@type": "Answer", "text": "read_only=True blocks attribute and item writes, in-place operators and sixteen standard collection mutator names: add, append, clear, difference_update, discard, extend, insert, intersection_update, pop, popitem, remove, reverse, setdefault, sort, symmetric_difference_update, update. The guard matches these names on custom objects too." }
         },
 
         {
@@ -5140,9 +5140,9 @@
 </details>
 
 <h3 id="my-object-mutated-despite-read_onlytrue">My object mutated despite <code>read_only=True</code><a class="headerlink" href="#my-object-mutated-despite-read_onlytrue" title="Permanent link">🔗</a></h3>
-<p><code>read_only=True</code> blocks attribute and item writes, in-place operators and ten standard collection mutator names: <code>append</code>, <code>clear</code>, <code>discard</code>, <code>extend</code>, <code>insert</code>, <code>pop</code>, <code>remove</code>, <code>setdefault</code>, <code>update</code>, <code>add</code>. Other built-in mutators such as <code>sort</code>, <code>reverse</code>, <code>popitem</code> and the set <code>*_update</code> methods are not blocked.</p>
+<p><code>read_only=True</code> blocks attribute and item writes, in-place operators and sixteen standard collection mutator names: <code>add</code>, <code>append</code>, <code>clear</code>, <code>difference_update</code>, <code>discard</code>, <code>extend</code>, <code>insert</code>, <code>intersection_update</code>, <code>pop</code>, <code>popitem</code>, <code>remove</code>, <code>reverse</code>, <code>setdefault</code>, <code>sort</code>, <code>symmetric_difference_update</code>, <code>update</code>. The guard matches these names on custom objects too.</p>
 <p><strong>Q:</strong> I passed <code>read_only=True</code> to <code>deprecated_instance()</code> but a method on my object still mutated its state. Why?</p>
-<p>Those built-in mutators and custom method names — for example <code>register()</code>, <code>reload()</code>, or <code>set_value()</code> — are not in this list and call through to the underlying object without any guard.</p>
+<p>A method whose name is outside the guarded set, such as <code>register()</code>, <code>reload()</code>, or <code>set_value()</code>, can still call through and mutate the underlying object.</p>
 <div class="admonition warning">
 <p class="admonition-title">An active skip disables mutation guards</p>
 <p>While <code>skip_if</code> evaluates <code>True</code>, the whole deprecation machinery is off. Attribute writes, item writes and deletes (<code>proxy[key] = value</code>, <code>del proxy[key]</code>), and mutator calls reach the wrapped object directly.</p>
@@ -6407,7 +6407,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 19, 2026 14:21:25 UTC">2026-11-19</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 20, 2026 10:30:49 UTC">2026-11-20</span>
   </span>
 
     

@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/brand/favicon.svg">
-      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.2">
     
     
       
@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-11-19",
-  "dateModified": "2026-11-19"
+  "dateModified": "2026-11-20"
 }
 </script>
 
@@ -1858,7 +1858,7 @@
 <p>Omit <code>stream</code> to deliver the module warning through <code>warnings.warn</code> (the default; <code>help(deprecated_module)</code> shows it as <code>&lt;warnings.warn&gt;</code>). An explicit <code>stream=None</code> does the same today, but emits a <code>FutureWarning</code> at the <code>deprecated_module(...)</code> call.</p>
 <p>In v1.0 <code>stream=None</code> will silence the module warning, as it already does for <code>@deprecated</code>, <code>deprecated_class</code> and <code>deprecated_instance</code>. In the same release the <code>num_warns</code> default changes from <code>-1</code> to <code>1</code>. Pass <code>num_warns=-1</code> explicitly to keep a warning on every access.</p>
 </div>
-<p><strong>A missing <code>deprecated_in</code> warns at install time.</strong> <code>deprecated_module</code> emits a <code>UserWarning</code> ("has no <code>deprecated_in</code> set") when <code>deprecated_in</code> is empty. Unlike <code>@deprecated</code>, <code>deprecated_class</code> and <code>deprecated_instance</code>, neither <code>stream=None</code> nor a <code>message_template</code> silences it; pass <code>deprecated_in</code>.</p>
+<p><strong>A missing <code>deprecated_in</code> warns at install time.</strong> <code>deprecated_module</code> emits a <code>UserWarning</code> ("has no <code>deprecated_in</code> set") when <code>deprecated_in</code> is empty. A <code>message_template</code> silences it, as for <code>@deprecated</code>, <code>deprecated_class</code> and <code>deprecated_instance</code>; <code>stream=None</code> does not yet, because the module keeps delivering its warning until v1.0. Otherwise pass <code>deprecated_in</code>.</p>
 <h2 id="existing-module-hooks-and-repeat-calls">Existing module hooks and repeat calls<a class="headerlink" href="#existing-module-hooks-and-repeat-calls" title="Permanent link">🔗</a></h2>
 <p>The install itself can emit three more <code>UserWarning</code> notices:</p>
 <ul>
@@ -1917,7 +1917,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 19, 2026 14:21:25 UTC">2026-11-19</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 20, 2026 10:30:49 UTC">2026-11-20</span>
   </span>
 
     

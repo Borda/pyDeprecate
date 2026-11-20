@@ -63,7 +63,7 @@ Recurse through the replacement's own name instead. See [the cycle error](troubl
 
 !!! warning "A custom mutator slips through"
 
-    Besides attribute and item writes and in-place operators, `read_only` blocks ten standard collection mutators: `append`, `clear`, `discard`, `extend`, `insert`, `pop`, `remove`, `setdefault`, `update` and `add`. Other built-in mutators such as `sort`, `reverse`, `popitem` and the set `*_update` methods are not blocked, and neither is a custom method such as `register()` or `reload()`.
+    Besides attribute and item writes and in-place operators, `read_only` blocks sixteen standard collection mutators: `add`, `append`, `clear`, `difference_update`, `discard`, `extend`, `insert`, `intersection_update`, `pop`, `popitem`, `remove`, `reverse`, `setdefault`, `sort`, `symmetric_difference_update` and `update`. A custom method such as `register()` or `reload()` is not blocked, because the guard knows only these names.
 
     See [read_only troubleshooting](troubleshooting.md#my-object-mutated-despite-read_onlytrue).
 
@@ -77,7 +77,7 @@ Recurse through the replacement's own name instead. See [the cycle error](troubl
 
 This matters most when renaming an exception class. Raising or constructing the old name works and warns, but callers who catch it by that name break. What works today is to keep the old name as a real subclass of the new class and decorate its `__init__` with `@deprecated(target=TargetMode.NOTIFY, ...)`.
 
-`except OldError:` and `except NewError:` then both catch an `OldError`, and creating one warns. `except OldError:` does not catch a plain `NewError`, so migrate the `except` clauses to the new name first. For `match` and `singledispatch`, switch the call sites to the new class. If you need the alias itself usable in these positions, please [open an issue](https://github.com/Borda/pyDeprecate/issues) with your use case.
+`except OldError:` and `except NewError:` then both catch an `OldError`, and creating one warns. `except OldError:` does not catch a plain `NewError`, so migrate the `except` clauses to the new name first. The other route is to make the new class inherit from the old one (`class NewError(OldError)`) and raise `NewError`: `except OldError:` then keeps catching what the API raises, and callers migrate their clauses on their own schedule. Python checks an `except` target without asking the object, so no alias can offer this for you. For `match` and `singledispatch`, switch the call sites to the new class. If you need the alias itself usable in these positions, please [open an issue](https://github.com/Borda/pyDeprecate/issues) with your use case.
 
 ### A proxy over a `str` or `bytes` value claims `os.PathLike`
 

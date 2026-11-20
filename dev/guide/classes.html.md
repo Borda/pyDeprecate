@@ -154,7 +154,7 @@ efg
 
 ## Constants and instances
 
-`deprecated_instance` wraps module-level dicts, lists, and custom objects in a *transparent proxy*. Attribute, item, and call access emit a deprecation notice. Use `read_only=True` to block attribute and item writes, in-place operators and ten standard collection mutators (`append`, `extend`, `insert`, `pop`, `remove`, `clear`, `update`, `setdefault`, `add`, `discard`) through the deprecated alias. Other built-in mutators such as `sort`, `reverse`, `popitem` and the set `*_update` methods, custom mutator methods and nested writes are not blocked; see [Limitations](../limitations.md#read_only-covers-only-the-standard-mutators) for the detail.
+`deprecated_instance` wraps module-level dicts, lists, and custom objects in a *transparent proxy*. Attribute, item, and call access emit a deprecation notice. Use `read_only=True` to block attribute and item writes, in-place operators and sixteen standard collection mutators (`append`, `extend`, `insert`, `pop`, `remove`, `clear`, `update`, `setdefault`, `add`, `discard`, `sort`, `reverse`, `popitem` and the set `difference_update`, `intersection_update`, `symmetric_difference_update`) through the deprecated alias. The guard matches method names on custom objects too. Other methods and nested writes can still mutate the object. See [Limitations](../limitations.md#read_only-covers-only-the-standard-mutators) for the detail.
 
 The proxy carries only protocols supported by the wrapped object:
 
@@ -340,7 +340,7 @@ On callable objects, `args_mapping` (since v0.16 on `deprecated_instance`) renam
 - Without an explicit `target`, supplying `args_mapping` auto-resolves to `TargetMode.ARGS_REMAP`. Warnings occur **only when an old argument name is used**, matching `@deprecated(target=TargetMode.ARGS_REMAP, args_mapping=...)`.
 - For a no-target `ARGS_REMAP` proxy, calls using new argument names are silent. A callable replacement target still emits the class-level warning. Structural checks with `isinstance` and `issubclass` remain silent.
 - Use `args_extra` to inject fixed kwargs into every forwarded call. Use `message_template` to override the warning; both options behave as their `@deprecated` counterparts do.
-- An Enum rename alias that passes the replacement as its own `target` (`Color = deprecated_class(target=ThemeColor, ...)(ThemeColor)`) warns at runtime, but `pydeprecate check` reports it as a no-effect warning (exit 0). That is expected until the audit is taught this form; ignore that warning for such aliases.
+- An Enum rename alias that passes the replacement as its own `target` (`Color = deprecated_class(target=ThemeColor, ...)(ThemeColor)`) warns at runtime, and `pydeprecate check` accepts it. Only a proxy bound back to the class's own name (`ThemeColor = deprecated_class(target=ThemeColor, ...)(ThemeColor)`) is reported as a no-effect self-reference.
 
 ```python
 from enum import Enum

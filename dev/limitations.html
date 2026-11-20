@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="assets/brand/favicon.svg">
-      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.2">
     
     
       
@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-10-29",
-  "dateModified": "2026-11-19"
+  "dateModified": "2026-11-20"
 }
 </script>
 
@@ -2364,7 +2364,7 @@
 <h3 id="read_only-covers-only-the-standard-mutators"><code>read_only</code> covers only the standard mutators<a class="headerlink" href="#read_only-covers-only-the-standard-mutators" title="Permanent link">🔗</a></h3>
 <div class="admonition warning">
 <p class="admonition-title">A custom mutator slips through</p>
-<p>Besides attribute and item writes and in-place operators, <code>read_only</code> blocks ten standard collection mutators: <code>append</code>, <code>clear</code>, <code>discard</code>, <code>extend</code>, <code>insert</code>, <code>pop</code>, <code>remove</code>, <code>setdefault</code>, <code>update</code> and <code>add</code>. Other built-in mutators such as <code>sort</code>, <code>reverse</code>, <code>popitem</code> and the set <code>*_update</code> methods are not blocked, and neither is a custom method such as <code>register()</code> or <code>reload()</code>.</p>
+<p>Besides attribute and item writes and in-place operators, <code>read_only</code> blocks sixteen standard collection mutators: <code>add</code>, <code>append</code>, <code>clear</code>, <code>difference_update</code>, <code>discard</code>, <code>extend</code>, <code>insert</code>, <code>intersection_update</code>, <code>pop</code>, <code>popitem</code>, <code>remove</code>, <code>reverse</code>, <code>setdefault</code>, <code>sort</code>, <code>symmetric_difference_update</code> and <code>update</code>. A custom method such as <code>register()</code> or <code>reload()</code> is not blocked, because the guard knows only these names.</p>
 <p>See <a href="troubleshooting.html#my-object-mutated-despite-read_onlytrue">read_only troubleshooting</a>.</p>
 </div>
 <h3 id="a-class-alias-is-not-a-type-so-except-match-and-singledispatch-reject-it">A class alias is not a type, so <code>except</code>, <code>match</code> and <code>singledispatch</code> reject it<a class="headerlink" href="#a-class-alias-is-not-a-type-so-except-match-and-singledispatch-reject-it" title="Permanent link">🔗</a></h3>
@@ -2375,7 +2375,7 @@
 <li><code>functools.singledispatch.register(Old)</code> calls the proxy instead of registering a type.</li>
 </ul>
 <p>This matters most when renaming an exception class. Raising or constructing the old name works and warns, but callers who catch it by that name break. What works today is to keep the old name as a real subclass of the new class and decorate its <code>__init__</code> with <code>@deprecated(target=TargetMode.NOTIFY, ...)</code>.</p>
-<p><code>except OldError:</code> and <code>except NewError:</code> then both catch an <code>OldError</code>, and creating one warns. <code>except OldError:</code> does not catch a plain <code>NewError</code>, so migrate the <code>except</code> clauses to the new name first. For <code>match</code> and <code>singledispatch</code>, switch the call sites to the new class. If you need the alias itself usable in these positions, please <a href="https://github.com/Borda/pyDeprecate/issues">open an issue</a> with your use case.</p>
+<p><code>except OldError:</code> and <code>except NewError:</code> then both catch an <code>OldError</code>, and creating one warns. <code>except OldError:</code> does not catch a plain <code>NewError</code>, so migrate the <code>except</code> clauses to the new name first. The other route is to make the new class inherit from the old one (<code>class NewError(OldError)</code>) and raise <code>NewError</code>: <code>except OldError:</code> then keeps catching what the API raises, and callers migrate their clauses on their own schedule. Python checks an <code>except</code> target without asking the object, so no alias can offer this for you. For <code>match</code> and <code>singledispatch</code>, switch the call sites to the new class. If you need the alias itself usable in these positions, please <a href="https://github.com/Borda/pyDeprecate/issues">open an issue</a> with your use case.</p>
 <h3 id="a-proxy-over-a-str-or-bytes-value-claims-ospathlike">A proxy over a <code>str</code> or <code>bytes</code> value claims <code>os.PathLike</code><a class="headerlink" href="#a-proxy-over-a-str-or-bytes-value-claims-ospathlike" title="Permanent link">🔗</a></h3>
 <p>A proxy carries only the protocols the wrapped object supports. <code>callable()</code>, <code>Iterator</code>, <code>Awaitable</code> and the other structural ABCs answer as for the object itself.</p>
 <p>The one exception is text: <code>int()</code>, <code>float()</code>, <code>complex()</code> and <code>os.fspath()</code> parse <code>str</code> and <code>bytes</code> without a dunder on the type. The proxy keeps those conversions so a deprecated <code>"8080"</code> or path string still converts. That makes such a proxy report <code>os.PathLike</code> and <code>typing.SupportsInt</code> too.</p>
@@ -2514,7 +2514,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 19, 2026 14:21:25 UTC">2026-11-19</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 20, 2026 10:30:49 UTC">2026-11-20</span>
   </span>
 
     

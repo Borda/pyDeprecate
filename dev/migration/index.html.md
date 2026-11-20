@@ -15,26 +15,26 @@ v0.8 introduced `TargetMode` so deprecation intent no longer depends on the lega
 
 `target=None` means "**warn, then run the decorated body**". It still works, but emits `FutureWarning` at decoration time.
 
-Omit `target` for the **shortest current form**; the `TargetMode.AUTO` default resolves to `TargetMode.NOTIFY` when no mapping is present. Use `target=TargetMode.NOTIFY` when being explicit helps the reader.
+For a warn-only migration without `args_mapping` or `attrs_mapping`, prefer an explicit `target=TargetMode.NOTIFY`, as the examples here do. Omitting `target` is the **shortest form** and resolves to the same mode, because the `TargetMode.AUTO` default picks `TargetMode.NOTIFY` when no mapping is present. A decorator that carries a mapping is a different case: see [Misconfigured `TargetMode` combinations](#misconfigured-targetmode-combinations), where choosing the remap mode activates a mapping that `target=None` left inert, and removing the mapping keeps the warn-only behavior.
 
 ```diff
 - # DEPRECATED API — legacy sentinel
 - @deprecated(target=None, deprecated_in="1.0", remove_in="2.0")
 + # DEPRECATED API — current warn-only form
-+ @deprecated(deprecated_in="1.0", remove_in="2.0")
++ @deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
 ```
 
 ```python
-from deprecate import deprecated
+from deprecate import TargetMode, deprecated
 
 
-@deprecated(deprecated_in="1.0", remove_in="2.0")
+@deprecated(target=TargetMode.NOTIFY, deprecated_in="1.0", remove_in="2.0")
 def refresh_cache(cache_key: str) -> str:
     """Refresh one cached value."""
     return f"refreshed:{cache_key}"
 
 
-print(refresh_cache("products"))
+print(refresh_cache("products"))  # warns: FutureWarning
 ```
 
 <details>
