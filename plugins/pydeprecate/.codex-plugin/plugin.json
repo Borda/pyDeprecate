@@ -1,7 +1,7 @@
 {
   "name": "pydeprecate",
   "version": "0.6.7",
-  "compatible_package_version": ">=0.12",
+  "compatible_package_version": ">=0.13",
   "description": "Suggest supported pyDeprecate conversions, add API deprecations, and prune compatibility due by a release version.",
   "author": {
     "name": "Jiri Borovec"

@@ -328,7 +328,7 @@ teal
 On callable objects, `args_mapping` (since v0.16 on `deprecated_instance`) renames keyword arguments. Values renamed onto positional-only parameters are passed positionally.
 
 - Without `target`, calls warn *only when* an old name is used.
-- With a callable `target`, **every call** warns because calling the old name is itself deprecated.
+- With a callable `target`, **every call** counts as deprecated, since calling the old name is itself the deprecated act, so a call warns whatever its arguments, within the `num_warns` budget.
 
 **Unused call options.** On objects that are never called, `args_mapping` and `args_extra` cannot apply. They emit `UserWarning`, becoming `TypeError` in v1.0.
 
@@ -425,7 +425,7 @@ While the condition evaluates `True`, the proxy serves the **wrapped source unch
 - `args_mapping`, `args_extra`, `target` forwarding, and `read_only` enforcement are disabled.
 - `isinstance(proxy, ...)`, class statements subclassing the alias, and arithmetic operands follow the wrapped source.
 
-Audits never evaluate the condition. Conditions needing a running application therefore do not break `find_deprecation_wrappers` or the CLI. Callable decorators behave similarly: skipped calls execute the source body unchanged.
+The audit's own inspection never evaluates the condition, so conditions needing a running application do not break `find_deprecation_wrappers` or the CLI. Module code that runs on import is not part of that inspection: a module that consults a proxy while importing can still evaluate it. Callable decorators behave similarly: skipped calls execute the source body unchanged.
 
 !!! tip "Safe skip conditions"
 

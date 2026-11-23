@@ -5,7 +5,7 @@ description: Scan a Python project for existing deprecation patterns and suggest
 
 # Sunset a Python API
 
-Verified against pyDeprecate `>=0.12` (the three most recent minor releases plus the development line); check `deprecate.__version__` first — identifiers newer than the floor carry a since-note, and older releases lack them.
+Verified against pyDeprecate `>=0.13` (the three most recent minor releases plus the development line); check `deprecate.__version__` first — identifiers newer than the floor carry a since-note, and older releases lack them.
 
 Implement the requested migration while keeping existing callers working during the deprecation window. A preview or advice request stays read-only.
 

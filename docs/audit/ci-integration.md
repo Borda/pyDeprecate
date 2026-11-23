@@ -71,7 +71,7 @@ On GitHub Actions, use the ready-made [GitHub Action](#github-action) step for t
 Pass every package to one command: `pydeprecate all --gate=policy packages/core/src/core packages/cli/src/cli` (since v0.16).
 
 - Each package uses its own `[tool.pydeprecate]` settings.
-- Each package uses the version from its nearest `pyproject.toml`.
+- Each package uses the version from its nearest `pyproject.toml` that has a `[project]` table. When that version cannot be resolved, detection falls back to installed metadata or `__version__`, or records a `version not resolved` gap.
 - Findings appear in one set of sections.
 - Each package has a table under a `### <package>` heading.
 - One exit code covers all packages.
@@ -156,10 +156,6 @@ repos:
 
 `pydeprecate-expiry-static` and `pydeprecate-policy-static` read source with `ast` without importing your package. They need none of its runtime dependencies.
 
-<!-- TODO(v0.16.0): remove this "Release availability" paragraph once v0.16.0 is tagged; the hooks then exist in the released repo -->
-
-**Release availability.** These hooks ship with `v0.16.0`, the upcoming release, not yet tagged. The following recipe fails until that release is published.
-
 ```yaml
 # .pre-commit-config.yaml
 repos:
@@ -172,7 +168,7 @@ repos:
 
 The static hooks check removal deadlines and policy rules for recognized wrappers with resolvable relevant settings.
 
-**Static coverage is incomplete.** Recognized unresolved forms emit a `not statically resolvable` gap without failing the hook. Some forms remain invisible without a gap.
+**Static coverage is incomplete.** Recognized unresolved forms emit a `not statically resolvable` gap. The hooks pass no flags, so a gap fails the hook only when the project sets `strict = true` in `[tool.pydeprecate]`. A removal deadline that cannot be checked because no usable package version was found is reported as a `version not resolved` gap, not per wrapper. Some forms remain invisible without a gap.
 
 Read output with `pre-commit run --verbose` when first enabling a hook. Use an import-mode audit for fuller coverage. See [Static mode](cli.md#static-mode).
 
@@ -373,9 +369,9 @@ A failing run adds an error annotation to the pull request's checks. The CLI has
 
 Set `exit-zero: true` to report hard errors without blocking while clearing a backlog. Set `fail-on-gap: true` to fail on incomplete audits. Every gap the run annotates then also fails it.
 
-Findings become annotations on their wrapper's line:
+Findings become annotations on their wrapper's line; a finding with no source location gets an annotation without a file or line:
 
-1. Annotate errors first, then warnings, within GitHub's limit of 10 annotations per level for one step. Gaps and the gate's own `exited 1` error use some of those slots first, so a few fewer findings are shown.
+1. Annotate errors first, then warnings, within GitHub's limit of 10 annotations per level for one step. Gaps and the gate's own `exited 1` error use some of those slots first, and two warning slots stay free for the action's own later warnings, so a few fewer findings are shown.
 2. Add one notice counting the remaining findings.
 
 **Annotation limits and accepted findings.** The log and report retain every finding. Findings accepted through `--ignore` or `--baseline` are never annotated. Gaps keep one warning per kind.
@@ -423,9 +419,11 @@ This **replaces** the job's existing pyDeprecate version for every later step. T
 
 Pin the action to your project's pyDeprecate release. Alternatively, install `pyDeprecate[audit]` yourself and set `install: false`.
 
+With `install: false` and a pyDeprecate older than v0.16, `sarif: true` does not fail the run: the action warns, skips SARIF and gates on the CLI result alone, so `sarif-file` stays empty and the upload step above is skipped. Without `--report-json` support (before v0.15) it also writes no gap annotations or job summary.
+
 Also set `install: false` where pip is unavailable, such as a uv-managed virtual environment.
 
-**A green run can still have gaps.** A failed submodule import is skipped with `UserWarning: audit: skipped <module>`. `expiry`, including inside `all`, skips removal deadlines when the package version cannot be detected. Both cases can still pass.
+**A green run can still have gaps.** A failed submodule import is skipped with `UserWarning: audit: skipped <module>`. `expiry`, including inside `all`, skips removal deadlines when the package version cannot be detected. Both cases can still pass. Where warnings are errors (`PYTHONWARNINGS=error`), the skip warning is raised instead and the run exits `3`; see [Scan and internal errors](cli.md#scan-and-internal-errors).
 
 The action reads gaps from the CLI's `--report-json` report, even when the package silences warnings. It creates one warning annotation per gap kind. Check annotations whenever package installation changes.
 
