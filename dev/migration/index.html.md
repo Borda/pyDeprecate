@@ -5,7 +5,7 @@ description: Upgrade pyDeprecate safely with source-version checklists, compatib
 
 # Migration Guide
 
-The latest release is **v0.15**; changes on the unreleased line are listed under `[UnReleased]` in the [Changelog](../changelog.md). This guide contains *only* rewrites, deprecations, and observable changes that existing users need to handle when upgrading. New APIs and capabilities belong in the [Changelog](../changelog.md) and topic guides.
+The latest release is **v0.16**; every release's changes are listed in the [Changelog](../changelog.md). This guide contains *only* rewrites, deprecations, and observable changes that existing users need to handle when upgrading. New APIs and capabilities belong in the [Changelog](../changelog.md) and topic guides.
 
 ## Migrate Legacy Target Values
 
@@ -249,7 +249,17 @@ This guide works at **minor-line granularity**. `v0.N.x` means the latest availa
 
 Patch and post releases are folded into their minor interval rather than receiving separate sections.
 
-Releases with no migration work are skipped. Where a later release superseded an intermediate behavior, the section describes the final v0.15.x behavior.
+Releases with no migration work are skipped. Where a later release superseded an intermediate behavior, the section describes the final v0.16.x behavior.
+
+### Coming from v0.15.x
+
+=== "Breaking changes"
+
+    --8<-- "migration/_deltas/breaking/v0.15-to-v0.16.md"
+
+=== "Behavior changes"
+
+    --8<-- "migration/_deltas/behavior/v0.15-to-v0.16.md"
 
 ### Coming from v0.14.x
 
@@ -257,9 +267,13 @@ Releases with no migration work are skipped. Where a later release superseded an
 
     --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
+    --8<-- "migration/_deltas/breaking/v0.15-to-v0.16.md"
+
 === "Behavior changes"
 
     --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
+
+    --8<-- "migration/_deltas/behavior/v0.15-to-v0.16.md"
 
 ### Coming from v0.13.x
 
@@ -267,11 +281,15 @@ Releases with no migration work are skipped. Where a later release superseded an
 
     --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
+    --8<-- "migration/_deltas/breaking/v0.15-to-v0.16.md"
+
 === "Behavior changes"
 
     --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
     --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
+
+    --8<-- "migration/_deltas/behavior/v0.15-to-v0.16.md"
 
 ### Coming from v0.12.x
 
@@ -281,6 +299,8 @@ Releases with no migration work are skipped. Where a later release superseded an
 
     --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
+    --8<-- "migration/_deltas/breaking/v0.15-to-v0.16.md"
+
 === "Behavior changes"
 
     --8<-- "migration/_deltas/behavior/v0.12-to-v0.13.md"
@@ -288,6 +308,8 @@ Releases with no migration work are skipped. Where a later release superseded an
     --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
     --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
+
+    --8<-- "migration/_deltas/behavior/v0.15-to-v0.16.md"
 
 ### Coming from v0.11.x
 
@@ -299,6 +321,8 @@ Releases with no migration work are skipped. Where a later release superseded an
 
     --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
+    --8<-- "migration/_deltas/breaking/v0.15-to-v0.16.md"
+
 === "Behavior changes"
 
     --8<-- "migration/_deltas/behavior/v0.11-to-v0.12.md"
@@ -308,6 +332,8 @@ Releases with no migration work are skipped. Where a later release superseded an
     --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
     --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
+
+    --8<-- "migration/_deltas/behavior/v0.15-to-v0.16.md"
 
 ### Coming from v0.10.x
 
@@ -321,6 +347,8 @@ Releases with no migration work are skipped. Where a later release superseded an
 
     --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
+    --8<-- "migration/_deltas/breaking/v0.15-to-v0.16.md"
+
 === "Behavior changes"
 
     --8<-- "migration/_deltas/behavior/v0.10-to-v0.11.md"
@@ -332,6 +360,8 @@ Releases with no migration work are skipped. Where a later release superseded an
     --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
     --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
+
+    --8<-- "migration/_deltas/behavior/v0.15-to-v0.16.md"
 
 ### Coming from v0.9.x
 
@@ -347,6 +377,8 @@ Releases with no migration work are skipped. Where a later release superseded an
 
     --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
+    --8<-- "migration/_deltas/breaking/v0.15-to-v0.16.md"
+
 === "Behavior changes"
 
     --8<-- "migration/_deltas/behavior/v0.9-to-v0.10.md"
@@ -360,6 +392,8 @@ Releases with no migration work are skipped. Where a later release superseded an
     --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
     --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
+
+    --8<-- "migration/_deltas/behavior/v0.15-to-v0.16.md"
 
 ### Coming from v0.8.x
 
@@ -377,6 +411,8 @@ Releases with no migration work are skipped. Where a later release superseded an
 
     --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
+    --8<-- "migration/_deltas/breaking/v0.15-to-v0.16.md"
+
 === "Behavior changes"
 
     --8<-- "migration/_deltas/behavior/v0.8-to-v0.9.md"
@@ -392,6 +428,8 @@ Releases with no migration work are skipped. Where a later release superseded an
     --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
     --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
+
+    --8<-- "migration/_deltas/behavior/v0.15-to-v0.16.md"
 
 ### Coming from v0.7.x
 
@@ -411,6 +449,8 @@ Releases with no migration work are skipped. Where a later release superseded an
 
     --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
+    --8<-- "migration/_deltas/breaking/v0.15-to-v0.16.md"
+
 === "Behavior changes"
 
     --8<-- "migration/_deltas/behavior/v0.7-to-v0.8.md"
@@ -428,6 +468,8 @@ Releases with no migration work are skipped. Where a later release superseded an
     --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
     --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
+
+    --8<-- "migration/_deltas/behavior/v0.15-to-v0.16.md"
 
 ### Coming from v0.6.x
 
@@ -447,6 +489,8 @@ Releases with no migration work are skipped. Where a later release superseded an
 
     --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
+    --8<-- "migration/_deltas/breaking/v0.15-to-v0.16.md"
+
 === "Behavior changes"
 
     --8<-- "migration/_deltas/behavior/v0.7-to-v0.8.md"
@@ -464,6 +508,8 @@ Releases with no migration work are skipped. Where a later release superseded an
     --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
     --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
+
+    --8<-- "migration/_deltas/behavior/v0.15-to-v0.16.md"
 
 ### Coming from v0.5.x
 
@@ -485,6 +531,8 @@ Releases with no migration work are skipped. Where a later release superseded an
 
     --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
+    --8<-- "migration/_deltas/breaking/v0.15-to-v0.16.md"
+
 === "Behavior changes"
 
     --8<-- "migration/_deltas/behavior/v0.5-to-v0.6.md"
@@ -504,6 +552,8 @@ Releases with no migration work are skipped. Where a later release superseded an
     --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
     --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
+
+    --8<-- "migration/_deltas/behavior/v0.15-to-v0.16.md"
 
 ### Coming from v0.4.x
 
@@ -525,6 +575,8 @@ Releases with no migration work are skipped. Where a later release superseded an
 
     --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
+    --8<-- "migration/_deltas/breaking/v0.15-to-v0.16.md"
+
 === "Behavior changes"
 
     --8<-- "migration/_deltas/behavior/v0.5-to-v0.6.md"
@@ -544,6 +596,8 @@ Releases with no migration work are skipped. Where a later release superseded an
     --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
     --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
+
+    --8<-- "migration/_deltas/behavior/v0.15-to-v0.16.md"
 
 ### Coming from v0.3.x
 
@@ -567,6 +621,8 @@ Releases with no migration work are skipped. Where a later release superseded an
 
     --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
+    --8<-- "migration/_deltas/breaking/v0.15-to-v0.16.md"
+
 === "Behavior changes"
 
     --8<-- "migration/_deltas/behavior/v0.3-to-v0.4.md"
@@ -588,6 +644,8 @@ Releases with no migration work are skipped. Where a later release superseded an
     --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
     --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
+
+    --8<-- "migration/_deltas/behavior/v0.15-to-v0.16.md"
 
 ### Coming from v0.2.x
 
@@ -611,6 +669,8 @@ Releases with no migration work are skipped. Where a later release superseded an
 
     --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
+    --8<-- "migration/_deltas/breaking/v0.15-to-v0.16.md"
+
 === "Behavior changes"
 
     --8<-- "migration/_deltas/behavior/v0.3-to-v0.4.md"
@@ -632,6 +692,8 @@ Releases with no migration work are skipped. Where a later release superseded an
     --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
     --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
+
+    --8<-- "migration/_deltas/behavior/v0.15-to-v0.16.md"
 
 ### Coming from v0.1.x
 
@@ -655,6 +717,8 @@ Releases with no migration work are skipped. Where a later release superseded an
 
     --8<-- "migration/_deltas/breaking/v0.14-to-v0.15.md"
 
+    --8<-- "migration/_deltas/breaking/v0.15-to-v0.16.md"
+
 === "Behavior changes"
 
     --8<-- "migration/_deltas/behavior/v0.3-to-v0.4.md"
@@ -676,6 +740,8 @@ Releases with no migration work are skipped. Where a later release superseded an
     --8<-- "migration/_deltas/behavior/v0.13-to-v0.14.md"
 
     --8<-- "migration/_deltas/behavior/v0.14-to-v0.15.md"
+
+    --8<-- "migration/_deltas/behavior/v0.15-to-v0.16.md"
 
 ______________________________________________________________________
 

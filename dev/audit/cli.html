@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-11-19",
-  "dateModified": "2026-11-20"
+  "dateModified": "2026-11-23"
 }
 </script>
 
@@ -2551,7 +2551,7 @@
 <td style="text-align: center;">✓</td>
 <td style="text-align: center;">✓</td>
 <td style="text-align: center;"></td>
-<td>Accept known findings without fixing them: entries <code>module:symbol</code> (every rule) or <code>rule:module:symbol</code> (one rule, or <code>*</code>), each part an <code>fnmatch</code> glob; comma-separated and repeatable. Suppressed findings are not printed, counted or gated on.</td>
+<td>Accept known findings without fixing them: entries <code>module:symbol</code> (every rule) or <code>rule:module:symbol</code> (one slug, or <code>*</code>), other parts <code>fnmatch</code> globs; comma-separated and repeatable. Suppressed findings are not printed, counted or gated on.</td>
 <td>Since v0.16. Default is <code>ignore</code> of <code>[tool.pydeprecate]</code>, else nothing; <code>--ignore=</code> switches the file's list off. Malformed entry → exit <code>2</code>.</td>
 </tr>
 <tr>
@@ -2955,6 +2955,7 @@
 <p>The layout is described by the JSON Schema <a href="../schemas/report-1.schema.json"><code>docs/schemas/report-1.schema.json</code></a>. <code>schema</code> is bumped <em>only</em> when a key is removed or renamed, or its meaning or type changes. Adding a key does not bump it, so readers must ignore keys they do not know.</p>
 <p>The keys added in v0.16 (per-finding records, <code>gate</code>, <code>mode</code>, …) did not bump it. Every key a v0.15 report has (<code>schema</code>, <code>table</code>, <code>gaps[].kind</code>/<code>detail</code>/<code>hint</code>) keeps its type and meaning. A v0.15 reader therefore still reads a v0.16 report.</p>
 <p><strong>Report publication.</strong> The file is written only when the run exits <code>0</code> or <code>1</code>. A usage error (exit <code>2</code>) or crash (exit <code>3</code>) leaves any existing report unchanged. Consumers <u>must check the exit code</u> before reading or publishing a report.</p>
+<p>A failed write is only reported on stderr and keeps the exit code, and it leaves any file already at that path untouched. A green exit can therefore sit beside a report from an earlier run. Write to a fresh path, or delete the file before the run.</p>
 <p>The <a href="ci-integration.html#github-action">GitHub Action</a> builds its gap annotations and job summary from this file.</p>
 <h3 id="sarif-for-code-scanning">SARIF for code scanning<a class="headerlink" href="#sarif-for-code-scanning" title="Permanent link">🔗</a></h3>
 <p><a href="https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html">SARIF</a> (Static Analysis Results Interchange Format) is the OASIS standard JSON format in which static-analysis tools report findings. Each finding includes a rule, a level, a message, a file and line, and an identifying fingerprint.</p>
@@ -3168,7 +3169,7 @@
 </tr>
 <tr>
 <td><code>*:mypackage.compat.*:*</code></td>
-<td>Each part is an <code>fnmatch</code> glob, so this accepts everything under <code>mypackage.compat</code>.</td>
+<td>Module and symbol are <code>fnmatch</code> globs, so this accepts everything under <code>mypackage.compat</code>.</td>
 </tr>
 <tr>
 <td><code>expired:mypackage.oldmod:</code></td>
@@ -3176,7 +3177,7 @@
 </tr>
 </tbody>
 </table>
-<p>Commas <em>always</em> separate entries. A character class holding a comma such as <code>[a,o]</code> is therefore never one glob; write the class without commas (<code>[ao]</code>). The rule slugs are those of the report (<code>expired</code>, <code>min-grace</code>, <code>chain</code>, …).</p>
+<p>Commas <em>always</em> separate entries. A character class holding a comma such as <code>[a,o]</code> is therefore never one glob; write the class without commas (<code>[ao]</code>). The rule slugs are those of the report (<code>expired</code>, <code>min-grace</code>, <code>chain</code>, …). The rule part takes one exact slug or <code>*</code>, never a glob: <code>min-*:pkg:old</code> exits <code>2</code>.</p>
 <h4 id="baselines-and-suppression">Baselines and suppression<a class="headerlink" href="#baselines-and-suppression" title="Permanent link">🔗</a></h4>
 <p>A baseline is any <code>--report-json</code> file with a <code>findings</code> list, written since pyDeprecate v0.16. Its finding ids are accepted exactly. Ids hold no line or version, so moved code and version bumps stay accepted, and a renamed symbol is a new finding.</p>
 <p>Ids under the file's <code>suppressed</code> key count only when the baseline itself suppressed them (<code>suppressed_by.kind</code> is <code>baseline</code>). A baseline regenerated from a run that used it therefore keeps them.</p>
@@ -3210,7 +3211,7 @@
 <p>An unmatched baseline entry is reported once on stderr when all these conditions hold:</p>
 <ul>
 <li>It matches no finding of a check that ran on its wrapper.</li>
-<li>No gap such as <code>remove_in not PEP 440</code> or <code>not statically resolvable</code> names the wrapper.</li>
+<li>No gap such as <code>remove_in not PEP 440</code> or <code>not statically resolvable</code> names the wrapper for that rule. A gap skips only the rules it affects, so another rule's entry for the same wrapper can still be reported stale.</li>
 <li>Its module was audited: it was inside a scanned package, not excluded, and imported without error.</li>
 </ul>
 <p>The diagnostic is <code>… baseline entries match no finding of this run (stale, or outside a narrowed scan); regenerate the baseline from a full-scope run.</code></p>
@@ -3558,7 +3559,7 @@
 </tr>
 <tr>
 <td>Invalid gates</td>
-<td><code>--gate</code> or <code>gate</code> names an unknown check or is not a list.</td>
+<td><code>--gate</code> or <code>gate</code> names an unknown check, or <code>gate</code> is neither a string nor a list of strings; <code>gate = "policy"</code> is accepted.</td>
 </tr>
 <tr>
 <td>Conflicting import names</td>
@@ -3602,7 +3603,7 @@
 </tr>
 </tbody>
 </table>
-<p><strong>Missing submodules are checked during the scan.</strong> Only a missing submodule of an importable package (<code>pkg.nosuch</code>) is found when its own path is scanned. With several paths, the ones before it are scanned first. It still exits <code>2</code> with no report.</p>
+<p><strong>Some usage errors surface during the scan.</strong> A missing submodule of an importable package (<code>pkg.nosuch</code>) is found when its own path is scanned. With <code>--static</code>, a module name with no Python source, such as the built-in <code>sys</code>, is found the same way. With several paths, the ones before it are scanned first. It still exits <code>2</code> with no report.</p>
 <p>With <code>--static</code>, these are also usage errors:</p>
 <table>
 <thead>
@@ -3647,6 +3648,7 @@
 </tbody>
 </table>
 <p><strong>Submodule failures.</strong> A <em>submodule</em> that fails is a <code>module not audited</code> gap unless explicitly requested. When explicitly requested, the run exits <code>3</code> even when a parent scan covers it.</p>
+<p>The skip is announced as a <code>UserWarning</code>. Where warnings are errors (<code>PYTHONWARNINGS=error</code> or <code>-W error</code>), that warning is raised instead and a broken submodule ends the recursive walk with exit <code>3</code> and no report. Keep <code>UserWarning</code> out of the error filters for the audit step, or leave the module out with <code>--exclude</code>.</p>
 <p>Policy violations are the one finding <code>all</code> reports without acting on by default: they move <code>all</code> from <code>0</code> to <code>1</code> only with <code>--gate=policy</code>.</p>
 <p>Unknown or misspelled flags are <em>never</em> silently ignored. For example, <code>pydeprecate expiry mypackage --verison 2.0</code> exits <code>2</code> with an <code>unrecognized arguments: --verison</code> diagnostic before anything is scanned.</p>
 <h2 id="ci-recipes">CI recipes<a class="headerlink" href="#ci-recipes" title="Permanent link">🔗</a></h2>
@@ -3719,7 +3721,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 20, 2026 10:30:49 UTC">2026-11-20</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 23, 2026 08:47:34 UTC">2026-11-23</span>
   </span>
 
     

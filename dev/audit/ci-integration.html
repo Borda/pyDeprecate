@@ -100,7 +100,7 @@
   "publisher": { "@type": "Organization", "name": "Jiri Borovec", "url": "https://github.com/Borda", "sameAs": ["https://github.com/Borda", "https://pypi.org/user/Borda/", "https://libraries.io/pypi/pyDeprecate"] },
   "speakable": { "@type": "SpeakableSpecification", "cssSelector": [".md-content h1", ".md-content h2", ".md-content > p"] },
   "datePublished": "2026-11-19",
-  "dateModified": "2026-11-19"
+  "dateModified": "2026-11-23"
 }
 </script>
 
@@ -1818,7 +1818,7 @@
 <p>Pass every package to one command: <code>pydeprecate all --gate=policy packages/core/src/core packages/cli/src/cli</code> (since v0.16).</p>
 <ul>
 <li>Each package uses its own <code>[tool.pydeprecate]</code> settings.</li>
-<li>Each package uses the version from its nearest <code>pyproject.toml</code>.</li>
+<li>Each package uses the version from its nearest <code>pyproject.toml</code> that has a <code>[project]</code> table. When that version cannot be resolved, detection falls back to installed metadata or <code>__version__</code>, or records a <code>version not resolved</code> gap.</li>
 <li>Findings appear in one set of sections.</li>
 <li>Each package has a table under a <code>### &lt;package&gt;</code> heading.</li>
 <li>One exit code covers all packages.</li>
@@ -1881,9 +1881,6 @@
 </div>
 <h3 id="import-free-remote-hooks">Import-free remote hooks<a class="headerlink" href="#import-free-remote-hooks" title="Permanent link">🔗</a></h3>
 <p><code>pydeprecate-expiry-static</code> and <code>pydeprecate-policy-static</code> read source with <code>ast</code> without importing your package. They need none of its runtime dependencies.</p>
-<!-- TODO(v0.16.0): remove this "Release availability" paragraph once v0.16.0 is tagged; the hooks then exist in the released repo -->
-
-<p><strong>Release availability.</strong> These hooks ship with <code>v0.16.0</code>, the upcoming release, not yet tagged. The following recipe fails until that release is published.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># .pre-commit-config.yaml</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nt">repos</span><span class="p">:</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">repo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/Borda/pyDeprecate</span>
@@ -1893,7 +1890,7 @@
 <a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pydeprecate-policy-static</span>
 </code></pre></div>
 <p>The static hooks check removal deadlines and policy rules for recognized wrappers with resolvable relevant settings.</p>
-<p><strong>Static coverage is incomplete.</strong> Recognized unresolved forms emit a <code>not statically resolvable</code> gap without failing the hook. Some forms remain invisible without a gap.</p>
+<p><strong>Static coverage is incomplete.</strong> Recognized unresolved forms emit a <code>not statically resolvable</code> gap. The hooks pass no flags, so a gap fails the hook only when the project sets <code>strict = true</code> in <code>[tool.pydeprecate]</code>. A removal deadline that cannot be checked because no usable package version was found is reported as a <code>version not resolved</code> gap, not per wrapper. Some forms remain invisible without a gap.</p>
 <p>Read output with <code>pre-commit run --verbose</code> when first enabling a hook. Use an import-mode audit for fuller coverage. See <a href="cli.html#static-mode">Static mode</a>.</p>
 <p>Configuration checks and chains require imported wrappers. Keep <code>pydeprecate check</code> in a local hook or CI.</p>
 <div class="admonition danger">
@@ -2224,9 +2221,9 @@
 <p><strong>Static and advisory runs.</strong> The action has no static input. Pass <code>--static</code> through <code>args</code> with <code>subcommand: expiry</code> or <code>policy</code>. See <a href="cli.html#static-mode">Static mode</a>.</p>
 <p>A failing run adds an error annotation to the pull request's checks. The CLI has no "fail on warning" mode. Advisory findings, such as identity mappings, <em>never</em> fail the step.</p>
 <p>Set <code>exit-zero: true</code> to report hard errors without blocking while clearing a backlog. Set <code>fail-on-gap: true</code> to fail on incomplete audits. Every gap the run annotates then also fails it.</p>
-<p>Findings become annotations on their wrapper's line:</p>
+<p>Findings become annotations on their wrapper's line; a finding with no source location gets an annotation without a file or line:</p>
 <ol>
-<li>Annotate errors first, then warnings, within GitHub's limit of 10 annotations per level for one step. Gaps and the gate's own <code>exited 1</code> error use some of those slots first, so a few fewer findings are shown.</li>
+<li>Annotate errors first, then warnings, within GitHub's limit of 10 annotations per level for one step. Gaps and the gate's own <code>exited 1</code> error use some of those slots first, and two warning slots stay free for the action's own later warnings, so a few fewer findings are shown.</li>
 <li>Add one notice counting the remaining findings.</li>
 </ol>
 <p><strong>Annotation limits and accepted findings.</strong> The log and report retain every finding. Findings accepted through <code>--ignore</code> or <code>--baseline</code> are never annotated. Gaps keep one warning per kind.</p>
@@ -2284,8 +2281,9 @@
 <p><strong>The action ref pins the installed version.</strong> With <code>install: true</code> (the default), the action installs pyDeprecate from its own commit. Thus, <code>@v0.15.0</code> audits with 0.15.0.</p>
 <p>This <strong>replaces</strong> the job's existing pyDeprecate version for every later step. The action warns when it replaces a version.</p>
 <p>Pin the action to your project's pyDeprecate release. Alternatively, install <code>pyDeprecate[audit]</code> yourself and set <code>install: false</code>.</p>
+<p>With <code>install: false</code> and a pyDeprecate older than v0.16, <code>sarif: true</code> does not fail the run: the action warns, skips SARIF and gates on the CLI result alone, so <code>sarif-file</code> stays empty and the upload step above is skipped. Without <code>--report-json</code> support (before v0.15) it also writes no gap annotations or job summary.</p>
 <p>Also set <code>install: false</code> where pip is unavailable, such as a uv-managed virtual environment.</p>
-<p><strong>A green run can still have gaps.</strong> A failed submodule import is skipped with <code>UserWarning: audit: skipped &lt;module&gt;</code>. <code>expiry</code>, including inside <code>all</code>, skips removal deadlines when the package version cannot be detected. Both cases can still pass.</p>
+<p><strong>A green run can still have gaps.</strong> A failed submodule import is skipped with <code>UserWarning: audit: skipped &lt;module&gt;</code>. <code>expiry</code>, including inside <code>all</code>, skips removal deadlines when the package version cannot be detected. Both cases can still pass. Where warnings are errors (<code>PYTHONWARNINGS=error</code>), the skip warning is raised instead and the run exits <code>3</code>; see <a href="cli.html#scan-and-internal-errors">Scan and internal errors</a>.</p>
 <p>The action reads gaps from the CLI's <code>--report-json</code> report, even when the package silences warnings. It creates one warning annotation per gap kind. Check annotations whenever package installation changes.</p>
 <p>Pass <code>args: --version 2.0</code> when neither the installed package nor <code>pyproject.toml</code> provides a detectable version.</p>
 <div class="admonition danger">
@@ -2327,7 +2325,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 19, 2026 14:21:25 UTC">2026-11-19</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-iso_date" title="November 23, 2026 08:47:34 UTC">2026-11-23</span>
   </span>
 
     

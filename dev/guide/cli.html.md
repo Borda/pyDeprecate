@@ -203,7 +203,7 @@ pydeprecate status tests --version 1.2
 | `--no-include-members` | off              |    ✓    |    ✓     |    ✓     |    ✓     |   ✓   |    ✓     | Leave deprecated class members (methods, constructors, descriptors) out of the scan; only module-level wrappers are checked.                                                                                                                       | Members are scanned by default, as by every audit function (`include_members=True`). Also spelled `--include-members=false`.                                                                                                                                                                                   |
 | `--exit-zero`          | off              |    ✓    |    ✓     |    ✓     |    ✓     |   ✓   |          | Exit `0` instead of `1` when hard errors are found — useful for advisory CI steps; usage errors (`2`) and scan or internal errors (`3`) still fail.                                                                                                |                                                                                                                                                                                                                                                                                                                |
 | `--strict`             | `pyproject.toml` |    ✓    |    ✓     |    ✓     |    ✓     |   ✓   |          | Exit `1` when any part of the audit did not run, even with no finding. This means any `pydeprecate gap:` line, such as an unimportable module or an unresolved version.                                                                            | Since v0.16. The default is `strict` of `[tool.pydeprecate]`, else off; `--no-strict` switches it off for one run. A typed `--strict` together with `--exit-zero` → exit `2`. A typed `--exit-zero` overrides a `strict = true` that only `pyproject.toml` sets; one stderr note states the run is not strict. |
-| `--ignore PATTERNS`    | `pyproject.toml` |    ✓    |    ✓     |    ✓     |    ✓     |   ✓   |          | Accept known findings without fixing them: entries `module:symbol` (every rule) or `rule:module:symbol` (one rule, or `*`), each part an `fnmatch` glob; comma-separated and repeatable. Suppressed findings are not printed, counted or gated on. | Since v0.16. Default is `ignore` of `[tool.pydeprecate]`, else nothing; `--ignore=` switches the file's list off. Malformed entry → exit `2`.                                                                                                                                                                  |
+| `--ignore PATTERNS`    | `pyproject.toml` |    ✓    |    ✓     |    ✓     |    ✓     |   ✓   |          | Accept known findings without fixing them: entries `module:symbol` (every rule) or `rule:module:symbol` (one slug, or `*`), other parts `fnmatch` globs; comma-separated and repeatable. Suppressed findings are not printed, counted or gated on. | Since v0.16. Default is `ignore` of `[tool.pydeprecate]`, else nothing; `--ignore=` switches the file's list off. Malformed entry → exit `2`.                                                                                                                                                                  |
 | `--baseline FILE`      | `pyproject.toml` |    ✓    |    ✓     |    ✓     |    ✓     |   ✓   |          | Accept every finding listed in an earlier `--report-json` file (since pyDeprecate v0.16), matched by finding id.                                                                                                                                   | Since v0.16. Default is `baseline` of `[tool.pydeprecate]`, relative to that file; `--baseline=` switches it off. A file that is missing or unreadable, or is not a report with a `findings` list → exit `2`.                                                                                                  |
 | `--exclude`            | `pyproject.toml` |    ✓    |    ✓     |    ✓     |    ✓     |   ✓   |    ✓     | Glob patterns over full dotted module names to leave out of the scan; the scan itself never imports a matching package nor descends into it. One pattern, or comma-separated.                                                                      | Default is the `exclude` list of `[tool.pydeprecate]` (see below), else nothing. Quote the value — an unquoted `*` is expanded by the shell first. Malformed → exit `2`.                                                                                                                                       |
 | `--style`              | `compact`        |         |          |          |          |       |    ✓     | Table rendering style — `compact` (default) or `matrix`.                                                                                                                                                                                           |                                                                                                                                                                                                                                                                                                                |
@@ -387,6 +387,8 @@ The keys added in v0.16 (per-finding records, `gate`, `mode`, …) did not bump 
 
 **Report publication.** The file is written only when the run exits `0` or `1`. A usage error (exit `2`) or crash (exit `3`) leaves any existing report unchanged. Consumers <u>must check the exit code</u> before reading or publishing a report.
 
+A failed write is only reported on stderr and keeps the exit code, and it leaves any file already at that path untouched. A green exit can therefore sit beside a report from an earlier run. Write to a fresh path, or delete the file before the run.
+
 The [GitHub Action](../audit/ci-integration.md#github-action) builds its gap annotations and job summary from this file.
 
 ### SARIF for code scanning
@@ -540,14 +542,14 @@ pydeprecate all src/mypackage --baseline=ci/pydeprecate-baseline.json      # lat
 
 #### Ignore patterns
 
-| Entry                       | Scope                                                                                |
-| --------------------------- | ------------------------------------------------------------------------------------ |
-| `module:symbol`             | It accepts every rule of that symbol.                                                |
-| `rule:module:symbol`        | It accepts one rule; use `*` for any rule.                                           |
-| `*:mypackage.compat.*:*`    | Each part is an `fnmatch` glob, so this accepts everything under `mypackage.compat`. |
-| `expired:mypackage.oldmod:` | The empty symbol names a deprecated module.                                          |
+| Entry                       | Scope                                                                                       |
+| --------------------------- | ------------------------------------------------------------------------------------------- |
+| `module:symbol`             | It accepts every rule of that symbol.                                                       |
+| `rule:module:symbol`        | It accepts one rule; use `*` for any rule.                                                  |
+| `*:mypackage.compat.*:*`    | Module and symbol are `fnmatch` globs, so this accepts everything under `mypackage.compat`. |
+| `expired:mypackage.oldmod:` | The empty symbol names a deprecated module.                                                 |
 
-Commas *always* separate entries. A character class holding a comma such as `[a,o]` is therefore never one glob; write the class without commas (`[ao]`). The rule slugs are those of the report (`expired`, `min-grace`, `chain`, …).
+Commas *always* separate entries. A character class holding a comma such as `[a,o]` is therefore never one glob; write the class without commas (`[ao]`). The rule slugs are those of the report (`expired`, `min-grace`, `chain`, …). The rule part takes one exact slug or `*`, never a glob: `min-*:pkg:old` exits `2`.
 
 #### Baselines and suppression
 
@@ -567,7 +569,7 @@ A finding an ignore entry suppressed is not carried over: delete the ignore entr
 An unmatched baseline entry is reported once on stderr when all these conditions hold:
 
 - It matches no finding of a check that ran on its wrapper.
-- No gap such as `remove_in not PEP 440` or `not statically resolvable` names the wrapper.
+- No gap such as `remove_in not PEP 440` or `not statically resolvable` names the wrapper for that rule. A gap skips only the rules it affects, so another rule's entry for the same wrapper can still be reported stale.
 - Its module was audited: it was inside a scanned package, not excluded, and imported without error.
 
 The diagnostic is `… baseline entries match no finding of this run (stale, or outside a narrowed scan); regenerate the baseline from a full-scope run.`
@@ -718,7 +720,7 @@ A usage error (exit `2`) on any path stops the run before anything is scanned, o
 | Unknown options                              | An option is unknown.                                                                                                                                                                                                    |
 | Invalid booleans                             | A boolean flag has a value other than `true`/`false`/`1`/`0`.                                                                                                                                                            |
 | Duplicate version inputs                     | The version is given both as the legacy second positional argument and as `--version`.                                                                                                                                   |
-| Invalid gates                                | `--gate` or `gate` names an unknown check or is not a list.                                                                                                                                                              |
+| Invalid gates                                | `--gate` or `gate` names an unknown check, or `gate` is neither a string nor a list of strings; `gate = "policy"` is accepted.                                                                                           |
 | Conflicting import names                     | Two paths import as the same name from different places.                                                                                                                                                                 |
 | Covered paths with independent configuration | Another path's recursive scan already covers a path with its own `[tool.pydeprecate]` settings or, with auto-detection, its own version.                                                                                 |
 | Empty report paths                           | `--report-json=` is empty.                                                                                                                                                                                               |
@@ -730,7 +732,7 @@ A usage error (exit `2`) on any path stops the run before anything is scanned, o
 | Several top-level packages                   | A directory holding two or more top-level packages produces `contains multiple packages (…)`; pass the package sub-directory instead.                                                                                    |
 | Missing paths or modules                     | A name is neither an existing path nor an importable module. This produces `No such path or importable module`, also for relative spellings such as `./typo` or `.pkg`.                                                  |
 
-**Missing submodules are checked during the scan.** Only a missing submodule of an importable package (`pkg.nosuch`) is found when its own path is scanned. With several paths, the ones before it are scanned first. It still exits `2` with no report.
+**Some usage errors surface during the scan.** A missing submodule of an importable package (`pkg.nosuch`) is found when its own path is scanned. With `--static`, a module name with no Python source, such as the built-in `sys`, is found the same way. With several paths, the ones before it are scanned first. It still exits `2` with no report.
 
 With `--static`, these are also usage errors:
 
@@ -750,6 +752,8 @@ Exit `3` means the audit itself did not run. Neither error writes a `--report-js
 | `pydeprecate: internal error: …` | There is a bug in the CLI. The diagnostic includes the issue tracker to report it to.                                                           |
 
 **Submodule failures.** A *submodule* that fails is a `module not audited` gap unless explicitly requested. When explicitly requested, the run exits `3` even when a parent scan covers it.
+
+The skip is announced as a `UserWarning`. Where warnings are errors (`PYTHONWARNINGS=error` or `-W error`), that warning is raised instead and a broken submodule ends the recursive walk with exit `3` and no report. Keep `UserWarning` out of the error filters for the audit step, or leave the module out with `--exclude`.
 
 Policy violations are the one finding `all` reports without acting on by default: they move `all` from `0` to `1` only with `--gate=policy`.
 
