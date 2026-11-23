@@ -1,0 +1,368 @@
+"""MkDocs hooks for AI-agent discoverability.
+
+Injects a ``<link>`` element pointing to ``/llms.txt`` into every page's ``<head>`` so that AI agents can discover the
+structured documentation index.
+
+"""
+
+from __future__ import annotations
+
+import os
+import posixpath
+import re
+import shutil as _pydeprecate_shutil
+from pathlib import Path as _PyDeprecatePath
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mkdocs.config.defaults import MkDocsConfig
+    from mkdocs.structure.pages import Page
+
+# Module-level cache for the MkDocs config, populated in on_config so URL helpers
+# can derive the public root from config.extra.root_site_url instead of a hard-coded constant.
+_pydeprecate_config: MkDocsConfig | None = None
+
+
+def on_config(config: MkDocsConfig, **_kwargs: object) -> MkDocsConfig:
+    """Inject package version and root site URL into extra config so templates can reference them."""
+    global _pydeprecate_config
+    _pydeprecate_config = config
+    try:
+        about = os.path.join(os.path.dirname(os.path.dirname(__file__)), "src", "deprecate", "__about__.py")
+        with open(about) as f:
+            match = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', f.read())
+        config.extra["package_version"] = match.group(1) if match else ""
+    except Exception:
+        config.extra["package_version"] = ""
+    # mike overrides site_url with a versioned path during builds; strip the trailing
+    # version/alias segment so templates can reference the stable root URL.
+    raw = str(getattr(config, "site_url", "") or "").rstrip("/")
+    root = re.sub(r"/(?:v?\d[\w.]*|stable|dev|latest)$", "", raw)
+    config.extra["root_site_url"] = root + "/"
+    return config
+
+
+# PYDEPRECATE_GEO_SEO_HOOKS
+# Search and agent discovery helpers. Kept in hooks so generated metadata stays
+# aligned with mike aliases and rendered page URLs.
+
+_PYDEPRECATE_PUBLIC_ROOT = "https://borda.github.io/pyDeprecate"
+_PYDEPRECATE_STABLE_BASE = f"{_PYDEPRECATE_PUBLIC_ROOT}/stable/"
+_PYDEPRECATE_SEARCH_DIALOG = '<div class="md-search" data-md-component="search" role="dialog">'
+_PYDEPRECATE_SEARCH_DIALOG_LABELLED = (
+    '<div class="md-search" data-md-component="search" role="dialog" aria-label="Search">'
+)
+_PYDEPRECATE_VERSION_BUTTON_RE = re.compile(
+    r'(<button class="md-version__current" aria-label="Select version">)([^<]+)(</button>)'
+)
+
+
+def _pydeprecate_stable_base() -> str:
+    """Return the stable base URL, derived from ``config.extra.root_site_url`` when available.
+
+    Falls back to the hard-coded ``_PYDEPRECATE_STABLE_BASE`` constant so local previews and forks that configure a
+    different ``site_url`` still produce correct canonical URLs.
+
+    """
+    if _pydeprecate_config is not None:
+        root = _pydeprecate_config.extra.get("root_site_url")
+        if isinstance(root, str):
+            root = root.rstrip("/")
+            if root:
+                return f"{root}/stable/"
+    return _PYDEPRECATE_STABLE_BASE
+
+
+def _pydeprecate_root_url() -> str:
+    """Return the root site URL (no version suffix), derived from config when available."""
+    if _pydeprecate_config is not None:
+        root = _pydeprecate_config.extra.get("root_site_url")
+        if isinstance(root, str):
+            root = root.rstrip("/")
+            if root:
+                return root
+    return _PYDEPRECATE_PUBLIC_ROOT
+
+
+def _pydeprecate_public_url(page: Page) -> str:
+    base = _pydeprecate_stable_base()
+    page_url = getattr(page, "url", "") or ""
+    if page_url in {"", "index.html"}:
+        return base
+    return f"{base}{page_url}"
+
+
+def _pydeprecate_label_search_dialog(output: str) -> str:
+    return output.replace(_PYDEPRECATE_SEARCH_DIALOG, _PYDEPRECATE_SEARCH_DIALOG_LABELLED)
+
+
+def _pydeprecate_label_version_button(output: str) -> str:
+    return _PYDEPRECATE_VERSION_BUTTON_RE.sub(
+        r'<button class="md-version__current" aria-label="Select version \2">\2\3',
+        output,
+    )
+
+
+def _pydeprecate_fix_accessibility(output: str) -> str:
+    return _pydeprecate_label_version_button(_pydeprecate_label_search_dialog(output))
+
+
+def _pydeprecate_markdown_url(page: Page) -> str:
+    base = _pydeprecate_stable_base()
+    page_url = getattr(page, "url", "") or "index.html"
+    # Directory-style URLs (use_directory_urls=True) end with '/'; strip so the
+    # resulting path matches the .html.md mirror target produced by _pydeprecate_mirror_target.
+    if page_url.endswith("/"):
+        page_url = page_url.rstrip("/") + ".html"
+    if not page_url:
+        page_url = "index.html"
+    return f"{base}{page_url}.md"
+
+
+_PYDEPRECATE_FAQ_PAGE = "troubleshooting.md"
+_PYDEPRECATE_FAQ_CLOSING_HEADING = "Still stuck?"
+_PYDEPRECATE_FAQ_SKIPPED_PARAGRAPH = ("**Q:**", "!!!", "<", "|", ">", "-")
+
+
+def _pydeprecate_plain_text(markdown: str) -> str:
+    """Return Markdown inline text as plain text: links keep their label, bold markers go, code spans keep their
+    text."""
+
+    def _keep(match: re.Match[str]) -> str:
+        code, label = match.group(1), match.group(2)
+        return code if code is not None else (label or "")
+
+    return re.sub(r"`([^`]*)`|\[([^\]]+)\]\([^)]*\)|\*\*", _keep, markdown).strip()
+
+
+def _pydeprecate_faq_sections(markdown: str) -> list[tuple[str, list[str]]]:
+    """Collect H3 questions and their paragraphs beneath H2 topics, skipping fenced code and topic introductions."""
+    sections: list[tuple[str, list[str]]] = []
+    section: tuple[str, list[str]] | None = None
+    in_topic = False
+    fence = ""
+    buffer: list[str] = []
+    for line in [*markdown.splitlines(), ""]:
+        marker = re.match(r"\s*(`{3,}|~{3,})", line)
+        if fence:
+            if marker and marker.group(1)[0] == fence[0] and len(marker.group(1)) >= len(fence):
+                fence = ""
+            continue
+        if marker:
+            fence, line = marker.group(1), ""
+        heading = re.match(r"^(#{1,3}) (.+)$", line)
+        if buffer and (heading or not line.strip()):
+            if section is not None:
+                section[1].append(" ".join(buffer))
+            buffer = []
+        if heading:
+            level, title = len(heading.group(1)), heading.group(2).strip()
+            if level < 3:
+                in_topic = level == 2 and title != _PYDEPRECATE_FAQ_CLOSING_HEADING
+                section = None
+            elif in_topic:
+                section = (title, [])
+                sections.append(section)
+        elif line.strip() and section is not None:
+            buffer.append(line.strip())
+    return sections
+
+
+def _pydeprecate_faq_entries(markdown: str) -> list[dict[str, str]]:
+    """Build FAQPage entries from H3 questions under H2 topics and their first prose answers.
+
+    Topic introductions and the closing help section never become entries. Answer filtering and lead-in continuation
+    follow the troubleshooting page's prose conventions.
+
+    """
+    entries: list[dict[str, str]] = []
+    for heading, paragraphs in _pydeprecate_faq_sections(markdown):
+        if heading == _PYDEPRECATE_FAQ_CLOSING_HEADING:
+            continue
+        prose = [
+            para
+            for para in paragraphs
+            if not para.startswith(_PYDEPRECATE_FAQ_SKIPPED_PARAGRAPH)
+            and not re.fullmatch(r"[-_*\s]{3,}", para)
+            and not re.fullmatch(r"\*\*[^*]+\*\*", para)
+        ]
+        if not prose:
+            raise ValueError(f"{_PYDEPRECATE_FAQ_PAGE}: section {heading!r} has no answer paragraph for the FAQ JSON-LD")
+        answer = re.sub(r"^\*\*A:\*\*\s*", "", prose[0])
+        if answer.endswith(":"):  # a lead-in to code or a list: continue with the next prose paragraph, if any
+            answer = f"{answer} {prose[1]}" if len(prose) > 1 else answer.rstrip(":")
+        entries.append({"name": heading.replace("`", ""), "text": _pydeprecate_plain_text(answer)})
+    return entries
+
+
+def on_page_context(
+    context: dict[str, object], page: Page, config: MkDocsConfig, nav: object
+) -> dict[str, object]:
+    """Inject canonical URLs, and the FAQ questions of the troubleshooting page, into the page context."""
+    canonical = _pydeprecate_public_url(page)
+    context["pydeprecate_canonical_url"] = canonical
+    page.canonical_url = canonical
+    if page.file.src_path == _PYDEPRECATE_FAQ_PAGE:
+        context["pydeprecate_faq"] = _pydeprecate_faq_entries(page.markdown)
+    return context
+
+
+def on_post_page(output: str, page: Page, config: MkDocsConfig) -> str:
+    """Inject metadata into every rendered page.
+
+    Injects canonical URLs, page-specific markdown mirror links, and llms.txt discovery link into the page <head>. JSON-
+    LD structured data is handled entirely by the Jinja2 template.
+
+    """
+    canonical = _pydeprecate_public_url(page)
+    markdown = _pydeprecate_markdown_url(page)
+    output = re.sub(
+        r'<link rel="canonical" href="[^"]+">',
+        f'<link rel="canonical" href="{canonical}">',
+        output,
+    )
+    output = re.sub(
+        r'<meta property="og:url" content="[^"]+">',
+        f'<meta property="og:url" content="{canonical}">',
+        output,
+    )
+    # Accessibility fixes are applied in on_post_build() for all generated HTML outputs.
+    # Replace any existing text/markdown alternate link with the page-specific mirror URL.
+    # This may be set by MkDocs or a prior hook; we overwrite to ensure it points to the
+    # correct versioned mirror, not the root llms.txt.
+    markdown_tag = f'<link rel="alternate" type="text/markdown" href="{markdown}">'
+    replaced = re.sub(
+        r'<link rel="alternate" type="text/markdown" href="[^"]+">',
+        markdown_tag,
+        output,
+    )
+    # Tag was absent — insert it so the mirror URL is always discoverable.
+    output = output.replace("</head>", f"{markdown_tag}\n</head>", 1) if replaced == output else replaced
+    # Inject the root llms.txt discovery link (type=text/plain) separately — distinct
+    # from the per-page markdown mirror link above so both survive in <head>.
+    llms_url = f"{_pydeprecate_root_url()}/llms.txt"
+    llms_href = f'href="{llms_url}"'
+    if llms_href not in output:
+        output = output.replace(
+            "</head>",
+            f'<link rel="alternate" type="text/plain" title="llms.txt" href="{llms_url}">\n</head>',
+            1,
+        )
+    return output
+
+
+# An inline code span (skipped) or the ``](`` opening of an inline link or image followed by its target.
+_PYDEPRECATE_LINK_RE = re.compile(r"`[^`\n]*`|(\]\()([^)\s]+)")
+_PYDEPRECATE_URL_SCHEME_RE = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
+
+
+def _pydeprecate_mirror_target(src_path: str) -> str:
+    if src_path == "index.md":
+        return "index.html.md"
+    return src_path.removesuffix(".md") + ".html.md"
+
+
+def _pydeprecate_copy_markdown_mirrors(docs_dir: str, site_dir: str) -> None:
+    docs = _PyDeprecatePath(docs_dir)
+    site = _PyDeprecatePath(site_dir)
+    for src in docs.rglob("*.md"):
+        if "overrides" in src.relative_to(docs).parts:
+            continue
+        src_name = src.relative_to(docs).as_posix()
+        dest = site / _pydeprecate_mirror_target(src_name)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        _pydeprecate_shutil.copyfile(src, dest)
+
+
+def _pydeprecate_rebase_link(target: str, from_dir: str, to_dir: str) -> str:
+    """Rewrite one relative link target of a page in ``from_dir`` so it resolves from ``to_dir`` instead.
+
+    Absolute URLs, root-absolute paths, pure ``#anchor`` targets and targets climbing out of the docs tree stay as
+    written.
+
+    """
+    path, hash_mark, anchor = target.partition("#")
+    if not path or path.startswith("/") or _PYDEPRECATE_URL_SCHEME_RE.match(path):
+        return target
+    resolved = posixpath.normpath(posixpath.join(from_dir, path))
+    if resolved.startswith(".."):
+        return target
+    # A fake root keeps relpath independent of the working directory.
+    rebased = posixpath.relpath(f"/{resolved}", f"/{to_dir}")
+    if path.endswith("/") and not rebased.endswith("/"):
+        rebased += "/"
+    return f"{rebased}{hash_mark}{anchor}"
+
+
+def _pydeprecate_rebase_markdown_links(markdown: str, from_dir: str, to_dir: str) -> str:
+    """Rebase the relative links of a Markdown page from ``from_dir`` to ``to_dir``, leaving code untouched.
+
+    Both directories are docs-relative POSIX paths, empty for the docs root. Fenced code blocks and single-backtick
+    inline code spans are copied verbatim, and the page's own bytes survive wherever no link changes.
+
+    """
+    if from_dir == to_dir:
+        return markdown
+
+    def _rebase(match: re.Match[str]) -> str:
+        opener, target = match.group(1), match.group(2)
+        if opener is None:  # an inline code span, matched only so its text is skipped
+            return match.group(0)
+        return f"{opener}{_pydeprecate_rebase_link(target, from_dir, to_dir)}"
+
+    lines: list[str] = []
+    fence = ""
+    for line in markdown.splitlines(keepends=True):
+        marker = re.match(r"\s*(`{3,}|~{3,})", line)
+        if fence:
+            closing = re.fullmatch(r"\s*(`{3,}|~{3,})\s*", line)
+            if closing and closing.group(1)[0] == fence[0] and len(closing.group(1)) >= len(fence):
+                fence = ""
+        elif marker:
+            fence = marker.group(1)
+        else:
+            line = _PYDEPRECATE_LINK_RE.sub(_rebase, line)
+        lines.append(line)
+    return "".join(lines)
+
+
+def _pydeprecate_copy_redirect_mirrors(config: MkDocsConfig) -> None:
+    # A static host cannot redirect ``.html.md``, so a moved page's old mirror address serves the new page's source.
+    # Its relative links are rebased, since the old address lives in another directory than the page they were written for.
+    plugin = config["plugins"].get("redirects")
+    if plugin is None:
+        return
+    site = _PyDeprecatePath(config["site_dir"])
+    for old, new in plugin.config["redirect_maps"].items():
+        new_page = new.split("#")[0]
+        source = site / _pydeprecate_mirror_target(new_page)
+        dest = site / _pydeprecate_mirror_target(old)
+        if source.is_file() and not dest.exists():
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            # Bytes, not text: universal newlines would rewrite the page's line endings.
+            page = _pydeprecate_rebase_markdown_links(
+                source.read_bytes().decode("utf-8"), posixpath.dirname(new_page), posixpath.dirname(old)
+            )
+            dest.write_bytes(page.encode("utf-8"))
+
+
+def _pydeprecate_rewrite_sitemap(site_dir: str) -> None:
+    sitemap = _PyDeprecatePath(site_dir) / "sitemap.xml"
+    if not sitemap.exists():
+        return
+    text = sitemap.read_text(encoding="utf-8")
+    text = re.sub(
+        rf"{re.escape(_pydeprecate_root_url())}/(?:v?[^/]+|latest|dev)/",
+        _pydeprecate_stable_base(),
+        text,
+    )
+    sitemap.write_text(text, encoding="utf-8")
+
+
+def on_post_build(config: MkDocsConfig) -> None:
+    """Copy markdown mirrors and rewrite sitemap after build completes."""
+    _pydeprecate_copy_markdown_mirrors(config["docs_dir"], config["site_dir"])
+    _pydeprecate_copy_redirect_mirrors(config)
+    _pydeprecate_rewrite_sitemap(config["site_dir"])
+    for path in _PyDeprecatePath(config["site_dir"]).rglob("*.html"):
+        path.write_text(_pydeprecate_fix_accessibility(path.read_text(encoding="utf-8")), encoding="utf-8")
