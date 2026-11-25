@@ -52,13 +52,14 @@ For audits of deprecations a project already declares, ask:
 
 > “Audit `src/acme` with pyDeprecate and list what is misconfigured, chained, expired or badly scheduled; do not edit.”
 
-The audit skill runs the CLI audits, reads every gap, and returns findings by rule with their source location. It edits only after you confirm a fix list, and it adds pre-commit, GitHub Action or pytest gates only when asked. A typical run:
+The audit skill runs the CLI audits, reads every gap, and returns findings by rule with their source location. It edits only after you confirm a fix list, and it adds pre-commit, GitHub Action or pytest gates only when asked. A typical run since v0.16 uses a fresh temporary report destination:
 
 ```bash
-pydeprecate all src/acme --version 2.0 --gate=policy --strict --report-json audit.json
+report_dir="$(mktemp -d)" &&
+    pydeprecate all src/acme --version 2.0 --gate=policy --strict --report-json "$report_dir/audit.json"
 ```
 
-Exit `0` with open gaps is incomplete coverage, not a clean audit. Without the package's runtime dependencies, `pydeprecate expiry --static` and `pydeprecate policy --static` read the source without importing it; see the [CLI static mode](../audit/cli.md#static-mode).
+Verify the current run produced a parseable report before reading it. Check active and suppressed findings as well as gaps. Since v0.16, when the package's runtime dependencies are unavailable, `pydeprecate expiry --static` and `pydeprecate policy --static` read the source without importing it; see the [CLI static mode](../audit/cli.md#static-mode). On older releases, report which machine checks were blocked and describe any source-only coverage as incomplete.
 
 ## Rules for agents
 
