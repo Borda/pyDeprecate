@@ -1,9 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" width="960" height="360" role="img" aria-labelledby="t d">
   <title id="t">Deprecation chains and the direct fix</title>
-  <desc id="d">Top: a chain where old_func forwards to mid_func, which is deprecated and forwards to new_func, so callers get two notices. Bottom: old_func targets new_func directly and callers get one notice.</desc>
+  <desc id="d">Top: a chain played step by step, where old_func forwards to mid_func, which is deprecated and forwards to new_func, so callers get two notices. Bottom: old_func targets new_func directly and callers get one notice.</desc>
   <style>
     text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+    .show { opacity: 0; }
+    .g0 { animation: g0 11s ease-out infinite; }
+    @keyframes g0 { 0%, 4% { opacity: 0 } 7%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
+    .g1 { animation: g1 11s ease-out infinite; }
+    @keyframes g1 { 0%, 11% { opacity: 0 } 14%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
+    .g2 { animation: g2 11s ease-out infinite; }
+    @keyframes g2 { 0%, 18% { opacity: 0 } 21%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
+    .g3 { animation: g3 11s ease-out infinite; }
+    @keyframes g3 { 0%, 25% { opacity: 0 } 28%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
+    .g4 { animation: g4 11s ease-out infinite; }
+    @keyframes g4 { 0%, 32% { opacity: 0 } 35%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
+    .g5 { animation: g5 11s ease-out infinite; }
+    @keyframes g5 { 0%, 39% { opacity: 0 } 42%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
+    .g6 { animation: g6 11s ease-out infinite; }
+    @keyframes g6 { 0%, 51% { opacity: 0 } 54%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
+    .g7 { animation: g7 11s ease-out infinite; }
+    @keyframes g7 { 0%, 61% { opacity: 0 } 64%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
+    .g8 { animation: g8 11s ease-out infinite; }
+    @keyframes g8 { 0%, 71% { opacity: 0 } 74%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
+    @media (prefers-reduced-motion: reduce) { .show { animation: none !important; opacity: 1 !important; } }
   </style>
   <defs>
     <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6B7F99"/></marker>
@@ -16,29 +37,47 @@
   <text x="920" y="44" font-size="13" fill="#EAA238" text-anchor="end">a deprecated wrapper must not target another deprecated one</text>
   <rect x="40" y="70" width="880" height="130" rx="14" fill="#141B26" stroke="#E8735A" stroke-width="1.6"/>
   <text x="60" y="94" font-size="12" fill="#E8735A" font-weight="700" letter-spacing="1">✗ CHAIN  ·  ChainType.TARGET</text>
+  <rect x="40" y="216" width="880" height="124" rx="14" fill="#141B26" stroke="#6FCF97" stroke-width="1.6"/>
+  <text x="60" y="240" font-size="12" fill="#6FCF97" font-weight="700" letter-spacing="1">✓ DIRECT  ·  the fix</text>
+  <g class="show g0">
   <rect x="70" y="120" width="190" height="52" rx="10" fill="#263246" stroke="#EAA238" stroke-width="1.8"/>
   <text x="165.0" y="143" font-size="13" fill="#F7F9FC" text-anchor="middle" class="mono" font-weight="600">old_func</text>
   <text x="165.0" y="160" font-size="10.5" fill="#9FB0C6" text-anchor="middle">@deprecated</text>
+  </g>
+  <g class="show g1">
+  <line x1="264" y1="146" x2="380" y2="146" stroke="#EAA238" stroke-width="2" marker-end="url(#aha)"/>
+  <text x="322" y="138" font-size="10.5" fill="#EAA238" text-anchor="middle">warning 1</text>
+  </g>
+  <g class="show g2">
   <rect x="385" y="120" width="190" height="52" rx="10" fill="#263246" stroke="#EAA238" stroke-width="1.8"/>
   <text x="480.0" y="143" font-size="13" fill="#F7F9FC" text-anchor="middle" class="mono" font-weight="600">mid_func</text>
   <text x="480.0" y="160" font-size="10.5" fill="#9FB0C6" text-anchor="middle">@deprecated too</text>
+  </g>
+  <g class="show g3">
+  <line x1="579" y1="146" x2="695" y2="146" stroke="#EAA238" stroke-width="2" marker-end="url(#aha)"/>
+  <text x="637" y="138" font-size="10.5" fill="#EAA238" text-anchor="middle">warning 2</text>
+  </g>
+  <g class="show g4">
   <rect x="700" y="120" width="190" height="52" rx="10" fill="#263246" stroke="#6FCF97" stroke-width="1.8"/>
   <text x="795.0" y="143" font-size="13" fill="#F7F9FC" text-anchor="middle" class="mono" font-weight="600">new_func</text>
   <text x="795.0" y="160" font-size="10.5" fill="#9FB0C6" text-anchor="middle">current API</text>
-  <line x1="264" y1="146" x2="380" y2="146" stroke="#EAA238" stroke-width="2" marker-end="url(#aha)"/>
-  <line x1="579" y1="146" x2="695" y2="146" stroke="#EAA238" stroke-width="2" marker-end="url(#aha)"/>
-  <text x="322" y="138" font-size="10.5" fill="#EAA238" text-anchor="middle">warning 1</text>
-  <text x="637" y="138" font-size="10.5" fill="#EAA238" text-anchor="middle">warning 2</text>
+  </g>
+  <g class="show g5">
   <text x="480" y="190" font-size="11.5" fill="#9FB0C6" text-anchor="middle">Callers get two notices and the middle hop adds nothing.</text>
-  <rect x="40" y="216" width="880" height="124" rx="14" fill="#141B26" stroke="#6FCF97" stroke-width="1.6"/>
-  <text x="60" y="240" font-size="12" fill="#6FCF97" font-weight="700" letter-spacing="1">✓ DIRECT  ·  the fix</text>
+  </g>
+  <g class="show g6">
   <rect x="70" y="262" width="190" height="52" rx="10" fill="#263246" stroke="#EAA238" stroke-width="1.8"/>
   <text x="165.0" y="285" font-size="13" fill="#F7F9FC" text-anchor="middle" class="mono" font-weight="600">old_func</text>
   <text x="165.0" y="302" font-size="10.5" fill="#9FB0C6" text-anchor="middle">@deprecated</text>
   <rect x="700" y="262" width="190" height="52" rx="10" fill="#263246" stroke="#6FCF97" stroke-width="1.8"/>
   <text x="795.0" y="285" font-size="13" fill="#F7F9FC" text-anchor="middle" class="mono" font-weight="600">new_func</text>
   <text x="795.0" y="302" font-size="10.5" fill="#9FB0C6" text-anchor="middle">current API</text>
+  </g>
+  <g class="show g7">
   <line x1="264" y1="288" x2="695" y2="288" stroke="#6FCF97" stroke-width="2.5" marker-end="url(#ahg)"/>
   <text x="480" y="280" font-size="11.5" fill="#6FCF97" text-anchor="middle">one warning, forwarded straight to the final replacement</text>
+  </g>
+  <g class="show g8">
   <text x="480" y="328" font-size="11.5" fill="#9FB0C6" text-anchor="middle">Point target= at the final API. Stacked argument mappings are chains too: compose them.</text>
+  </g>
 </svg>
