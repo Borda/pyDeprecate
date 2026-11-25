@@ -140,6 +140,7 @@ validation:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
+  - How It Works: how-it-works.md
   - Usage:
       - Overview: usage/index.md
       - Lifecycle: usage/lifecycle.md

@@ -420,10 +420,11 @@ pyDeprecate/
 │   └── pydeprecate/                       # Dual-host Codex/Claude Code plugin, early pre-1.0
 │       ├── .codex-plugin/plugin.json      # Codex plugin manifest
 │       ├── .claude-plugin/plugin.json     # Claude Code plugin manifest
-│       └── skills/                        # Shared sunset and prune skills
+│       └── skills/                        # Shared sunset, audit and prune skills
 ├── docs/
 │   ├── index.md                # Curated site home page (not a copy of README.md)
 │   ├── getting-started.md      # Install, first deprecation, parameter table
+│   ├── how-it-works.md         # Decoration time, call time, wrapper kinds, how the audit finds wrappers
 │   ├── troubleshooting.md      # Q&A grouped by topic H2; each H3 question + first prose paragraph feeds the FAQ JSON-LD
 │   ├── limitations.md          # Known limitations and non-goals
 │   ├── api-reference.md        # mkdocstrings reference pages

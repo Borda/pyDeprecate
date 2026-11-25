@@ -120,6 +120,7 @@ Choose pyDeprecate for call forwarding, argument mapping, proxies, and CI audits
 ## Where to go next
 
 - [Getting Started](getting-started.md) — install, write your first deprecation, see the full API at a glance.
+- [How It Works](how-it-works.md) — what the decorator builds, what a call does, and how the audit finds every wrapper.
 - [Use Cases](usage/index.md) — overview of all deprecation patterns with links to each topic page.
 - [Customization](usage/customization.md) — custom message templates and output redirection to loggers.
 - [void() Helper](usage/void-helper.md) — sentinel function for self-documenting deprecated stubs.

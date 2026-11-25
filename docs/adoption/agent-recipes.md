@@ -24,11 +24,12 @@ claude plugin install pydeprecate@pydeprecate
 
 For local development or unpublished changes, run these commands from the repository root with `.` instead of `Borda/pyDeprecate` in the marketplace-add command. The plugin-install command stays the same.
 
-The plugin provides `$pydeprecate:sunset` and `$pydeprecate:prune` in Codex, and `/pydeprecate:sunset` and `/pydeprecate:prune` in Claude Code.
+The plugin provides `$pydeprecate:sunset`, `$pydeprecate:audit` and `$pydeprecate:prune` in Codex, and `/pydeprecate:sunset`, `/pydeprecate:audit` and `/pydeprecate:prune` in Claude Code.
 
 | Request                            | Required inputs                                                           | Example                                                                      |
 | ---------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | `sunset` implements a deprecation. | It requires package or module scope plus `deprecated_in` and `remove_in`. | “Sunset `parse_config` in `acme.parsers`, deprecated_in=1.4, remove_in=2.0.” |
+| `audit` checks existing wrappers.  | It requires package or module scope only.                                 | “Audit the deprecations in `acme.parsers` and list what is misconfigured.”   |
 | `prune` removes compatibility.     | It requires scope plus the target release only.                           | “Prune compatibility due by target release 2.0 from `acme.parsers`.”         |
 
 Preview remains read-only. A removal plan requires an explicit release deadline: `remove_in <= target release` under PEP 440.
@@ -39,13 +40,25 @@ Preview remains read-only. A removal plan requires an explicit release deadline:
 
 The plan keeps surviving functions or classes available for argument/attribute compatibility, and leaves incomplete scans unresolved. Use the consumer environment's existing `pyDeprecate`; expiry, policy and `all` audits need `[audit]`; the other audits do not.
 
-The plugin source lives under `plugins/pydeprecate/`: `.codex-plugin/plugin.json`, `.claude-plugin/plugin.json`, `skills/sunset/SKILL.md`, and `skills/prune/SKILL.md`.
+The plugin source lives under `plugins/pydeprecate/`: `.codex-plugin/plugin.json`, `.claude-plugin/plugin.json`, `skills/sunset/SKILL.md`, `skills/audit/SKILL.md`, and `skills/prune/SKILL.md`.
 
 For adoption scans, ask:
 
 > “Scan `src/acme` for deprecation decorators, warnings, aliases, and shims; suggest supported pyDeprecate conversions without editing.”
 
 The scan verifies installed or explicitly identified release support and returns `convert`, `keep`, or `needs decision`. It does not force dependencies or convert operational warnings. PEP 702 static-checker behavior is not equivalent merely because runtime metadata looks similar.
+
+For audits of deprecations a project already declares, ask:
+
+> “Audit `src/acme` with pyDeprecate and list what is misconfigured, chained, expired or badly scheduled; do not edit.”
+
+The audit skill runs the CLI audits, reads every gap, and returns findings by rule with their source location. It edits only after you confirm a fix list, and it adds pre-commit, GitHub Action or pytest gates only when asked. A typical run:
+
+```bash
+pydeprecate all src/acme --version 2.0 --gate=policy --strict --report-json audit.json
+```
+
+Exit `0` with open gaps is incomplete coverage, not a clean audit. Without the package's runtime dependencies, `pydeprecate expiry --static` and `pydeprecate policy --static` read the source without importing it; see the [CLI static mode](../audit/cli.md#static-mode).
 
 ## Rules for agents
 

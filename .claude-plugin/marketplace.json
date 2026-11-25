@@ -1,13 +1,13 @@
 {
   "name": "pydeprecate",
-  "description": "Shared Codex and Claude skills for Python API deprecation and release cleanup.",
+  "description": "Shared Codex and Claude skills for Python API deprecation, audit and release cleanup.",
   "owner": {
     "name": "Jiri Borovec"
   },
   "plugins": [
     {
       "name": "pydeprecate",
-      "description": "Suggest supported pyDeprecate conversions, add API deprecations, and prune compatibility due by a release version.",
+      "description": "Suggest supported pyDeprecate conversions, add API deprecations, audit existing ones, and prune compatibility due by a release version.",
       "source": "./plugins/pydeprecate"
     }
   ]
