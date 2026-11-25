@@ -434,10 +434,10 @@ pyDeprecate/
 │   ├── mkdocs_hooks.py         # MkDocs build hooks (Markdown mirrors, sitemap)
 │   ├── overrides/              # Jinja2 templates: main.html (JSON-LD), mike_redirect.html
 │   ├── stylesheets/            # Site CSS
-│   ├── demo-mkdocs/, demo-sphinx/  # Rendered docs-integration demos
+│   ├── demo-mkdocs/, demo-sphinx/  # Local placeholders (index.html, api.html) that the docs build replaces with the rendered docs-integration demos
 │   ├── assets/
 │   │   ├── brand/              # Curated brand subset (logos, icons, PNG touch icon, banners, social card) used by the site and README; full kit lives in the wiki
-│   │   └── images/             # README and docs screenshots, path illustration, animated flow, lifecycle and per-case SVG diagrams
+│   │   └── images/             # README and docs screenshots, path illustration, animated flow, lifecycle and per-case SVG diagrams, static concept diagrams (decision map, attributes, module, policy timeline, chains) and terminal-output cards (terminal-*.svg, real output, abridged)
 │   ├── usage/                  # How to deprecate: index.md (use-case map), lifecycle, functions, classes, attributes, modules, properties, async, advanced, customization, void-helper
 │   ├── audit/                  # Enforce and automate: index.md (audit tools), policy, ci-integration, cli
 │   ├── integrations/           # testing, docs-integration (Sphinx and MkDocs)

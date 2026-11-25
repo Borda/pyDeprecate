@@ -3,7 +3,11 @@
   <img alt="pyDeprecate — seamless API migration" src="docs/assets/brand/banner-light.svg">
 </picture>
 
+<!-- keep the title, just do not duplicate visually
+
 # pyDeprecate
+
+-->
 
 **Deprecate Python APIs without breaking existing callers.**
 

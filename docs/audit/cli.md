@@ -41,6 +41,10 @@ pydeprecate status tests --version 1.2
 
 `tests/` contains pyDeprecate's own deprecation fixtures. Every subcommand scans a path the same way. It accepts a package directory, a plain directory of top-level modules, or an importable module name; see [Path formats](#path-formats).
 
+On a package with one wrapper past its removal version, `pydeprecate all` reports it, prints the status table and exits `1`:
+
+![Terminal output of pydeprecate all: one expired wrapper billing.calc_total is reported, no policy violations or chains, a status table follows and the exit code is 1](../assets/images/terminal-audit.svg)
+
 ## Subcommands
 
 === "check"

@@ -47,3 +47,10 @@
   height: 1.6rem;
   width: auto;
 }
+
+/* rendered-docs screenshots: frame them so a light page does not bleed into the dark theme */
+.md-typeset img[src*="demo-docs-"] {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.4rem;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 15%);
+}

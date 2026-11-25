@@ -82,6 +82,10 @@ These pages cover what happens before and after you write the wrapper:
 
 ## Quick decision table
 
+Start from what you are deprecating; the map names the call that fits, and the table below links each scenario to its topic page.
+
+![Decision map: a function or method uses @deprecated with target, ARGS_REMAP or NOTIFY; a class uses deprecated_class; an object or module uses deprecated_instance or deprecated_module; the pydeprecate expiry, policy and check commands enforce it in CI](../assets/images/pydeprecate-decision.svg)
+
 To include symbols deprecated *only* with `warnings.deprecated` or `typing_extensions.deprecated` in an audit, pass `include_pep702=True` to `find_deprecation_wrappers()`; the **default scan stays unchanged**. For static-checker warnings alongside runtime forwarding, see [Functions → Static type checkers (PEP 702)](functions.md#static-type-checkers-pep-702).
 
 | Scenario                                       | Where to look                                                                                         |

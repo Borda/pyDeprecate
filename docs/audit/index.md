@@ -511,6 +511,8 @@ A *chain* forms when a deprecated wrapper targets another deprecated function. C
 
 `validate_deprecation_chains()` scans a module or package for chains using metadata alone. It requires no source-code inspection.
 
+![Chain versus direct target: old_func forwarding to the deprecated mid_func gives callers two warnings; pointing old_func straight at new_func gives one](../assets/images/pydeprecate-chains.svg)
+
 Two chain types are reported:
 
 | Type                                       | Meaning                                                                                                                                  | Remedy                                                   |

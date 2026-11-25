@@ -15,6 +15,8 @@ Three patterns are supported:
 
 For deprecating individual functions see [Functions](functions.md); for classes see [Classes](classes.md).
 
+![Module deprecation: mode 1 warns on every public attribute access and serves the value from the old module; mode 2 also forwards attributes the old module lacks to the replacement module](../assets/images/pydeprecate-module.svg)
+
 ## When to use `deprecated_module()`
 
 Reach for `deprecated_module()` when a module is being replaced or renamed. **Every attribute access** on the old name invokes the configured warning path automatically.

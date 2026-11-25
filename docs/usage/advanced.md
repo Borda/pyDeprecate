@@ -23,7 +23,7 @@ Set `update_docstring=True` to inject a deprecation notice directly into the fun
 
 !!! tip "See it live"
 
-    The [Sphinx demo](../demo-sphinx/index.html) and [MkDocs demo](../demo-mkdocs/index.html) show how the injected notice renders in real API docs.
+    The [Sphinx demo](../demo-sphinx/api.html) and [MkDocs demo](../demo-mkdocs/api.html) show how the injected notice renders in real API docs.
 
 ```python
 # NEW/FUTURE API — renamed to be more explicit about what it does

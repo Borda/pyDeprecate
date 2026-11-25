@@ -20,6 +20,8 @@ Mapping keys are deprecated attribute names:
 
 Unlisted attributes **stay silent**.
 
+![Attribute access through a deprecated_class proxy: a mapped rename warns and redirects, a mapping to None warns without renaming, an unlisted attribute passes through silently](../assets/images/pydeprecate-attributes.svg)
+
 !!! note "Mapping validation"
 
     Non-`None` values must exist on the `target` class when supplied, or otherwise on the wrapped source class. Redirect chains such as `{"a": "b", "b": "c"}` are accepted and audited as `ChainType.STACKED`. Cycles such as `{"a": "b", "b": "a"}` raise immediately.

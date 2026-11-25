@@ -7,6 +7,22 @@ description: Expose runtime deprecation notices in Sphinx autodoc and MkDocs API
 
 Enable `update_docstring=True` to include migration notices in API documentation. Then **configure the documentation engine** to read those *runtime* docstrings.
 
+## What it looks like
+
+The same deprecated API rendered by each engine. Each demo is built from `demo-docs/` in this repository.
+
+=== "Sphinx"
+
+    ![Sphinx demo: the deprecation notice rendered as a styled deprecated directive under the function signature](../assets/images/demo-docs-sphinx.png)
+
+    The `.. deprecated::` directive renders as a red-bar notice below the docstring. Open the [live Sphinx demo](../demo-sphinx/api.html), or read its [`conf.py`](https://github.com/Borda/pyDeprecate/blob/main/demo-docs/sphinx/source/conf.py) and [`api.rst`](https://github.com/Borda/pyDeprecate/blob/main/demo-docs/sphinx/source/api.rst).
+
+=== "MkDocs"
+
+    ![MkDocs demo: the deprecation notice rendered as a warning admonition with the replacement named](../assets/images/demo-docs-mkdocs.png)
+
+    The `!!! warning "Deprecated in …"` admonition renders as an orange card below the docstring. Open the [live MkDocs demo](../demo-mkdocs/api.html), or read its [`mkdocs.yml`](https://github.com/Borda/pyDeprecate/blob/main/demo-docs/mkdocs/mkdocs.yml).
+
 ## Update docstrings
 
 The decorator updates an existing docstring at *decoration time*; it does **not** wait for a deprecated call.
@@ -98,7 +114,7 @@ It uses the wrapped class for signature and member inspection, while retaining t
 
     The extension defines no additional Sphinx configuration keys. `autoclass_content` and `autodoc_default_options` are autodoc settings. Both bundled documentation extensions are beta; their public interfaces may change in a minor release.
 
-See the repository's [Sphinx configuration](https://github.com/Borda/pyDeprecate/blob/main/demo-docs/sphinx/source/conf.py) and [API directives](https://github.com/Borda/pyDeprecate/blob/main/demo-docs/sphinx/source/api.rst) for a complete example.
+See the [live Sphinx demo](../demo-sphinx/api.html) and the repository's [Sphinx configuration](https://github.com/Borda/pyDeprecate/blob/main/demo-docs/sphinx/source/conf.py) and [API directives](https://github.com/Borda/pyDeprecate/blob/main/demo-docs/sphinx/source/api.rst) for a complete example.
 
 ## MkDocs and mkdocstrings
 
@@ -136,7 +152,7 @@ Griffe normally reads docstrings from the *source syntax tree*, which does not c
 
     The Griffe extension <u>executes module imports</u> during the build. It leaves docstrings unchanged when its import attempts fail with `ImportError`. Other import-time exceptions can fail the build.
 
-See the repository's [MkDocs demo](https://github.com/Borda/pyDeprecate/blob/main/demo-docs/mkdocs/mkdocs.yml) for a complete configuration.
+See the [live MkDocs demo](../demo-mkdocs/api.html) and the repository's [MkDocs configuration](https://github.com/Borda/pyDeprecate/blob/main/demo-docs/mkdocs/mkdocs.yml) for a complete example.
 
 ## Placement and limits
 

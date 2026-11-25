@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 191" width="960" height="191" role="img" aria-labelledby="t d">
+  <title id="t">Quick Start output</title>
+  <desc id="d">Terminal: running the Quick Start script prints a FutureWarning naming the old function, its replacement and the removal version, then the forwarded result 3.</desc>
+  <style>text { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }</style>
+  <rect width="960" height="191" rx="14" fill="#141B26" stroke="#2E3B50" stroke-width="1.5"/>
+  <circle cx="26" cy="24" r="5" fill="#E8735A"/><circle cx="44" cy="24" r="5" fill="#EAA238"/><circle cx="62" cy="24" r="5" fill="#6FCF97"/>
+  <text x="934" y="28" text-anchor="end" fill="#9FB0C6" font-size="11">terminal</text>
+  <line x1="0" y1="42" x2="960" y2="42" stroke="#2E3B50" stroke-width="1"/>
+  <text x="24" y="62" xml:space="preserve"><tspan fill="#6FCF97">$ </tspan><tspan fill="#E6EDF7">python quickstart.py</tspan></text>
+  <text x="24" y="83" xml:space="preserve"><tspan fill="#EAA238">quickstart.py:10: FutureWarning: The `addition` was deprecated since v1.0 in favor of</tspan></text>
+  <text x="24" y="104" xml:space="preserve"><tspan fill="#EAA238">`__main__.compute_sum`. It will be removed in v2.0.</tspan></text>
+  <text x="24" y="125" xml:space="preserve"><tspan fill="#9FB0C6">  print(addition(1, 2))</tspan></text>
+  <text x="24" y="146" xml:space="preserve"><tspan fill="#E6EDF7">3</tspan></text>
+</svg>

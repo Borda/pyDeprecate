@@ -119,11 +119,17 @@ def enforce_deprecation_deadlines():
         )
 ```
 
+When a wrapper outlives its `remove_in` version, the test fails and names it:
+
+![Terminal output of pytest: test_no_zombie_deprecations fails and names billing.calc_total, scheduled for removal in 1.4 but still present in 1.5](../assets/images/terminal-pytest.svg)
+
 ## Enforcing a Deprecation Policy
 
 `validate_deprecation_expiry()` asks whether code was removed *on time*. `validate_deprecation_policy()` checks whether the original schedule and migration guidance were *responsible*.
 
 It detects short upgrade windows, removals off release boundaries, and warnings that name no replacement. These problems are cheap to fix during review. They become expensive once downstream projects pin against the release.
+
+![Timeline from deprecated_in through the grace window to remove_in: the policy check reviews the schedule and message, the expiry check fails once remove_in is reached while the wrapper still exists](../assets/images/pydeprecate-policy-timeline.svg)
 
 Like the expiry gate, the policy gate compares PEP 440 versions and therefore needs the `audit` extra:
 
