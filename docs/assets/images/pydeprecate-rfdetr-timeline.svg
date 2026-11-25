@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 336" width="960" height="336" role="img" aria-labelledby="t d">
+  <title id="t">One deprecation cycle in the wild: RF-DETR</title>
+  <desc id="d">A timeline of the RF-DETR deprecation of its legacy model classes. Version 1.7.0, released 21 May 2026, marks classes such as RFDETRBase with deprecated_in 1.7.0 and remove_in 2.0.0. By version 1.12.1, released 12 November 2026, five minor releases later, they are still importable and warn. Version 2.0.0 is the planned removal.</desc>
+  <style>
+    text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+    .show { opacity: 0; }
+    .draw { stroke-dasharray: 575; stroke-dashoffset: 575; animation: draw 10s ease-in-out infinite; }
+    .pulse { animation: pulse 10s ease-in-out infinite; }
+    .n0 { animation: n0 10s ease-out infinite; }
+    @keyframes n0 { 0%, 4.0% { opacity: 0 } 7.0%, 90% { opacity: 1 } 96%, 100% { opacity: 0 } }
+    .n1 { animation: n1 10s ease-out infinite; }
+    @keyframes n1 { 0%, 14.0% { opacity: 0 } 17.0%, 90% { opacity: 1 } 96%, 100% { opacity: 0 } }
+    .n2 { animation: n2 10s ease-out infinite; }
+    @keyframes n2 { 0%, 24.0% { opacity: 0 } 27.0%, 90% { opacity: 1 } 96%, 100% { opacity: 0 } }
+    .n3 { animation: n3 10s ease-out infinite; }
+    @keyframes n3 { 0%, 34.0% { opacity: 0 } 37.0%, 90% { opacity: 1 } 96%, 100% { opacity: 0 } }
+    .n4 { animation: n4 10s ease-out infinite; }
+    @keyframes n4 { 0%, 44.0% { opacity: 0 } 47.0%, 90% { opacity: 1 } 96%, 100% { opacity: 0 } }
+    .n5 { animation: n5 10s ease-out infinite; }
+    @keyframes n5 { 0%, 54.0% { opacity: 0 } 57.0%, 90% { opacity: 1 } 96%, 100% { opacity: 0 } }
+    .cA { animation: cA 10s ease-out infinite; }
+    @keyframes cA { 0%, 2.0% { opacity: 0 } 5.0%, 90% { opacity: 1 } 96%, 100% { opacity: 0 } }
+    .cB { animation: cB 10s ease-out infinite; }
+    @keyframes cB { 0%, 55.0% { opacity: 0 } 58.0%, 90% { opacity: 1 } 96%, 100% { opacity: 0 } }
+    .cC { animation: cC 10s ease-out infinite; }
+    @keyframes cC { 0%, 67.0% { opacity: 0 } 70.0%, 90% { opacity: 1 } 96%, 100% { opacity: 0 } }
+    @keyframes draw { 0%, 5% { stroke-dashoffset: 575 } 55%, 90% { stroke-dashoffset: 0 } 96%, 100% { stroke-dashoffset: 575 } }
+    @keyframes pulse { 0%, 62% { opacity: 0.35 } 75% { opacity: 1 } 90%, 100% { opacity: 0.35 } }
+    @media (prefers-reduced-motion: reduce) { .show { animation: none !important; opacity: 1 !important; } .draw { animation: none !important; stroke-dashoffset: 0 !important; } .pulse { animation: none !important; opacity: 1 !important; } }
+  </style>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6B7F99"/></marker>
+    <marker id="ahg" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6FCF97"/></marker>
+    <marker id="ahr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#E8735A"/></marker>
+    <marker id="aha" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#EAA238"/></marker>
+  </defs>
+  <rect width="960" height="336" rx="18" fill="#1B2330"/>
+  <text x="40" y="44" font-size="22" fill="#F7F9FC" font-weight="700">One deprecation cycle in the wild: RF-DETR</text>
+  <text x="920" y="70" font-size="12" fill="#EAA238" text-anchor="end" class="mono">deprecated_class(deprecated_in=&quot;1.7.0&quot;, remove_in=&quot;2.0.0&quot;)</text>
+  <line x1="100" y1="200" x2="675" y2="200" stroke="#2E3B50" stroke-width="4"/>
+  <line x1="675" y1="200" x2="860" y2="200" stroke="#E8735A" stroke-width="3" stroke-dasharray="8 7"/>
+  <line class="draw" x1="100" y1="200" x2="675" y2="200" stroke="#EAA238" stroke-width="4" stroke-linecap="round"/>
+  <g class="show n0"><circle cx="100" cy="200" r="9" fill="#EAA238" stroke="#EAA238" stroke-width="2.5"/></g>
+  <text x="100" y="230" font-size="12" fill="#F7F9FC" text-anchor="middle" class="mono" font-weight="700">v1.7</text>
+  <g class="show n1"><circle cx="215" cy="200" r="6" fill="#1B2330" stroke="#EAA238" stroke-width="2.5"/></g>
+  <text x="215" y="230" font-size="12" fill="#9FB0C6" text-anchor="middle" class="mono">v1.8</text>
+  <g class="show n2"><circle cx="330" cy="200" r="6" fill="#1B2330" stroke="#EAA238" stroke-width="2.5"/></g>
+  <text x="330" y="230" font-size="12" fill="#9FB0C6" text-anchor="middle" class="mono">v1.9</text>
+  <g class="show n3"><circle cx="445" cy="200" r="6" fill="#1B2330" stroke="#EAA238" stroke-width="2.5"/></g>
+  <text x="445" y="230" font-size="12" fill="#9FB0C6" text-anchor="middle" class="mono">v1.10</text>
+  <g class="show n4"><circle cx="560" cy="200" r="6" fill="#1B2330" stroke="#EAA238" stroke-width="2.5"/></g>
+  <text x="560" y="230" font-size="12" fill="#9FB0C6" text-anchor="middle" class="mono">v1.11</text>
+  <g class="show n5"><circle cx="675" cy="200" r="9" fill="#EAA238" stroke="#EAA238" stroke-width="2.5"/></g>
+  <text x="675" y="230" font-size="12" fill="#F7F9FC" text-anchor="middle" class="mono" font-weight="700">v1.12</text>
+  <g class="pulse"><circle cx="860" cy="200" r="9" fill="#1B2330" stroke="#E8735A" stroke-width="2.5" stroke-dasharray="3 3"/></g>
+  <text x="860" y="230" font-size="12" fill="#E8735A" text-anchor="middle" class="mono" font-weight="700">v2.0</text>
+  <g class="show cA"><rect x="40" y="92" width="250" height="62" rx="12" fill="#1F2938" stroke="#EAA238" stroke-width="1.6"/><text x="165.0" y="118" font-size="12.5" font-weight="700" fill="#EAA238" text-anchor="middle">v1.7.0 · 21 May 2026</text><text x="165.0" y="138" font-size="11" fill="#9FB0C6" text-anchor="middle">legacy model classes start to warn</text><line x1="100" y1="154" x2="100" y2="188" stroke="#EAA238" stroke-width="1.6"/></g>
+  <g class="show cB"><rect x="470" y="92" width="240" height="62" rx="12" fill="#1F2938" stroke="#EAA238" stroke-width="1.6"/><text x="590.0" y="118" font-size="12.5" font-weight="700" fill="#EAA238" text-anchor="middle">v1.12.1 · 12 Nov 2026</text><text x="590.0" y="138" font-size="11" fill="#9FB0C6" text-anchor="middle">latest release: they still import</text><line x1="675" y1="154" x2="675" y2="188" stroke="#EAA238" stroke-width="1.6"/></g>
+  <g class="show cC"><rect x="740" y="92" width="180" height="62" rx="12" fill="#1F2938" stroke="#E8735A" stroke-width="1.6" stroke-dasharray="6 5"/><text x="830.0" y="118" font-size="12.5" font-weight="700" fill="#E8735A" text-anchor="middle">v2.0.0 · planned</text><text x="830.0" y="138" font-size="11" fill="#9FB0C6" text-anchor="middle">remove_in: the classes go away</text><line x1="860" y1="154" x2="860" y2="188" stroke="#E8735A" stroke-width="1.6"/></g>
+  <line x1="100" y1="262" x2="675" y2="262" stroke="#3A4A60" stroke-width="1.5"/>
+  <line x1="100" y1="256" x2="100" y2="268" stroke="#3A4A60" stroke-width="1.5"/>
+  <line x1="675" y1="256" x2="675" y2="268" stroke="#3A4A60" stroke-width="1.5"/>
+  <text x="387" y="284" font-size="12" fill="#9FB0C6" text-anchor="middle">five minor releases between the first warning and the latest release</text>
+  <text x="40" y="316" font-size="11" fill="#9FB0C6">Ticks are minor releases, not to scale. Source: rfdetr src/rfdetr/variants.py at 1.12.1 and the project&#x27;s GitHub releases.</text>
+</svg>

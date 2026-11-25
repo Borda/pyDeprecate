@@ -426,6 +426,8 @@ pyDeprecate/
 │   ├── getting-started.md      # Install, first deprecation, parameter table
 │   ├── troubleshooting.md      # Q&A grouped by topic H2; each H3 question + first prose paragraph feeds the FAQ JSON-LD
 │   ├── limitations.md          # Known limitations and non-goals
+│   ├── community.md            # GitHub Discussions links and the adopters table
+│   ├── try-it.md               # In-browser example runner (Pyodide); its script is javascripts/try-it.js
 │   ├── api-reference.md        # mkdocstrings reference pages
 │   ├── brand.md, changelog.md  # Brand guide; changelog page
 │   ├── llms.txt                # Authoritative agent contract; llms-full.txt (gitignored) is generated from it plus an __all__ API map at docs build by .github/scripts/generate_llms_full.py (make llms-full)
@@ -441,7 +443,7 @@ pyDeprecate/
 │   ├── usage/                  # How to deprecate: index.md (use-case map), lifecycle, functions, classes, attributes, modules, properties, async, advanced, customization, void-helper
 │   ├── audit/                  # Enforce and automate: index.md (audit tools), policy, ci-integration, cli
 │   ├── integrations/           # testing, docs-integration (Sphinx and MkDocs)
-│   ├── adoption/               # compare-python-deprecation-tools, agent-recipes
+│   ├── adoption/               # compare-python-deprecation-tools, convert-existing, agent-recipes
 │   └── migration/              # index.md (source-version upgrade paths assembled from compatibility deltas)
 │       └── _deltas/
 │           ├── breaking/       # Required rewrites in v0.N-to-v0.M.md snippets

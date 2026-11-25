@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Ask a question
+    url: https://github.com/Borda/pyDeprecate/discussions/categories/q-a
+    about: How do I deprecate this? Ask in GitHub Discussions instead of opening an issue.
+  - name: Share a migration story or an idea
+    url: https://github.com/Borda/pyDeprecate/discussions
+    about: Show how your project uses pyDeprecate, or float a use case before proposing a feature.

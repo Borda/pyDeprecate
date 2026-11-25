@@ -148,7 +148,7 @@ A hand-written `warnings.warn` shim covers the **first row only**. pyDeprecate c
 | Warn once instead of on every call          | Track call state yourself                  | `num_warns` budget per wrapper       |
 | Fail CI once the removal version is reached | Not available                              | `pydeprecate expiry`                 |
 
-Use `warnings.deprecated` (PEP 702, Python 3.13+) or `typing_extensions.deprecated` when you *only* need a type-checker signal; stack it above `@deprecated` with `category=None`, so callers get the type-checker signal and only one runtime warning. See the [Python deprecation tools comparison](https://borda.github.io/pyDeprecate/stable/adoption/compare-python-deprecation-tools.html) for `deprecation`, `Deprecated` and other libraries.
+Use `warnings.deprecated` (PEP 702, Python 3.13+) or `typing_extensions.deprecated` when you *only* need a type-checker signal; stack it above `@deprecated` with `category=None`, so callers get the type-checker signal and only one runtime warning. See the [Python deprecation tools comparison](https://borda.github.io/pyDeprecate/stable/adoption/compare-python-deprecation-tools.html) for `deprecation`, `Deprecated` and other libraries, and [Convert existing deprecations](https://borda.github.io/pyDeprecate/stable/adoption/convert-existing.html) to replace hand-written warnings, shims and subclasses.
 
 ## 📚 Use-cases and Applications
 
@@ -795,7 +795,7 @@ Use `$pydeprecate:sunset` / `$pydeprecate:prune` in Codex, or `/pydeprecate:suns
 
 ## 🤝 Contributing
 
-Contributions, bug reports, and migration stories are welcome.
+Contributions, bug reports, and migration stories are welcome. Ask questions or share how you use pyDeprecate in [GitHub Discussions](https://github.com/Borda/pyDeprecate/discussions), and see [which projects use it](https://borda.github.io/pyDeprecate/stable/community.html).
 
 Read the [Contributing Guide](.github/CONTRIBUTING.md) for development and testing instructions.
 

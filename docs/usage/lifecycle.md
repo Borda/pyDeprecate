@@ -51,6 +51,8 @@ The default `FutureWarning` names the deprecated function, replacement, introduc
 | `-1`          | Emit on every call.                          |
 | `0`           | Suppress deprecation messages.               |
 
+![Six calls to a deprecated wrapper under four num_warns settings: 1 warns only on the first call, 3 on the first three, -1 on every call, and 0 never, while every call still forwards to the replacement](../assets/images/pydeprecate-warning-budget.svg)
+
 For argument deprecations, the warning budget applies **per deprecated argument**.
 
 Python's warning filters can further limit visible warnings. Set `stream` to a logger or another callable to redirect messages, or `None` to silence them. Forwarding still works with `stream=None`.
@@ -169,6 +171,8 @@ True
 </details>
 
 `generate_deprecation_table` returns Markdown from discovered wrapper metadata. See [Audit Tools](../audit/index.md) for the full table and `style="matrix"` release columns.
+
+From a shell, `pydeprecate status <package-path> --version 0.4 --output DEPRECATIONS.md` writes the same table to a file you can commit or attach to the release notes. To plan ahead, a [weekly issue](../audit/ci-integration.md#weekly-deprecations-due-issue) can list what the next release removes.
 
 1. Announce the deprecation, replacement, and planned removal version when introducing the wrapper.
 2. Record the removed public name and replacement in the removal release's changelog and release notes.

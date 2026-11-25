@@ -1017,10 +1017,12 @@ Use `warnings.warn` for a one-off internal warning that does not need API compat
 - [Agent recipes](https://borda.github.io/pyDeprecate/stable/adoption/agent-recipes.html)
 - [Class and object deprecation](https://borda.github.io/pyDeprecate/stable/usage/classes.html)
 - [Compare Python deprecation tools](https://borda.github.io/pyDeprecate/stable/adoption/compare-python-deprecation-tools.html)
+- [Convert existing deprecations](https://borda.github.io/pyDeprecate/stable/adoption/convert-existing.html)
 - [Audit tools](https://borda.github.io/pyDeprecate/stable/audit/index.html)
 - [CLI](https://borda.github.io/pyDeprecate/stable/audit/cli.html)
 - [Troubleshooting](https://borda.github.io/pyDeprecate/stable/troubleshooting.html)
 - [Limitations and non-goals](https://borda.github.io/pyDeprecate/stable/limitations.html)
+- [Community and adopters](https://borda.github.io/pyDeprecate/stable/community.html)
 
 ## Markdown Mirrors
 
@@ -1039,9 +1041,11 @@ Use `warnings.warn` for a one-off internal warning that does not need API compat
 - [void() Helper Markdown](https://borda.github.io/pyDeprecate/stable/usage/void-helper.html.md)
 - [Customization Markdown](https://borda.github.io/pyDeprecate/stable/usage/customization.html.md)
 - [Compare Python Deprecation Tools Markdown](https://borda.github.io/pyDeprecate/stable/adoption/compare-python-deprecation-tools.html.md)
+- [Convert Existing Deprecations Markdown](https://borda.github.io/pyDeprecate/stable/adoption/convert-existing.html.md)
 - [Agent Recipes Markdown](https://borda.github.io/pyDeprecate/stable/adoption/agent-recipes.html.md)
 - [API Reference Markdown](https://borda.github.io/pyDeprecate/stable/api-reference.html.md)
 - [Troubleshooting Markdown](https://borda.github.io/pyDeprecate/stable/troubleshooting.html.md)
 - [Limitations Markdown](https://borda.github.io/pyDeprecate/stable/limitations.html.md)
+- [Community Markdown](https://borda.github.io/pyDeprecate/stable/community.html.md)
 - [Brand Markdown](https://borda.github.io/pyDeprecate/stable/brand.html.md)
 - [Changelog Markdown](https://borda.github.io/pyDeprecate/stable/changelog.html.md)

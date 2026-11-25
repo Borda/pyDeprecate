@@ -125,7 +125,9 @@ Choose pyDeprecate for call forwarding, argument mapping, proxies, and CI audits
 - [void() Helper](usage/void-helper.md) — sentinel function for self-documenting deprecated stubs.
 - [Audit Tools](audit/index.md) — enforce removal deadlines and catch deprecation chains in CI.
 - [Compare Python Deprecation Tools](adoption/compare-python-deprecation-tools.md) — compare `warnings.warn`, `deprecation`, `Deprecated`, and `warnings.deprecated`.
+- [Convert Existing Deprecations](adoption/convert-existing.md) — replace hand-written warnings, shims and subclasses.
 - [Agent Recipes](adoption/agent-recipes.md) — copy-paste patterns for AI coding assistants.
+- [Community](community.md) — ask on GitHub Discussions and see which projects use pyDeprecate.
 - [Troubleshooting](troubleshooting.md) — common errors and how to fix them.
 - [Brand](brand.md) — logos, colors, banners, and the "API migration by pyDeprecate" badge.
 - [Sphinx demo](demo-sphinx/index.html) · [MkDocs demo](demo-mkdocs/index.html) — live rendered output.

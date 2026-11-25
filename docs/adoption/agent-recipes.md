@@ -47,6 +47,21 @@ For adoption scans, ask:
 
 The scan verifies installed or explicitly identified release support and returns `convert`, `keep`, or `needs decision`. It does not force dependencies or convert operational warnings. PEP 702 static-checker behavior is not equivalent merely because runtime metadata looks similar.
 
+## Add pyDeprecate to your project's agent instructions
+
+Paste this block into the project's `AGENTS.md`, `CLAUDE.md` or the equivalent file, so every coding assistant that works on the repository deprecates the same way.
+
+```markdown
+## Deprecations
+
+- Deprecate public APIs with pyDeprecate (`pip install pyDeprecate`, `from deprecate import deprecated`). Do not hand-write `warnings.warn` forwarding shims.
+- Always pass `deprecated_in`, `remove_in` and an explicit `target`: a callable, `TargetMode.NOTIFY` or `TargetMode.ARGS_REMAP`.
+- Pick the decorator for each case from https://borda.github.io/pyDeprecate/llms.txt.
+- After a change that touches deprecations, run `pydeprecate all src/acme --gate=policy --strict` and fix every finding. Never suppress one with `--exit-zero` or `--ignore`.
+```
+
+Replace `src/acme` with your package path. The last line needs `pip install 'pyDeprecate[audit]'` in the environment where the agent runs.
+
 ## Rules for agents
 
 - Install package: `pyDeprecate`.

@@ -437,6 +437,72 @@ Pass `args: --version 2.0` when neither the installed package nor `pyproject.tom
 
     This is not a sandbox. Imported code runs in the job environment and can write the files behind `GITHUB_ENV`, `GITHUB_PATH`, and `GITHUB_OUTPUT`.
 
+## Weekly deprecations-due issue
+
+A removal deadline should not surprise the release. A scheduled job can list every wrapper whose `remove_in` is at or before the next release and keep **one tracking issue** up to date, so the cleanup is planned before the release branch is cut.
+
+![Weekly deprecations-due issue: a schedule installs the package, runs pydeprecate expiry with the next release version, and by exit code either touches no issue (0), creates or updates the tracking issue (1) or fails the job (2 or 3)](../assets/images/pydeprecate-due-issue-flow.svg)
+
+1. Add a repository variable `NEXT_RELEASE` holding the next release version, such as `2.0`.
+2. Install the package, so the scan can import it, together with `pyDeprecate[audit]`.
+3. Add the workflow:
+
+```yaml
+# .github/workflows/deprecations-due.yml
+name: Deprecations due
+on:
+  schedule:
+    - cron: "0 7 * * 1" # Mondays, 07:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  due:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+      - run: pip install -e . "pyDeprecate[audit]"
+
+      - name: List wrappers due in the next release
+        id: due
+        env:
+          NEXT_RELEASE: ${{ vars.NEXT_RELEASE }}
+        run: |
+          status=0
+          pydeprecate expiry src/mypackage --version "$NEXT_RELEASE" > due.txt || status=$?
+          if [ "$status" -gt 1 ]; then cat due.txt; exit "$status"; fi
+          echo "due=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Open or update the tracking issue
+        if: steps.due.outputs.due == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT_RELEASE: ${{ vars.NEXT_RELEASE }}
+        run: |
+          title="Deprecations due in ${NEXT_RELEASE}"
+          {
+            echo "These deprecated wrappers reach their removal version in ${NEXT_RELEASE}:"
+            echo
+            grep '^[[:space:]]*- ' due.txt | sed 's/^[[:space:]]*//'
+          } > body.md
+          number=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue edit "$number" --body-file body.md
+          else
+            gh issue create --title "$title" --body-file body.md
+          fi
+```
+
+`pydeprecate expiry` exits `1` when a wrapper is due and `0` when none is, so the first step sets `due` and the second step runs only when there is something to report. Exit `2` or `3` is a usage or scan error, and the job fails instead of hiding it. The title carries the version, so raising `NEXT_RELEASE` after a release opens a **fresh issue** for the next one. Close the old issue when the release ships.
+
+The scan imports your package, so keep this job on the schedule trigger, which runs the default branch, and never point it at a pull request from a fork. See the import-time warning in [GitHub Action](#github-action).
+
 ## See also
 
 - [Python audit API](index.md)

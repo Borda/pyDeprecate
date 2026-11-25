@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 436" width="960" height="436" role="img" aria-labelledby="t d">
+  <title id="t">Convert what you already have</title>
+  <desc id="d">Four hand-written deprecation patterns and the pyDeprecate call that replaces each: a function that warns then calls the new one becomes deprecated with a target, an argument handled by hand becomes ARGS_REMAP, a subclass that only warns becomes deprecated_class, and a shim module that warns at import becomes deprecated_module.</desc>
+  <style>
+    text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+  </style>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6B7F99"/></marker>
+    <marker id="ahg" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6FCF97"/></marker>
+    <marker id="ahr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#E8735A"/></marker>
+    <marker id="aha" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#EAA238"/></marker>
+  </defs>
+  <rect width="960" height="436" rx="18" fill="#1B2330"/>
+  <text x="40" y="44" font-size="22" fill="#F7F9FC" font-weight="700">Convert what you already have</text>
+  <text x="920" y="44" font-size="13" fill="#EAA238" text-anchor="end">one decorator per pattern</text>
+  <text x="40" y="90" font-size="11" fill="#9FB0C6" letter-spacing="2">TODAY, BY HAND</text>
+  <text x="560" y="90" font-size="11" fill="#9FB0C6" letter-spacing="2">WITH PYDEPRECATE</text>
+  <rect x="40" y="108" width="400" height="58" rx="12" fill="#1F2938" stroke="#2E3B50" stroke-width="1.5"/>
+  <text x="58" y="133" font-size="13" fill="#F7F9FC" font-weight="600">A function that warns, then calls the new one</text>
+  <text x="58" y="153" font-size="10.5" fill="#9FB0C6" class="mono">warnings.warn(...); return new_function(...)</text>
+  <line x1="452" y1="137" x2="548" y2="137" stroke="#6B7F99" stroke-width="2.2" marker-end="url(#ah)"/>
+  <rect x="560" y="108" width="360" height="58" rx="12" fill="#141B26" stroke="#EAA238" stroke-width="1.6"/>
+  <text x="740" y="142" font-size="12.5" fill="#EAA238" text-anchor="middle" class="mono" font-weight="600">@deprecated(target=new_function)</text>
+  <rect x="40" y="182" width="400" height="58" rx="12" fill="#1F2938" stroke="#2E3B50" stroke-width="1.5"/>
+  <text x="58" y="207" font-size="13" fill="#F7F9FC" font-weight="600">An argument renamed by hand</text>
+  <text x="58" y="227" font-size="10.5" fill="#9FB0C6" class="mono">if old is not None: warn; new = old</text>
+  <line x1="452" y1="211" x2="548" y2="211" stroke="#6B7F99" stroke-width="2.2" marker-end="url(#ah)"/>
+  <rect x="560" y="182" width="360" height="58" rx="12" fill="#141B26" stroke="#EAA238" stroke-width="1.6"/>
+  <text x="740" y="216" font-size="12.5" fill="#EAA238" text-anchor="middle" class="mono" font-weight="600">TargetMode.ARGS_REMAP</text>
+  <rect x="40" y="256" width="400" height="58" rx="12" fill="#1F2938" stroke="#2E3B50" stroke-width="1.5"/>
+  <text x="58" y="281" font-size="13" fill="#F7F9FC" font-weight="600">A subclass that exists only to warn</text>
+  <text x="58" y="301" font-size="10.5" fill="#9FB0C6" class="mono">class Old(New): __init__ warns</text>
+  <line x1="452" y1="285" x2="548" y2="285" stroke="#6B7F99" stroke-width="2.2" marker-end="url(#ah)"/>
+  <rect x="560" y="256" width="360" height="58" rx="12" fill="#141B26" stroke="#EAA238" stroke-width="1.6"/>
+  <text x="740" y="290" font-size="12.5" fill="#EAA238" text-anchor="middle" class="mono" font-weight="600">@deprecated_class(target=NewClass)</text>
+  <rect x="40" y="330" width="400" height="58" rx="12" fill="#1F2938" stroke="#2E3B50" stroke-width="1.5"/>
+  <text x="58" y="355" font-size="13" fill="#F7F9FC" font-weight="600">A shim module that warns at import</text>
+  <text x="58" y="375" font-size="10.5" fill="#9FB0C6" class="mono">warnings.warn(...); from new import *</text>
+  <line x1="452" y1="359" x2="548" y2="359" stroke="#6B7F99" stroke-width="2.2" marker-end="url(#ah)"/>
+  <rect x="560" y="330" width="360" height="58" rx="12" fill="#141B26" stroke="#EAA238" stroke-width="1.6"/>
+  <text x="740" y="364" font-size="12.5" fill="#EAA238" text-anchor="middle" class="mono" font-weight="600">deprecated_module(__name__, target=new)</text>
+  <text x="480" y="418" font-size="12" fill="#9FB0C6" text-anchor="middle">Each wrapper also records deprecated_in and remove_in, so pydeprecate expiry can enforce the deadline.</text>
+</svg>

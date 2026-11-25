@@ -47,3 +47,54 @@
   height: 1.6rem;
   width: auto;
 }
+
+/* docs/try-it.md: in-browser example runner */
+.try-it label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+}
+
+.try-it select,
+.try-it textarea,
+.try-it pre {
+  background: var(--md-code-bg-color);
+  border: 0.05rem solid var(--md-default-fg-color--lightest);
+  border-radius: 0.2rem;
+  color: var(--md-code-fg-color);
+  font-family: var(--md-code-font-family);
+  font-size: 0.75rem;
+  width: 100%;
+}
+
+.try-it select {
+  margin-bottom: 0.6rem;
+  padding: 0.3rem 0.5rem;
+}
+
+.try-it textarea {
+  line-height: 1.5;
+  padding: 0.6rem 0.8rem;
+  resize: vertical;
+  tab-size: 4;
+}
+
+.try-it .try-it-bar {
+  align-items: center;
+  display: flex;
+  gap: 0.8rem;
+  margin: 0.6rem 0;
+}
+
+.try-it .try-it-bar .md-button {
+  margin: 0;
+}
+
+.try-it pre {
+  margin: 0;
+  min-height: 3rem;
+  overflow-x: auto;
+  padding: 0.6rem 0.8rem;
+  white-space: pre-wrap;
+}
