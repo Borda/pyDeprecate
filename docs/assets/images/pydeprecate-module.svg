@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 400" width="960" height="400" role="img" aria-labelledby="t d">
   <title id="t">Deprecating a whole module</title>
-  <desc id="d">Two deprecated_module patterns. Mode 1 warns on every public attribute access and serves the value from the old module. Mode 2 also redirects attributes the old module does not define to the replacement module.</desc>
+  <desc id="d">Two deprecated_module patterns. Mode 1 warns on public attribute access and serves the value from the old module. Mode 2 also looks up missing attributes in the replacement module. Explicit mappings take precedence over existing attributes.</desc>
   <style>
     text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
@@ -42,5 +42,5 @@
   <line x1="705" y1="280" x2="705" y2="296" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
   <rect x="510" y="298" width="390" height="38" rx="8" fill="#1F2938" stroke="#7FB6E3" stroke-width="1.5"/>
   <text x="705" y="322" font-size="12" fill="#7FB6E3" text-anchor="middle" font-weight="600">not in old module → forwarded to new_calculator</text>
-  <text x="480" y="392" font-size="11.5" fill="#9FB0C6" text-anchor="middle">Real attributes already defined in the old module warn but are not forwarded. Mode 3 exposes the module as a package attribute.</text>
+  <text x="480" y="392" font-size="11.5" fill="#9FB0C6" text-anchor="middle">Unmapped public attributes defined in the old module warn and stay local. Mode 3 exposes a package attribute.</text>
 </svg>

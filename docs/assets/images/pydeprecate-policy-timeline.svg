@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 330" width="960" height="330" role="img" aria-labelledby="t d">
   <title id="t">Deprecation timeline and the checks that guard it</title>
-  <desc id="d">A timeline from deprecated_in through the grace window to remove_in. The policy check reviews the schedule and the message at review time. The expiry check fails once the current version reaches remove_in while the wrapper still exists.</desc>
+  <desc id="d">A timeline from deprecated_in through the grace window to remove_in. The policy check reviews the schedule and migration guidance, which can come from a target, mapping, or nonempty custom message. The expiry check fails once the current version reaches remove_in while the wrapper still exists.</desc>
   <style>
     text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
@@ -30,8 +30,8 @@
   <line x1="672" y1="170" x2="766" y2="170" stroke="#E8735A" stroke-width="2.5" marker-end="url(#ahr)"/>
   <rect x="60" y="232" width="560" height="70" rx="12" fill="#141B26" stroke="#7FB6E3" stroke-width="1.6"/>
   <text x="80" y="256" font-size="12.5" fill="#7FB6E3" class="mono" font-weight="600">pydeprecate policy · validate_deprecation_policy()</text>
-  <text x="80" y="278" font-size="12" fill="#9FB0C6">Reviews the schedule: grace window at least min-grace, a removal</text>
-  <text x="80" y="294" font-size="12" fill="#9FB0C6">on a release boundary, a message that names the replacement.</text>
+  <text x="80" y="278" font-size="12" fill="#9FB0C6">Checks the grace window, release boundary, and migration guidance.</text>
+  <text x="80" y="294" font-size="12" fill="#9FB0C6">A target, mapping, or nonempty custom message can provide guidance.</text>
   <line x1="160" y1="232" x2="160" y2="182" stroke="#7FB6E3" stroke-width="1.5" stroke-dasharray="4 4"/>
   <line x1="410" y1="232" x2="410" y2="186" stroke="#7FB6E3" stroke-width="1.5" stroke-dasharray="4 4"/>
   <rect x="640" y="232" width="280" height="70" rx="12" fill="#141B26" stroke="#E8735A" stroke-width="1.6"/>

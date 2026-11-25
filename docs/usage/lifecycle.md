@@ -5,7 +5,7 @@ description: Follow a deprecation from introduction and caller warnings through 
 
 # Deprecation lifecycle
 
-Follow a summation API from its deprecation in `0.1` to removal in `0.5`. The steps below walk once around this cycle:
+The diagram illustrates the general deprecation lifecycle. The walkthrough below follows a summation API from its deprecation in `0.1` to removal in `0.5`.
 
 ![Deprecation lifecycle cycle: old API in blue, new API and decorator in yellow, callers migrate, pre-commit, CI and pytest flag the expired wrapper, delete it and repeat](../assets/images/pydeprecate-lifecycle.svg)
 

@@ -63,6 +63,6 @@
   <text x="814.5" y="309" font-size="10.5" fill="#6FCF97" text-anchor="middle" class="mono" font-weight="600">pydeprecate policy</text>
   <text x="723" y="356" font-size="10" fill="#9FB0C6" letter-spacing="1.5">CHAINS AND BAD CONFIG</text>
   <rect x="719" y="366" width="191" height="38" rx="8" fill="#263246" stroke="#3A4A60" stroke-width="1.5"/>
-  <text x="814.5" y="389" font-size="10.5" fill="#6FCF97" text-anchor="middle" class="mono" font-weight="600">pydeprecate check</text>
+  <text x="814.5" y="389" font-size="10.5" fill="#6FCF97" text-anchor="middle" class="mono" font-weight="600">pydeprecate all</text>
   <text x="480" y="456" font-size="12" fill="#9FB0C6" text-anchor="middle">Mix freely: one project often uses several of these.</text>
 </svg>

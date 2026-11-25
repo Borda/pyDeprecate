@@ -15,7 +15,7 @@ The same deprecated API rendered by each engine. Each demo is built from `demo-d
 
     ![Sphinx demo: the deprecation notice rendered as a styled deprecated directive under the function signature](../assets/images/demo-docs-sphinx.png)
 
-    The `.. deprecated::` directive renders as a red-bar notice below the docstring. Open the [live Sphinx demo](../demo-sphinx/api.html), or read its [`conf.py`](https://github.com/Borda/pyDeprecate/blob/main/demo-docs/sphinx/source/conf.py) and [`api.rst`](https://github.com/Borda/pyDeprecate/blob/main/demo-docs/sphinx/source/api.rst).
+    The `.. deprecated::` directive renders as a red-bar notice below the function docstring. Open the [live Sphinx function-notice demo](../demo-sphinx/api.html), or read its [`conf.py`](https://github.com/Borda/pyDeprecate/blob/main/demo-docs/sphinx/source/conf.py) and [`api.rst`](https://github.com/Borda/pyDeprecate/blob/main/demo-docs/sphinx/source/api.rst).
 
 === "MkDocs"
 
@@ -114,7 +114,7 @@ It uses the wrapped class for signature and member inspection, while retaining t
 
     The extension defines no additional Sphinx configuration keys. `autoclass_content` and `autodoc_default_options` are autodoc settings. Both bundled documentation extensions are beta; their public interfaces may change in a minor release.
 
-See the [live Sphinx demo](../demo-sphinx/api.html) and the repository's [Sphinx configuration](https://github.com/Borda/pyDeprecate/blob/main/demo-docs/sphinx/source/conf.py) and [API directives](https://github.com/Borda/pyDeprecate/blob/main/demo-docs/sphinx/source/api.rst) for a complete example.
+The [live Sphinx demo](../demo-sphinx/api.html) shows the function notice. The current demo renders `OldCalculator` as an alias. See the repository's [Sphinx configuration](https://github.com/Borda/pyDeprecate/blob/main/demo-docs/sphinx/source/conf.py) and [API directives](https://github.com/Borda/pyDeprecate/blob/main/demo-docs/sphinx/source/api.rst) for the setup.
 
 ## MkDocs and mkdocstrings
 

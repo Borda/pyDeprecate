@@ -89,7 +89,7 @@ print(addition(1, 2))
 
 </details>
 
-All calls to `addition()` are automatically forwarded to `compute_sum()` with a `FutureWarning`. <u>The old function's body is never executed.</u> In a terminal the caller sees the notice before the result:
+Every call to `addition()` forwards to `compute_sum()`. By default, the first call emits a `FutureWarning`. <u>The old function's body is never executed.</u> In a terminal the first call shows the notice before the result:
 
 ![Terminal output of the Quick Start: a FutureWarning names addition, its replacement compute_sum and the removal version, then the result 3](assets/images/terminal-quickstart.svg)
 
