@@ -50,6 +50,6 @@
   <text x="835" y="204" font-size="11.5" fill="#E8735A" text-anchor="middle" font-weight="700">Exit 2 or 3 · error</text>
   <text x="835" y="222" font-size="10.5" fill="#9FB0C6" text-anchor="middle">the job fails, visibly</text>
   <rect class="hl" style="animation-delay:-2.5s" x="750" y="184" width="170" height="48" rx="10" fill="none" stroke="#E8735A" stroke-width="3.5"/>
-  <text x="40" y="262" font-size="12" fill="#9FB0C6">The title carries the version, so raising NEXT_RELEASE opens a fresh issue for the next release.</text>
-  <text x="40" y="284" font-size="11" fill="#9FB0C6">Steps and the three possible outcomes light up in turn.</text>
+  <text x="40" y="262" font-size="12" fill="#9FB0C6">Title carries version: raise NEXT_RELEASE, get a fresh issue.</text>
+  <text x="40" y="284" font-size="11" fill="#9FB0C6">Steps and 3 outcomes light up in turn.</text>
 </svg>
