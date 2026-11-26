@@ -58,9 +58,9 @@
   </g>
   <g class="show g2">
   <rect x="456" y="106" width="444" height="96" rx="10" fill="#3A2B10" stroke="#EAA238" stroke-width="1.8"/>
-  <text x="472" y="128" font-size="12" fill="#EAA238" font-weight="700">old_func is now a wrapper that carries</text>
+  <text x="472" y="128" font-size="12" fill="#EAA238" font-weight="700">old_func becomes wrapper with</text>
   <text x="472" y="150" font-size="12" fill="#F7F9FC" class="mono">__wrapped__</text>
-  <text x="600" y="150" font-size="11.5" fill="#9FB0C6">the original function (not run when forwarding)</text>
+  <text x="600" y="150" font-size="11.5" fill="#9FB0C6">original function (not run when forwarding)</text>
   <text x="472" y="168" font-size="12" fill="#F7F9FC" class="mono">__deprecated__</text>
   <text x="600" y="168" font-size="11.5" fill="#9FB0C6">PEP 702 message string</text>
   <text x="472" y="186" font-size="12" fill="#F7F9FC" class="mono">__deprecation_config__</text>
@@ -73,7 +73,7 @@
   <g class="show g4">
   <line x1="255" y1="312" x2="255" y2="322" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
   <rect x="70" y="324" width="370" height="34" rx="8" fill="#3A2B10" stroke="#EAA238" stroke-width="1.6"/>
-  <text x="255" y="346" font-size="12.5" fill="#EAA238" text-anchor="middle" font-weight="600">warns, within the num_warns budget</text>
+  <text x="255" y="346" font-size="12.5" fill="#EAA238" text-anchor="middle" font-weight="600">warns within num_warns budget</text>
   </g>
   <g class="show g5">
   <line x1="255" y1="360" x2="255" y2="370" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
@@ -83,23 +83,23 @@
   <g class="show g6">
   <line x1="255" y1="408" x2="255" y2="418" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
   <rect x="70" y="420" width="370" height="34" rx="8" fill="#263246" stroke="#3A4A60" stroke-width="1.6"/>
-  <text x="255" y="442" font-size="12.5" fill="#F7F9FC" text-anchor="middle" class="mono">calls the target new_func(3)</text>
+  <text x="255" y="442" font-size="12.5" fill="#F7F9FC" text-anchor="middle" class="mono">calls target new_func(3)</text>
   </g>
   <g class="show g7">
   <line x1="255" y1="456" x2="255" y2="466" stroke="#6FCF97" stroke-width="2" marker-end="url(#ahg)"/>
   <rect x="70" y="468" width="370" height="34" rx="8" fill="#1F2938" stroke="#6FCF97" stroke-width="1.6"/>
-  <text x="255" y="490" font-size="12.5" fill="#6FCF97" text-anchor="middle" font-weight="600">returns 4, the program carries on</text>
+  <text x="255" y="490" font-size="12.5" fill="#6FCF97" text-anchor="middle" font-weight="600">returns 4, program continues</text>
   </g>
   <g class="show g8">
   <rect x="520" y="276" width="370" height="70" rx="10" fill="#1F2938" stroke="#7FB6E3" stroke-width="1.6"/>
   <text x="535" y="297" font-size="12.5" fill="#7FB6E3" font-weight="700">Import mode</text>
-  <text x="535" y="316" font-size="11.5" fill="#9FB0C6">import the package, then read each wrapper&#x27;s</text>
-  <text x="535" y="332" font-size="11.5" fill="#9FB0C6">configuration through its metadata</text>
+  <text x="535" y="316" font-size="11.5" fill="#9FB0C6">import package, read each wrapper&#x27;s</text>
+  <text x="535" y="332" font-size="11.5" fill="#9FB0C6">config via its metadata</text>
   </g>
   <g class="show g9">
   <rect x="520" y="358" width="370" height="70" rx="10" fill="#1F2938" stroke="#7FB6E3" stroke-width="1.6" stroke-dasharray="5 4"/>
   <text x="535" y="379" font-size="12.5" fill="#7FB6E3" font-weight="700">Static mode (--static)</text>
-  <text x="535" y="398" font-size="11.5" fill="#9FB0C6">read the source with ast, import nothing;</text>
+  <text x="535" y="398" font-size="11.5" fill="#9FB0C6">read source with ast, import nothing;</text>
   <text x="535" y="414" font-size="11.5" fill="#9FB0C6">forms it cannot settle become gaps</text>
   <text x="705" y="355" font-size="11" fill="#9FB0C6" text-anchor="middle">or</text>
   </g>
@@ -110,5 +110,5 @@
   <text x="705" y="473" font-size="12.5" fill="#6FCF97" text-anchor="middle" font-weight="700">findings and gaps</text>
   <text x="705" y="492" font-size="11.5" fill="#9FB0C6" text-anchor="middle">exit code · --report-json · --report-sarif</text>
   </g>
-  <text x="480" y="556" font-size="12" fill="#9FB0C6" text-anchor="middle">Classes get a proxy object, instances a proxy, modules an intercepting __class__; the same metadata drives the audit.</text>
+  <text x="480" y="556" font-size="12" fill="#9FB0C6" text-anchor="middle">Classes: proxy object · instances: proxy · modules: intercepting __class__ · same metadata drives audit.</text>
 </svg>
