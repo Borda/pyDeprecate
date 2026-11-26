@@ -48,5 +48,5 @@
   <line x1="606" y1="368" x2="690" y2="368" stroke="#6FCF97" stroke-width="2.2" marker-end="url(#ahg)"/>
   <rect x="700" y="350" width="200" height="36" rx="8" fill="#263246" stroke="#3A4A60" stroke-width="1.5"/>
   <text x="800" y="373" font-size="13" fill="#F7F9FC" text-anchor="middle" class="mono">Palette.size</text>
-  <text x="40" y="432" font-size="12" fill="#9FB0C6">Keys are the names callers use today. Reads, writes and deletes of a mapped key behave the same way.</text>
+  <text x="40" y="432" font-size="12" fill="#9FB0C6">Keys = names callers use today. Read, write, delete of a mapped key behave the same.</text>
 </svg>

@@ -24,7 +24,7 @@
   </defs>
   <rect width="960" height="400" rx="18" fill="#1B2330"/>
   <text x="40" y="44" font-size="22" fill="#F7F9FC" font-weight="700">Deprecate a whole module</text>
-  <text x="920" y="44" font-size="13" fill="#EAA238" text-anchor="end">deprecated_module(…) at the bottom of the old file</text>
+  <text x="920" y="44" font-size="13" fill="#EAA238" text-anchor="end">deprecated_module(…) at end of old file</text>
   <rect x="40" y="72" width="430" height="300" rx="14" fill="#141B26" stroke="#2E3B50" stroke-width="1.5"/>
   <text x="60" y="100" font-size="15" fill="#F7F9FC" font-weight="700">Mode 1 · warn in place</text>
   <text x="450" y="100" font-size="11" fill="#9FB0C6" text-anchor="end" class="mono">no target</text>
@@ -61,5 +61,5 @@
   <rect x="510" y="298" width="390" height="38" rx="8" fill="#1F2938" stroke="#7FB6E3" stroke-width="1.5"/>
   <text x="705" y="322" font-size="12" fill="#7FB6E3" text-anchor="middle" font-weight="600">not in old module → forwarded to new_calculator</text>
   </g>
-  <text x="480" y="392" font-size="11.5" fill="#9FB0C6" text-anchor="middle">Real attributes already defined in the old module warn but are not forwarded. Mode 3 exposes the module as a package attribute.</text>
+  <text x="480" y="392" font-size="11.5" fill="#9FB0C6" text-anchor="middle">Attributes defined in old module: warn, not forwarded. Mode 3: module exposed as package attribute.</text>
 </svg>
