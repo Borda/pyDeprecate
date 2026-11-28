@@ -130,3 +130,57 @@ test("a completed run cannot write to the next run", () => {
   second.emit({ type: "done" });
   assert.equal(widget.output.textContent, "second run\n");
 });
+
+// Pyodide 314 keeps an unterminated line (`print("x", end="")`) out of a batched handler until the stream is fsynced:
+// `sys.stdout.flush()` alone does not deliver it. The fake models that, so a run that ends without the fsync loses it.
+function fakePyodide(run) {
+  const state = { pending: "", handler: null, destroyed: 0 };
+  return {
+    state,
+    setStdout(options) {
+      state.handler = options.batched;
+    },
+    setStderr() {},
+    globals: {
+      get: () => () => ({ destroy: () => (state.destroyed += 1) }),
+    },
+    async runPythonAsync() {
+      return run(state);
+    },
+    runPython(code) {
+      if (code.includes("os.fsync(") && state.pending) {
+        state.handler(state.pending);
+        state.pending = "";
+      }
+    },
+  };
+}
+
+function loadRunCode() {
+  const mod = { exports: {} };
+  vm.runInNewContext(source, { module: mod });
+  return mod.exports.runCode;
+}
+
+test("an unterminated printed line is delivered before the run completes", async () => {
+  const pyodide = fakePyodide((state) => {
+    state.pending = "result";
+  });
+  const lines = [];
+  await loadRunCode()(pyodide, 'print("result", end="")', (line) => lines.push(line));
+  assert.deepEqual(lines, ["result"]);
+  assert.equal(pyodide.state.destroyed, 2, "the flush namespace and the run namespace are both released");
+});
+
+test("partial output survives a run that raises, and the run's own error is kept", async () => {
+  const pyodide = fakePyodide((state) => {
+    state.pending = "partial";
+    throw new Error("boom");
+  });
+  const lines = [];
+  await assert.rejects(
+    loadRunCode()(pyodide, "...", (line) => lines.push(line)),
+    /boom/,
+  );
+  assert.deepEqual(lines, ["partial"]);
+});

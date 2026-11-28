@@ -72,7 +72,7 @@ def load_dataset(path: str, *, workers: int = 0) -> dict:
 print(load_dataset("data", num_proc=4))  # warns: FutureWarning
 print(load_dataset("data", workers=2))
 print(load_dataset("data", num_proc=None))  # warns: FutureWarning (warning budget permitting)
-print(load_dataset("data", num_proc=4, workers=2))  # warns: FutureWarning (warning budget permitting)
+print(load_dataset("data", num_proc=4, workers=2))  # warns: UserWarning
 ```
 
 <details><summary>Output: <code>the four remapped calls</code></summary>
@@ -88,7 +88,7 @@ print(load_dataset("data", num_proc=4, workers=2))  # warns: FutureWarning (warn
 
 The second call uses the new name and **does not warn**: `ARGS_REMAP` warns *only* for callers who still pass the old argument. Map an argument to `None` to drop it. See [Functions](../usage/functions.md) for the full set of argument options.
 
-**Check existing calls that pass `None` or both names.** The hand-written shim ignores explicit `num_proc=None` and gives precedence to `num_proc=4` when both names are supplied. `ARGS_REMAP` forwards explicit `None` and gives precedence to the supplied `workers`. Keep a compatibility adapter if callers rely on either original result.
+**Check existing calls that pass `None` or both names.** The hand-written shim ignores explicit `num_proc=None` and gives precedence to `num_proc=4` when both names are supplied. `ARGS_REMAP` forwards explicit `None` and gives precedence to the supplied `workers`. The fourth call also emits a separate `UserWarning` saying `num_proc` is ignored; it is not part of the `FutureWarning` budget, so it appears even after that budget is spent. Keep a compatibility adapter if callers rely on either original result.
 
 ## Rename a class
 

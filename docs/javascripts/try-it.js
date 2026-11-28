@@ -110,8 +110,38 @@
     try {
       await pyodide.runPythonAsync(code, { globals: namespace });
     } finally {
+      flushStreams(pyodide);
       namespace.destroy();
     }
+  }
+
+  // A batched handler holds back an unterminated line, such as `print("x", end="")`, and the worker is terminated right
+  // after the run. In Pyodide 314 `sys.stdout.flush()` only moves the text into the stream; `os.fsync` hands it on.
+  // The user's namespace may have rebound `sys` or `os`, so this runs in a fresh one.
+  var FLUSH_STREAMS = [
+    "import os, sys",
+    "for stream in (sys.__stdout__, sys.__stderr__):",
+    "    try:",
+    "        stream.flush()",
+    "        os.fsync(stream.fileno())",
+    "    except Exception:",
+    "        pass",
+  ].join("\n");
+
+  function flushStreams(pyodide) {
+    var scratch = pyodide.globals.get("dict")();
+    try {
+      pyodide.runPython(FLUSH_STREAMS, { globals: scratch });
+    } catch (flushError) {
+      // Flushing is best effort: it must never replace the error of the run itself.
+    } finally {
+      scratch.destroy();
+    }
+  }
+
+  // Lets tests/docs/test_try_it.cjs call runCode with a real Pyodide; browsers have no `module`.
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = { runCode: runCode };
   }
 
   async function loadRuntime(setStatus) {

@@ -55,7 +55,7 @@ Paste this block into the project's `AGENTS.md`, `CLAUDE.md` or the equivalent f
 ## Deprecations
 
 - Deprecate public APIs with pyDeprecate (`pip install pyDeprecate`, `from deprecate import deprecated`). Do not hand-write `warnings.warn` forwarding shims.
-- Always pass `deprecated_in`, `remove_in` and an explicit `target`: a callable, `TargetMode.NOTIFY` or `TargetMode.ARGS_REMAP`.
+- Always pass `deprecated_in`, `remove_in` and an explicit `target`. For a function, that is the replacement callable, `TargetMode.NOTIFY` or `TargetMode.ARGS_REMAP`; for a module move, it is the replacement module.
 - Pick the decorator for each case from https://borda.github.io/pyDeprecate/llms.txt.
 - After a change that touches deprecations, run `pydeprecate all src/acme --gate=policy --strict` and fix every finding. Never suppress one with `--exit-zero` or `--ignore`.
 ```

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 312" width="960" height="312" role="img" aria-labelledby="t d">
   <title id="t">Weekly deprecations-due issue</title>
-  <desc id="d">A scheduled workflow runs every Monday, installs the package with the audit extra, and runs pydeprecate expiry with the next release version. A complete report with no expiry findings leaves issues untouched. A complete report with expiry findings updates the tracking issue. A report gap or audit error fails the job.</desc>
+  <desc id="d">A scheduled workflow runs every Monday, installs the package with the audit extra, and runs pydeprecate expiry with the next release version. A complete report with no expiry findings closes an open tracking issue and creates none. A complete report with expiry findings updates the tracking issue. A report gap or audit error fails the job.</desc>
   <style>
     text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
@@ -38,7 +38,7 @@
   <line x1="724" y1="100" x2="746" y2="100" stroke="#6FCF97" stroke-width="2" marker-end="url(#ahg)"/>
   <rect x="750" y="76" width="170" height="48" rx="10" fill="#141B26" stroke="#6FCF97" stroke-width="1.6"/>
   <text x="835" y="96" font-size="11.5" fill="#6FCF97" text-anchor="middle" font-weight="700">Complete · nothing due</text>
-  <text x="835" y="114" font-size="10.5" fill="#9FB0C6" text-anchor="middle">no issue is touched</text>
+  <text x="835" y="114" font-size="10.5" fill="#9FB0C6" text-anchor="middle">close the open issue</text>
   <rect class="hl" style="animation-delay:-6.7s" x="750" y="76" width="170" height="48" rx="10" fill="none" stroke="#6FCF97" stroke-width="3.5"/>
   <line x1="724" y1="154" x2="746" y2="154" stroke="#EAA238" stroke-width="2" marker-end="url(#aha)"/>
   <rect x="750" y="130" width="170" height="48" rx="10" fill="#141B26" stroke="#EAA238" stroke-width="1.6"/>
