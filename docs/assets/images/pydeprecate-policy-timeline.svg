@@ -1,22 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 330" width="960" height="330" role="img" aria-labelledby="t d">
   <title id="t">Deprecation timeline and the checks that guard it</title>
-  <desc id="d">A timeline played from left to right: deprecated_in, the grace window, the policy check reviewing the schedule and the message, remove_in, and the expiry check that fails the build if the wrapper is still present at remove_in.</desc>
+  <desc id="d">The timeline shows deprecated_in, the grace window, and remove_in. Policy checks the schedule and migration guidance from a supported target, mapping, or custom message. Expiry fails the build if the wrapper remains at remove_in.</desc>
   <style>
     text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-
-    .show { opacity: 0; }
-    .g0 { animation: g0 12s ease-out infinite; }
-    @keyframes g0 { 0%, 5% { opacity: 0 } 8%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
-    .g1 { animation: g1 12s ease-out infinite; }
-    @keyframes g1 { 0%, 19% { opacity: 0 } 22%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
-    .g2 { animation: g2 12s ease-out infinite; }
-    @keyframes g2 { 0%, 33% { opacity: 0 } 36%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
-    .g3 { animation: g3 12s ease-out infinite; }
-    @keyframes g3 { 0%, 51% { opacity: 0 } 54%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
-    .g4 { animation: g4 12s ease-out infinite; }
-    @keyframes g4 { 0%, 65% { opacity: 0 } 68%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
-    @media (prefers-reduced-motion: reduce) { .show { animation: none !important; opacity: 1 !important; } }
   </style>
   <defs>
     <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6B7F99"/></marker>
@@ -28,29 +15,29 @@
   <text x="40" y="44" font-size="22" fill="#F7F9FC" font-weight="700">Two checks, one timeline</text>
   <text x="920" y="44" font-size="13" fill="#EAA238" text-anchor="end">policy reviews plan · expiry enforces deadline</text>
   <line x1="60" y1="170" x2="900" y2="170" stroke="#6B7F99" stroke-width="4"/>
-  <g class="show g0">
+  <g>
   <circle cx="160" cy="170" r="9" fill="#EAA238"/>
   <text x="160" y="126" font-size="14" fill="#F7F9FC" text-anchor="middle" class="mono" font-weight="700">deprecated_in</text>
   <text x="160" y="144" font-size="11.5" fill="#9FB0C6" text-anchor="middle">wrapper ships, warns</text>
   </g>
-  <g class="show g1">
+  <g>
   <rect x="190" y="156" width="440" height="28" rx="14" fill="#3A2B10" stroke="#EAA238" stroke-width="2"/>
   <text x="410" y="175" font-size="12" fill="#EAA238" text-anchor="middle" font-weight="600">grace window: callers see FutureWarning, migrate</text>
   </g>
-  <g class="show g2">
+  <g>
   <rect x="60" y="232" width="560" height="70" rx="12" fill="#141B26" stroke="#7FB6E3" stroke-width="1.6"/>
   <text x="80" y="256" font-size="12.5" fill="#7FB6E3" class="mono" font-weight="600">pydeprecate policy · validate_deprecation_policy()</text>
-  <text x="80" y="278" font-size="12" fill="#9FB0C6">Checks schedule: grace window ≥ min-grace,</text>
-  <text x="80" y="294" font-size="12" fill="#9FB0C6">removal on release boundary, message names replacement.</text>
+  <text x="80" y="278" font-size="12" fill="#9FB0C6">Checks grace window, release boundary, and migration guidance</text>
+  <text x="80" y="294" font-size="12" fill="#9FB0C6">from a supported target, mapping, or custom message.</text>
   <line x1="160" y1="232" x2="160" y2="182" stroke="#7FB6E3" stroke-width="1.5" stroke-dasharray="4 4"/>
   <line x1="410" y1="232" x2="410" y2="186" stroke="#7FB6E3" stroke-width="1.5" stroke-dasharray="4 4"/>
   </g>
-  <g class="show g3">
+  <g>
   <circle cx="660" cy="170" r="9" fill="#EAA238"/>
   <text x="660" y="126" font-size="14" fill="#F7F9FC" text-anchor="middle" class="mono" font-weight="700">remove_in</text>
   <text x="660" y="144" font-size="11.5" fill="#9FB0C6" text-anchor="middle">release that deletes old API</text>
   </g>
-  <g class="show g4">
+  <g>
   <rect x="770" y="132" width="150" height="76" rx="12" fill="#2A1612" stroke="#E8735A" stroke-width="2"/>
   <text x="845" y="156" font-size="12" fill="#E8735A" text-anchor="middle" font-weight="700">still present?</text>
   <text x="845" y="174" font-size="11.5" fill="#F2B8AB" text-anchor="middle">expiry fails</text>
