@@ -1,12 +1,13 @@
 /*
  * Run pyDeprecate examples in the browser for docs/try-it.md.
  *
- * Python runs in Pyodide (CPython compiled to WebAssembly). Pyodide is fetched from jsDelivr on the first Run and
- * pyDeprecate is installed from PyPI with micropip, so nothing is bundled with the docs and nothing typed on the page
- * leaves the browser. The page does nothing unless it contains the #try-it widget.
+ * Each run starts a dedicated module worker using this file as its entry point. The worker loads Pyodide and installs
+ * pyDeprecate. The page does nothing unless it contains the #try-it widget.
  */
 (function () {
   "use strict";
+
+  var scriptUrl = typeof document !== "undefined" && document.currentScript.src;
 
   // Pin the Pyodide release: a new release must not change what the page runs.
   var PYODIDE_URL = "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.mjs";
@@ -113,25 +114,36 @@
     }
   }
 
-  var loading = null;
+  async function loadRuntime(setStatus) {
+    setStatus("Loading Python…");
+    var loaded = await import(PYODIDE_URL);
+    var pyodide = await loaded.loadPyodide();
+    setStatus("Installing pyDeprecate from PyPI…");
+    await pyodide.loadPackage("micropip");
+    await pyodide.pyimport("micropip").install("pyDeprecate");
+    return pyodide;
+  }
 
-  // Load Pyodide and install pyDeprecate once; a failed attempt can be retried.
-  function loadPyodideOnce(setStatus) {
-    if (!loading) {
-      loading = (async function () {
-        setStatus("Loading Python, about 10 MB on the first run…");
-        var loaded = await import(PYODIDE_URL);
-        var pyodide = await loaded.loadPyodide();
-        setStatus("Installing pyDeprecate from PyPI…");
-        await pyodide.loadPackage("micropip");
-        await pyodide.pyimport("micropip").install("pyDeprecate");
-        return pyodide;
-      })();
-      loading.catch(function () {
-        loading = null;
-      });
-    }
-    return loading;
+  if (typeof document === "undefined" && typeof self !== "undefined") {
+    self.addEventListener("message", async function (event) {
+      function send(type, text) {
+        self.postMessage({ type: type, text: text });
+      }
+
+      try {
+        var pyodide = await loadRuntime(function (text) {
+          send("status", text);
+        });
+        send("status", "Running…");
+        await runCode(pyodide, event.data.code, function (line) {
+          send("output", line);
+        });
+        send("done");
+      } catch (error) {
+        send("failed", error.message || String(error));
+      }
+    });
+    return;
   }
 
   function init() {
@@ -142,6 +154,7 @@
     var select = document.getElementById("try-it-example");
     var editor = document.getElementById("try-it-code");
     var button = document.getElementById("try-it-run");
+    var stop = document.getElementById("try-it-stop");
     var status = document.getElementById("try-it-status");
     var output = document.getElementById("try-it-output");
 
@@ -154,36 +167,89 @@
     editor.value = EXAMPLES[select.value].code;
     root.hidden = false;
 
-    function setStatus(text) {
-      status.textContent = text;
+    var worker = null;
+
+    function setRunning(running) {
+      button.disabled = running;
+      select.disabled = running;
+      editor.readOnly = running;
+      stop.disabled = !running;
+    }
+
+    function finish(message) {
+      // Stop background Python work before the next run can accept any output.
+      if (worker) {
+        worker.terminate();
+        worker = null;
+      }
+      status.textContent = message;
+      setRunning(false);
+    }
+
+    function onMessage(event) {
+      var data = event.data;
+      switch (data.type) {
+        case "status":
+          status.textContent = data.text;
+          break;
+        case "output":
+          output.textContent += data.text + "\n";
+          break;
+        case "done":
+          finish("Done.");
+          break;
+        case "failed":
+          output.textContent += data.text;
+          finish("Run failed.");
+          break;
+      }
+    }
+
+    function createWorker() {
+      var nextWorker = new Worker(scriptUrl, { type: "module" });
+      nextWorker.addEventListener("message", function (event) {
+        // A terminated worker can have messages queued from an earlier run.
+        if (worker === nextWorker && button.disabled) {
+          onMessage(event);
+        }
+      });
+      nextWorker.addEventListener("error", function (event) {
+        if (worker === nextWorker) {
+          output.textContent += event.message || "Could not start the Python worker.";
+          finish("Run failed.");
+        }
+      });
+      return nextWorker;
     }
 
     select.addEventListener("change", function () {
-      editor.value = EXAMPLES[select.value].code;
-      output.textContent = "";
+      if (!button.disabled) {
+        editor.value = EXAMPLES[select.value].code;
+        output.textContent = "";
+      }
     });
 
-    async function run() {
-      button.disabled = true;
+    function run() {
+      if (button.disabled) {
+        return;
+      }
+      var code = editor.value;
+      setRunning(true);
       output.textContent = "";
+      status.textContent = "Starting Python…";
       try {
-        var pyodide = await loadPyodideOnce(setStatus);
-        setStatus("Running…");
-        var lines = [];
-        await runCode(pyodide, editor.value, function (line) {
-          lines.push(line);
-          output.textContent = lines.join("\n");
-        });
-        setStatus("Done.");
+        worker = createWorker();
+        worker.postMessage({ code: code });
       } catch (error) {
-        output.textContent += (output.textContent ? "\n" : "") + String(error && error.message ? error.message : error);
-        setStatus("Failed. Check your connection and the code, then run again.");
-      } finally {
-        button.disabled = false;
+        output.textContent = error.message || String(error);
+        finish("Run failed.");
       }
     }
 
     button.addEventListener("click", run);
+    stop.addEventListener("click", function () {
+      finish("Stopped.");
+    });
     editor.addEventListener("keydown", function (event) {
       if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
         event.preventDefault();
@@ -200,9 +266,5 @@
     } else {
       init();
     }
-  }
-  // Lets the Node test import `runCode` and the examples without a browser.
-  if (typeof module !== "undefined" && module.exports) {
-    module.exports = { EXAMPLES: EXAMPLES, runCode: runCode };
   }
 })();

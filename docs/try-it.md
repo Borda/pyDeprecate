@@ -13,13 +13,14 @@ Run pyDeprecate without installing anything. Pick an example, edit it, and press
   <textarea id="try-it-code" spellcheck="false" rows="18" aria-label="Python code"></textarea>
   <div class="try-it-bar">
     <button id="try-it-run" type="button" class="md-button md-button--primary">Run</button>
+    <button id="try-it-stop" type="button" class="md-button" disabled>Stop</button>
     <span id="try-it-status" role="status"></span>
   </div>
   <pre id="try-it-output" aria-live="polite"></pre>
 </div>
 <noscript>This page needs JavaScript to run the examples. The same code works in any Python 3.9+ environment after `pip install pyDeprecate`.</noscript>
 
-The page runs Python in your browser with [Pyodide](https://pyodide.org/), then installs pyDeprecate from PyPI. The first run downloads about 10 MB; later runs reuse it. <u>Nothing you type leaves your browser.</u> Press Ctrl+Enter or Cmd+Enter in the editor to run.
+The page runs Python in your browser with [Pyodide](https://pyodide.org/), then installs pyDeprecate from PyPI. Each **Run** starts a fresh Python session. Your browser can cache the runtime and package downloads. Press **Stop** to end the session and cancel any work still in progress. The page itself does not upload code from the editor. **Executed snippets can make network requests**, so run only code you trust. Press Ctrl+Enter or Cmd+Enter in the editor to run.
 
 ## What to look for
 

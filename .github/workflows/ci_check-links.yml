@@ -37,8 +37,9 @@ jobs:
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
         with:
           # default args: "--verbose --no-progress './**/*.md' './**/*.html' './**/*.rst'"
-          # TODO(v0.16.0): drop both `stable/` excludes below (`limitations.html`, `community.html` and the guide pages split out in v0.16: audit-policy, ci-integration, testing, attributes, lifecycle, docs-integration) once the v0.16.0 docs are published to /stable/; until then those pages exist only on /latest/
+          # TODO(v0.16.0): drop both `stable/` excludes below (`limitations.html` and the guide pages split out in v0.16: audit-policy, ci-integration, testing, attributes, lifecycle, docs-integration) once the v0.16.0 docs are published to /stable/; until then those pages exist only on /latest/
           # the `pkg.py` file URIs are illustrative SARIF locations outside a repository (a doctest and unit tests)
+          # These two README targets appear on main when this PR merges. Check them on pushes and scheduled runs.
           args: |
             --verbose
             --no-progress
@@ -61,7 +62,8 @@ jobs:
             --exclude file://.*demo-mkdocs.*
             --exclude '^file[:]///(elsewhere|other|D[:]/other)/pkg\.py$'
             --exclude '^https[:]//borda[/]$'
-            --exclude 'https://borda\.github\.io/pyDeprecate/stable/(limitations|community)\.html'
+            --exclude 'https://borda\.github\.io/pyDeprecate/stable/limitations\.html'
             --exclude 'https://borda\.github\.io/pyDeprecate/stable/(usage|audit|integrations|adoption|migration)/'
             --exclude '^[hH]ttps://github\.com/\$(\.git)?$'
+            ${{ github.event_name == 'pull_request' && '--exclude ''^https://github\.com/Borda/pyDeprecate/blob/main/docs/(community|adoption/convert-existing)\.md$''' || '' }}
           fail: true

@@ -439,9 +439,9 @@ Pass `args: --version 2.0` when neither the installed package nor `pyproject.tom
 
 ## Weekly deprecations-due issue
 
-A removal deadline should not surprise the release. A scheduled job can list every wrapper whose `remove_in` is at or before the next release and keep **one tracking issue** up to date, so the cleanup is planned before the release branch is cut.
+A removal deadline should not surprise the release. A scheduled job can list audited wrappers whose `remove_in` is at or before the next release and keep **one tracking issue** up to date, so the cleanup is planned before the release branch is cut.
 
-![Weekly deprecations-due issue: a schedule installs the package, runs pydeprecate expiry with the next release version, and by exit code either touches no issue (0), creates or updates the tracking issue (1) or fails the job (2 or 3)](../assets/images/pydeprecate-due-issue-flow.svg)
+![Weekly deprecations-due issue: a scheduled audit validates its JSON report, then either leaves issues untouched, updates the release tracker, or fails on incomplete coverage](../assets/images/pydeprecate-due-issue-flow.svg)
 
 1. Add a repository variable `NEXT_RELEASE` holding the next release version, such as `2.0`.
 2. Install the package, so the scan can import it, together with `pyDeprecate[audit]`.
@@ -459,8 +459,13 @@ permissions:
   contents: read
   issues: write
 
+concurrency:
+  group: deprecations-due
+  cancel-in-progress: false
+
 jobs:
   due:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -469,29 +474,46 @@ jobs:
           python-version: "3.11"
       - run: pip install -e . "pyDeprecate[audit]"
 
-      - name: List wrappers due in the next release
+      - name: Verify the audit and list wrappers due
         id: due
         env:
           NEXT_RELEASE: ${{ vars.NEXT_RELEASE }}
         run: |
+          : "${NEXT_RELEASE:?Set the NEXT_RELEASE repository variable}"
+          audit_report=$(mktemp)
+          trap 'rm -f "$audit_report"' EXIT
           status=0
-          pydeprecate expiry src/mypackage --version "$NEXT_RELEASE" > due.txt || status=$?
-          if [ "$status" -gt 1 ]; then cat due.txt; exit "$status"; fi
-          echo "due=$status" >> "$GITHUB_OUTPUT"
+          pydeprecate expiry src/mypackage --version "$NEXT_RELEASE" --strict --report-json "$audit_report" || status=$?
+          if [ "$status" -gt 1 ]; then exit "$status"; fi
 
-      - name: Open or update the tracking issue
-        if: steps.due.outputs.due == '1'
+          if ! jq -e '.schema == 1 and .command == "expiry" and .gaps == [] and
+            (.findings | type == "array") and (.suppressed | type == "array") and
+            (all((.findings + .suppressed)[]; .rule != "expired" or (.message | type == "string")))' "$audit_report" >/dev/null; then
+            echo "::error::Expiry audit did not return a complete report. See the audit log."
+            exit 1
+          fi
+          jq -r '(.findings + .suppressed)[] | select(.rule == "expired") | "- " + .message' "$audit_report" > due.txt
+          if [ -s due.txt ]; then echo "due=true" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Open or update the release tracker
+        if: steps.due.outputs.due == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           NEXT_RELEASE: ${{ vars.NEXT_RELEASE }}
         run: |
           title="Deprecations due in ${NEXT_RELEASE}"
+          marker="<!-- pydeprecate:deprecations-due -->"
           {
-            echo "These deprecated wrappers reach their removal version in ${NEXT_RELEASE}:"
-            echo
-            grep '^[[:space:]]*- ' due.txt | sed 's/^[[:space:]]*//'
+            printf '%s\n\n' "$marker"
+            printf 'These deprecated wrappers are due by %s:\n\n' "$NEXT_RELEASE"
+            cat due.txt
           } > body.md
-          number=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number // empty')
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues?state=open&per_page=100" > open-issues.json
+          number=$(jq -r --arg title "$title" --arg marker "$marker" '
+            [.[][] | select(.pull_request == null and .title == $title and
+              .user.login == "github-actions[bot]" and ((.body // "") | startswith($marker + "\n"))) | .number]
+            | if length > 1 then error("Multiple release trackers match") else .[0] // empty end
+          ' open-issues.json)
           if [ -n "$number" ]; then
             gh issue edit "$number" --body-file body.md
           else
@@ -499,9 +521,11 @@ jobs:
           fi
 ```
 
-`pydeprecate expiry` exits `1` when a wrapper is due and `0` when none is, so the first step sets `due` and the second step runs only when there is something to report. Exit `2` or `3` is a usage or scan error, and the job fails instead of hiding it. The title carries the version, so raising `NEXT_RELEASE` after a release opens a **fresh issue** for the next one. Close the old issue when the release ships.
+**Check the report before writing an issue.** Exit codes `2` and `3` stop the workflow. Exit `1` can indicate expired wrappers or a strict-mode scan gap. A missing report or any gap fails the job. The tracker includes expired entries accepted by the project's suppression rules, within the configured scan scope. Module exclusions still apply.
 
-The scan imports your package, so keep this job on the schedule trigger, which runs the default branch, and never point it at a pull request from a fork. See the import-time warning in [GitHub Action](#github-action).
+**Keep one tracker per release.** Concurrency serializes scheduled and manual runs. The workflow edits only an open issue with the exact release title, its marker, and the GitHub Actions bot as author. Close the old tracker after release.
+
+The scan imports your package. The job runs only on the default branch, including for manual dispatch. See the import-time warning in [GitHub Action](#github-action).
 
 ## See also
 

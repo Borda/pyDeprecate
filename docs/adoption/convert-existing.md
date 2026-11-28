@@ -38,11 +38,15 @@ def load_dataset(path: str, *, workers: int = 0, num_proc: Optional[int] = None)
 
 
 print(load_dataset("data", num_proc=4))  # warns: DeprecationWarning
+print(load_dataset("data", num_proc=None))
+print(load_dataset("data", num_proc=4, workers=2))  # warns: DeprecationWarning
 ```
 
-<details><summary>Output: <code>load_dataset("data", num_proc=4)</code></summary>
+<details><summary>Output: <code>the three hand-written calls</code></summary>
 
-```text
+```
+{'path': 'data', 'workers': 4}
+{'path': 'data', 'workers': 0}
 {'path': 'data', 'workers': 4}
 ```
 
@@ -67,18 +71,24 @@ def load_dataset(path: str, *, workers: int = 0) -> dict:
 
 print(load_dataset("data", num_proc=4))  # warns: FutureWarning
 print(load_dataset("data", workers=2))
+print(load_dataset("data", num_proc=None))  # warns: FutureWarning (warning budget permitting)
+print(load_dataset("data", num_proc=4, workers=2))  # warns: FutureWarning (warning budget permitting)
 ```
 
-<details><summary>Output: <code>the two load_dataset calls</code></summary>
+<details><summary>Output: <code>the four remapped calls</code></summary>
 
-```text
+```
 {'path': 'data', 'workers': 4}
+{'path': 'data', 'workers': 2}
+{'path': 'data', 'workers': None}
 {'path': 'data', 'workers': 2}
 ```
 
 </details>
 
 The second call uses the new name and **does not warn**: `ARGS_REMAP` warns *only* for callers who still pass the old argument. Map an argument to `None` to drop it. See [Functions](../usage/functions.md) for the full set of argument options.
+
+**Check existing calls that pass `None` or both names.** The hand-written shim ignores explicit `num_proc=None` and gives precedence to `num_proc=4` when both names are supplied. `ARGS_REMAP` forwards explicit `None` and gives precedence to the supplied `workers`. Keep a compatibility adapter if callers rely on either original result.
 
 ## Rename a class
 
@@ -163,16 +173,17 @@ warnings.warn("`old_calculator` moved to `new_calculator`.", DeprecationWarning,
 from new_calculator import *  # noqa: E402, F401, F403
 ```
 
-`deprecated_module` keeps the shim but warns on every attribute access, including names already defined in the module, and forwards the rest to the replacement.
+`deprecated_module` warns when callers access a public attribute. A bare `import old_calculator` no longer warns. Keep the re-exports so wildcard imports still find the shim’s public API. Define the old module’s `__all__` explicitly if it already had an export list.
 
 ```python
 # phmdoctest:skip — shim module template; old_calculator and new_calculator are not installed
 # old_calculator.py — DEPRECATED API; redirects to new_calculator
 # NEW API — the same functions now live in new_calculator.py
 import new_calculator as _new_calculator
-from deprecate import deprecated_module
+from deprecate import deprecated_module as _deprecated_module
+from new_calculator import *  # noqa: F401, F403
 
-deprecated_module(
+_deprecated_module(
     __name__,
     target=_new_calculator,
     deprecated_in="2.0",
@@ -185,9 +196,9 @@ Place the call at the bottom of the file. See [Modules](../usage/modules.md) for
 
 ## Check the conversion
 
-1. **Run your tests with the warning as an error** so every remaining use of the old name is visible: `python -W error::FutureWarning -m pytest`.
+1. **Run your tests with the warning as an error** so emitted deprecation warnings fail a test: `python -W error::FutureWarning -m pytest`.
 2. **Run the audit** with `pydeprecate check src/your_package` to catch a mapping that names an argument the function does not have.
-3. **Add the deadline gate** with `pydeprecate expiry src/your_package` so the removal is enforced. See [Audit and CI](../audit/ci-integration.md).
+3. **Add the deadline gate** with `pydeprecate expiry src/your_package --strict` after installing `pyDeprecate[audit]`. Pass `--version` if automatic detection is unavailable. Strict mode also fails on scan gaps. See [Audit and CI](../audit/ci-integration.md).
 4. **Let an agent do the scan.** The `sunset` skill converts one deprecation at a time, and an adoption scan lists every candidate without editing. See [Agent recipes](agent-recipes.md).
 
 <u>Convert one pattern at a time and rerun the tests after each.</u> A converted wrapper warns with `FutureWarning`, not the `DeprecationWarning` it replaces, so pytest filters and logging rules written for the old category need the same update.

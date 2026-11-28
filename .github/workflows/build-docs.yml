@@ -425,11 +425,13 @@ jobs:
             dst="${src_dest##*:}"
             if [ -f "$src" ]; then
               cp "$src" "$TMPWORKTREE/$dst"
-              # The agent files link topic pages under /stable/. Until a release moves the stable
-              # alias those folders do not exist there, so a deploy that is not the stable release
-              # points the links at /dev/, which always holds the current layout.
+              # The root agent files use stable URLs for released content. Rewrite new topic and Community
+              # links on nonstable deploys, where the development layout is available under /dev/.
               if [ "${ALIASES}" != "stable" ] && [[ "$dst" == llms*.txt ]]; then
-                sed -E -i.bak 's#(pyDeprecate/)stable/(usage|audit|integrations|adoption|migration)/#\1dev/\2/#g' "$TMPWORKTREE/$dst"
+                sed -E -i.bak \
+                  -e 's#(pyDeprecate/)stable/(usage|audit|integrations|adoption|migration)/#\1dev/\2/#g' \
+                  -e 's#(pyDeprecate/)stable/(community\.html)#\1dev/\2#g' \
+                  "$TMPWORKTREE/$dst"
                 rm -f "$TMPWORKTREE/$dst.bak"
               fi
             else

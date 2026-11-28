@@ -9,7 +9,7 @@ pyDeprecate is maintained in the open. Ask questions, share what worked, and see
 
 ## Ask, share and discuss
 
-[GitHub Discussions](https://github.com/Borda/pyDeprecate/discussions) is the place for anything that is not a bug report.
+[GitHub Discussions](https://github.com/Borda/pyDeprecate/discussions) is the place for public usage questions, ideas, and migration stories.
 
 | You want to                                   | Go to                                                                                      |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------ |
@@ -17,6 +17,8 @@ pyDeprecate is maintained in the open. Ask questions, share what worked, and see
 | Propose a feature or a use case we lack       | [Ideas](https://github.com/Borda/pyDeprecate/discussions/categories/ideas)                 |
 | Share a migration story or your project's use | [Show and tell](https://github.com/Borda/pyDeprecate/discussions/categories/show-and-tell) |
 | Report a bug or a documentation inaccuracy    | [Issues](https://github.com/Borda/pyDeprecate/issues)                                      |
+
+Report vulnerabilities privately using the [security policy](https://github.com/Borda/pyDeprecate/blob/main/.github/SECURITY.md). For conduct concerns, use the confidential reporting channel in the [code of conduct](https://github.com/Borda/pyDeprecate/blob/main/.github/CODE_OF_CONDUCT.md).
 
 Search the [troubleshooting guide](troubleshooting.md) and [limitations](limitations.md) first: most questions have an answer there. If a limitation blocks real work, **describe your practical use case**; we are happy to discuss it and integrate a fix when it fits.
 
