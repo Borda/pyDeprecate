@@ -1,6 +1,12 @@
 # Changelog
 
-All notable changes to the `pydeprecate` coding-agent plugin (the `sunset` and `prune` skills) are listed here. The plugin `version` follows its own cadence, independent of the `pyDeprecate` package version; `compatible_package_version` is the package support window the skills are verified against.
+All notable changes to the `pydeprecate` coding-agent plugin (the `sunset`, `audit` and `prune` skills) are listed here. The plugin `version` follows its own cadence, independent of the `pyDeprecate` package version; `compatible_package_version` is the package support window the skills are verified against.
+
+## [0.7.0] - Unreleased
+
+### Added
+
+- `audit` skill: audit a project's existing pyDeprecate wrappers for misconfiguration, chains, expired code and policy violations, fix the findings the user confirms, and wire the audit into pre-commit, GitHub Actions or pytest. It runs the import-mode and `--static` CLI audits, reads gaps and the `--report-json` record, and never turns a gap or a finding green with `--exit-zero`, `--ignore`, `--baseline` or a changed deadline.
 
 ## [0.6.7] - Unreleased
 

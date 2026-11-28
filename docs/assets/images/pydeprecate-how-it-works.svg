@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 590" width="960" height="590" role="img" aria-labelledby="t d">
+  <title id="t">How pyDeprecate works</title>
+  <desc id="d">Three moments played in order. At decoration time the decorator replaces the old API with a wrapper that keeps the original, a message string and a frozen configuration. At call time the wrapper warns within its budget, applies argument changes when configured, and forwards to the target. At audit time the CLI reads that metadata by importing the package, or reads the source with ast without importing it, and reports findings and gaps.</desc>
+  <style>
+    text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+    .show { opacity: 0; }
+    .g0 { animation: g0 16s ease-out infinite; }
+    @keyframes g0 { 0%, 3% { opacity: 0 } 6%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
+    .g1 { animation: g1 16s ease-out infinite; }
+    @keyframes g1 { 0%, 10% { opacity: 0 } 13%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
+    .g2 { animation: g2 16s ease-out infinite; }
+    @keyframes g2 { 0%, 15% { opacity: 0 } 18%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
+    .g3 { animation: g3 16s ease-out infinite; }
+    @keyframes g3 { 0%, 27% { opacity: 0 } 30%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
+    .g4 { animation: g4 16s ease-out infinite; }
+    @keyframes g4 { 0%, 35% { opacity: 0 } 38%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
+    .g5 { animation: g5 16s ease-out infinite; }
+    @keyframes g5 { 0%, 43% { opacity: 0 } 46%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
+    .g6 { animation: g6 16s ease-out infinite; }
+    @keyframes g6 { 0%, 51% { opacity: 0 } 54%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
+    .g7 { animation: g7 16s ease-out infinite; }
+    @keyframes g7 { 0%, 59% { opacity: 0 } 62%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
+    .g8 { animation: g8 16s ease-out infinite; }
+    @keyframes g8 { 0%, 33% { opacity: 0 } 36%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
+    .g9 { animation: g9 16s ease-out infinite; }
+    @keyframes g9 { 0%, 45% { opacity: 0 } 48%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
+    .g10 { animation: g10 16s ease-out infinite; }
+    @keyframes g10 { 0%, 57% { opacity: 0 } 60%, 92% { opacity: 1 } 97%, 100% { opacity: 0 } }
+    @media (prefers-reduced-motion: reduce) { .show { animation: none !important; opacity: 1 !important; } }
+  </style>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6B7F99"/></marker>
+    <marker id="ahg" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6FCF97"/></marker>
+    <marker id="ahr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#E8735A"/></marker>
+    <marker id="aha" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#EAA238"/></marker>
+  </defs>
+  <rect width="960" height="590" rx="18" fill="#1B2330"/>
+  <text x="40" y="44" font-size="22" fill="#F7F9FC" font-weight="700">How pyDeprecate works</text>
+  <text x="920" y="44" font-size="13" fill="#EAA238" text-anchor="end">decorate once · forward with a warning budget · audit reads the metadata</text>
+  <rect x="40" y="68" width="880" height="150" rx="14" fill="#141B26" stroke="#2E3B50" stroke-width="1.5"/>
+  <text x="60" y="92" font-size="11" fill="#9FB0C6" letter-spacing="2">1 · DECORATION TIME</text>
+  <rect x="40" y="236" width="430" height="290" rx="14" fill="#141B26" stroke="#2E3B50" stroke-width="1.5"/>
+  <text x="60" y="260" font-size="11" fill="#9FB0C6" letter-spacing="2">2 · CALL TIME</text>
+  <rect x="490" y="236" width="430" height="290" rx="14" fill="#141B26" stroke="#2E3B50" stroke-width="1.5"/>
+  <text x="510" y="260" font-size="11" fill="#9FB0C6" letter-spacing="2">3 · AUDIT TIME</text>
+  <g class="show g0">
+  <rect x="60" y="106" width="330" height="96" rx="10" fill="#263246" stroke="#3A4A60" stroke-width="1.5"/>
+  <text x="76" y="130" font-size="12" fill="#E6EDF7" class="mono">@deprecated(target=new_func,</text>
+  <text x="76" y="148" font-size="12" fill="#E6EDF7" class="mono">            deprecated_in=&quot;1.0&quot;,</text>
+  <text x="76" y="166" font-size="12" fill="#E6EDF7" class="mono">            remove_in=&quot;2.0&quot;)</text>
+  <text x="76" y="188" font-size="12" fill="#EAA238" class="mono">def old_func(value): ...</text>
+  </g>
+  <g class="show g1">
+  <line x1="396" y1="154" x2="446" y2="154" stroke="#EAA238" stroke-width="2.5" marker-end="url(#aha)"/>
+  <text x="421" y="144" font-size="11" fill="#9FB0C6" text-anchor="middle">wraps</text>
+  </g>
+  <g class="show g2">
+  <rect x="456" y="106" width="444" height="96" rx="10" fill="#3A2B10" stroke="#EAA238" stroke-width="1.8"/>
+  <text x="472" y="128" font-size="12" fill="#EAA238" font-weight="700">old_func becomes wrapper with</text>
+  <text x="472" y="150" font-size="12" fill="#F7F9FC" class="mono">__wrapped__</text>
+  <text x="600" y="150" font-size="11.5" fill="#9FB0C6">original function (not run when forwarding)</text>
+  <text x="472" y="168" font-size="12" fill="#F7F9FC" class="mono">__deprecated__</text>
+  <text x="600" y="168" font-size="11.5" fill="#9FB0C6">PEP 702 message string</text>
+  <text x="472" y="186" font-size="12" fill="#F7F9FC" class="mono">__deprecation_config__</text>
+  <text x="640" y="186" font-size="11.5" fill="#9FB0C6">frozen settings, via get_deprecation_config()</text>
+  </g>
+  <g class="show g3">
+  <rect x="70" y="276" width="370" height="34" rx="8" fill="#263246" stroke="#3A4A60" stroke-width="1.6"/>
+  <text x="255" y="298" font-size="12.5" fill="#F7F9FC" text-anchor="middle" class="mono">caller runs old_func(3)</text>
+  </g>
+  <g class="show g4">
+  <line x1="255" y1="312" x2="255" y2="322" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
+  <rect x="70" y="324" width="370" height="34" rx="8" fill="#3A2B10" stroke="#EAA238" stroke-width="1.6"/>
+  <text x="255" y="346" font-size="12.5" fill="#EAA238" text-anchor="middle" font-weight="600">warns within num_warns budget</text>
+  </g>
+  <g class="show g5">
+  <line x1="255" y1="360" x2="255" y2="370" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
+  <rect x="70" y="372" width="370" height="34" rx="8" fill="#263246" stroke="#3A4A60" stroke-width="1.6"/>
+  <text x="255" y="394" font-size="12.5" fill="#F7F9FC" text-anchor="middle">remaps or injects args if configured</text>
+  </g>
+  <g class="show g6">
+  <line x1="255" y1="408" x2="255" y2="418" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
+  <rect x="70" y="420" width="370" height="34" rx="8" fill="#263246" stroke="#3A4A60" stroke-width="1.6"/>
+  <text x="255" y="442" font-size="12.5" fill="#F7F9FC" text-anchor="middle" class="mono">calls target new_func(3)</text>
+  </g>
+  <g class="show g7">
+  <line x1="255" y1="456" x2="255" y2="466" stroke="#6FCF97" stroke-width="2" marker-end="url(#ahg)"/>
+  <rect x="70" y="468" width="370" height="34" rx="8" fill="#1F2938" stroke="#6FCF97" stroke-width="1.6"/>
+  <text x="255" y="490" font-size="12.5" fill="#6FCF97" text-anchor="middle" font-weight="600">returns 4, program continues</text>
+  </g>
+  <g class="show g8">
+  <rect x="520" y="276" width="370" height="70" rx="10" fill="#1F2938" stroke="#7FB6E3" stroke-width="1.6"/>
+  <text x="535" y="297" font-size="12.5" fill="#7FB6E3" font-weight="700">Import mode</text>
+  <text x="535" y="316" font-size="11.5" fill="#9FB0C6">import package, discover wrappers and</text>
+  <text x="535" y="332" font-size="11.5" fill="#9FB0C6">read their metadata</text>
+  </g>
+  <g class="show g9">
+  <rect x="520" y="358" width="370" height="70" rx="10" fill="#1F2938" stroke="#7FB6E3" stroke-width="1.6" stroke-dasharray="5 4"/>
+  <text x="535" y="379" font-size="12.5" fill="#7FB6E3" font-weight="700">Static mode (--static)</text>
+  <text x="535" y="398" font-size="11.5" fill="#9FB0C6">read source with ast, import nothing;</text>
+  <text x="535" y="414" font-size="11.5" fill="#9FB0C6">recognized unresolved forms can leave gaps</text>
+  <text x="705" y="355" font-size="11" fill="#9FB0C6" text-anchor="middle">or</text>
+  </g>
+  <g class="show g10">
+  <line x1="705" y1="430" x2="705" y2="446" stroke="#6FCF97" stroke-width="2" marker-end="url(#ahg)"/>
+  <text x="724" y="441" font-size="10.5" fill="#9FB0C6">either way</text>
+  <rect x="520" y="450" width="370" height="56" rx="10" fill="#1F2938" stroke="#6FCF97" stroke-width="1.6"/>
+  <text x="705" y="473" font-size="12.5" fill="#6FCF97" text-anchor="middle" font-weight="700">findings and gaps</text>
+  <text x="705" y="492" font-size="11.5" fill="#9FB0C6" text-anchor="middle">exit code · --report-json · --report-sarif</text>
+  </g>
+  <text x="480" y="556" font-size="12" fill="#9FB0C6" text-anchor="middle">Classes: proxy object · instances: proxy · modules: intercepting __class__ · same metadata drives audit.</text>
+</svg>

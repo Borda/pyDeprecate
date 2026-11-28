@@ -188,4 +188,4 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-Next: [Use Cases](usage/index.md) — overview of all deprecation patterns with links to each topic. See also: [Customization](usage/customization.md) · [Audit Tools](audit/index.md) · [Troubleshooting](troubleshooting.md)
+Next: [Use Cases](usage/index.md) — overview of all deprecation patterns with links to each topic. See also: [How It Works](how-it-works.md) · [Customization](usage/customization.md) · [Audit Tools](audit/index.md) · [Troubleshooting](troubleshooting.md)

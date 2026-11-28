@@ -22,7 +22,7 @@ from deprecate import (
     __all__ as _deprecate_all,
 )
 from deprecate.audit import __all__ as _audit_all
-from deprecate.audit import find_deprecation_wrappers_static
+from deprecate.audit import find_deprecation_wrappers_static, generate_deprecation_table, validate_deprecation_chains
 
 _ROOT = Path(__file__).resolve().parents[2]
 _PLUGIN = _ROOT / "plugins" / "pydeprecate"
@@ -60,7 +60,7 @@ def test_claude_host_validates_plugin(target: str) -> None:
     assert "Validation passed" in result.stdout, result.stdout
 
 
-_SKILL_PATHS = (_PLUGIN / "skills" / "sunset" / "SKILL.md", _PLUGIN / "skills" / "prune" / "SKILL.md")
+_SKILL_PATHS = tuple(_PLUGIN / "skills" / name / "SKILL.md" for name in ("sunset", "audit", "prune"))
 # Prose words, stdlib/foreign names, environment-variable names, and the wrapper attribute `__deprecated__` the
 # skill bodies also backtick — none of them is a deprecate.* module export.
 _SKILL_SKIP_TOKENS = frozenset(
@@ -70,6 +70,9 @@ _SKILL_SKIP_TOKENS = frozenset(
         "FutureWarning",
         "convert",
         "keep",
+        "chain",
+        "expired",
+        "packaging",
         "warnings.warn",
         "warnings.deprecated",
         "typing_extensions.deprecated",
@@ -89,6 +92,8 @@ _SKILL_CALLABLES = {
         deprecated_instance,
         find_deprecation_wrappers,
         find_deprecation_wrappers_static,
+        generate_deprecation_table,
+        validate_deprecation_chains,
         validate_deprecation_expiry,
         validate_deprecation_policy,
     )
@@ -132,7 +137,7 @@ def _call_form_problems(callee: str, args: str) -> list[str]:
 def test_skill_docs_reference_real_api() -> None:
     """Guard against stale API references in the agent-facing SKILL.md docs.
 
-    Both SKILL.md files hardcode ``deprecate.*`` identifiers and call forms such as
+    Every SKILL.md file hardcodes ``deprecate.*`` identifiers and call forms such as
     ``find_deprecation_wrappers(..., recursive=True)`` as instructions for an AI agent to
     follow; a rename of a public symbol, keyword argument, or ``TargetMode`` member would
     silently break those instructions while the library's own suite stays green. This

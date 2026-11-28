@@ -789,7 +789,7 @@ claude plugin install pydeprecate@pydeprecate
 
 For local development or unpublished changes, run these commands from the repository root with `.` instead of `Borda/pyDeprecate` in the marketplace-add command. The plugin-install command stays the same.
 
-Use `$pydeprecate:sunset` / `$pydeprecate:prune` in Codex, or `/pydeprecate:sunset` / `/pydeprecate:prune` in Claude Code, to implement or retire a deprecation — see the [coding-agent recipes](https://borda.github.io/pyDeprecate/stable/adoption/agent-recipes.html) for invocation examples, host commands, and workflow boundaries.
+Use `$pydeprecate:sunset` / `$pydeprecate:audit` / `$pydeprecate:prune` in Codex, or `/pydeprecate:sunset` / `/pydeprecate:audit` / `/pydeprecate:prune` in Claude Code, to implement, audit or retire a deprecation — see the [coding-agent recipes](docs/adoption/agent-recipes.md) for invocation examples, host commands, and workflow boundaries.
 
 <!-- end skipping PyPI description -->
 
