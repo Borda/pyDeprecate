@@ -115,6 +115,9 @@ extra:
 extra_css:
   - stylesheets/extra.css
 
+extra_javascript:
+  - javascripts/try-it.js
+
 markdown_extensions:
   - admonition
   - meta
@@ -139,6 +142,7 @@ validation:
 
 nav:
   - Home: index.md
+  - Try It Online: try-it.md
   - Getting Started: getting-started.md
   - Usage:
       - Overview: usage/index.md
@@ -162,7 +166,9 @@ nav:
       - Docs Integration: integrations/docs-integration.md
   - Adoption:
       - Compare Python Deprecation Tools: adoption/compare-python-deprecation-tools.md
+      - Convert Existing Deprecations: adoption/convert-existing.md
       - Agent Recipes: adoption/agent-recipes.md
+  - Community: community.md
   - Migration Guide: migration/index.md
   - API Reference: api-reference.md
   - Troubleshooting: troubleshooting.md

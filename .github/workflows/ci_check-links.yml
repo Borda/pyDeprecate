@@ -39,6 +39,7 @@ jobs:
           # default args: "--verbose --no-progress './**/*.md' './**/*.html' './**/*.rst'"
           # TODO(v0.16.0): drop both `stable/` excludes below (`limitations.html` and the guide pages split out in v0.16: audit-policy, ci-integration, testing, attributes, lifecycle, docs-integration) once the v0.16.0 docs are published to /stable/; until then those pages exist only on /latest/
           # the `pkg.py` file URIs are illustrative SARIF locations outside a repository (a doctest and unit tests)
+          # These two README targets appear on main when this PR merges. Check them on pushes and scheduled runs.
           args: |
             --verbose
             --no-progress
@@ -64,4 +65,5 @@ jobs:
             --exclude 'https://borda\.github\.io/pyDeprecate/stable/limitations\.html'
             --exclude 'https://borda\.github\.io/pyDeprecate/stable/(usage|audit|integrations|adoption|migration)/'
             --exclude '^[hH]ttps://github\.com/\$(\.git)?$'
+            ${{ github.event_name == 'pull_request' && '--exclude ''^https://github\.com/Borda/pyDeprecate/blob/main/docs/(community|adoption/convert-existing)\.md$''' || '' }}
           fail: true

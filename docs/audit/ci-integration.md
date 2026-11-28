@@ -437,6 +437,100 @@ Pass `args: --version 2.0` when neither the installed package nor `pyproject.tom
 
     This is not a sandbox. Imported code runs in the job environment and can write the files behind `GITHUB_ENV`, `GITHUB_PATH`, and `GITHUB_OUTPUT`.
 
+## Weekly deprecations-due issue
+
+A removal deadline should not surprise the release. A scheduled job can list audited wrappers whose `remove_in` is at or before the next release and keep **one tracking issue** up to date, so the cleanup is planned before the release branch is cut.
+
+![Weekly deprecations-due issue: a scheduled audit validates its JSON report, then either closes the open release tracker, updates it, or fails on incomplete coverage](../assets/images/pydeprecate-due-issue-flow.svg)
+
+1. Add a repository variable `NEXT_RELEASE` holding the next release version, such as `2.0`.
+2. Install the package, so the scan can import it, together with `pyDeprecate[audit]` v0.16 or later: the recipe reads the `findings` and `suppressed` records that the JSON report has carried since v0.16.
+3. Add the workflow:
+
+```yaml
+# .github/workflows/deprecations-due.yml
+name: Deprecations due
+on:
+  schedule:
+    - cron: "0 7 * * 1" # Mondays, 07:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: deprecations-due
+  cancel-in-progress: false
+
+jobs:
+  due:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+      - run: pip install -e . "pyDeprecate[audit]>=0.16"
+
+      - name: Verify the audit and list wrappers due
+        id: due
+        env:
+          NEXT_RELEASE: ${{ vars.NEXT_RELEASE }}
+        run: |
+          : "${NEXT_RELEASE:?Set the NEXT_RELEASE repository variable}"
+          audit_report=$(mktemp)
+          trap 'rm -f "$audit_report"' EXIT
+          status=0
+          pydeprecate expiry src/mypackage --version "$NEXT_RELEASE" --strict --report-json "$audit_report" || status=$?
+          if [ "$status" -gt 1 ]; then exit "$status"; fi
+
+          if ! jq -e '.schema == 1 and .command == "expiry" and .gaps == [] and
+            (.findings | type == "array") and (.suppressed | type == "array") and
+            (all((.findings + .suppressed)[]; .rule != "expired" or (.message | type == "string")))' "$audit_report" >/dev/null; then
+            echo "::error::Expiry audit did not return a complete report. See the audit log."
+            exit 1
+          fi
+          jq -r '(.findings + .suppressed)[] | select(.rule == "expired") | "- " + .message' "$audit_report" > due.txt
+
+      - name: Open, update or close the release tracker
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT_RELEASE: ${{ vars.NEXT_RELEASE }}
+        run: |
+          title="Deprecations due in ${NEXT_RELEASE}"
+          marker="<!-- pydeprecate:deprecations-due -->"
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues?state=open&per_page=100" > open-issues.json
+          number=$(jq -r --arg title "$title" --arg marker "$marker" '
+            [.[][] | select(.pull_request == null and .title == $title and
+              .user.login == "github-actions[bot]" and ((.body // "") | startswith($marker + "\n"))) | .number]
+            | if length > 1 then error("Multiple release trackers match") else .[0] // empty end
+          ' open-issues.json)
+          if [ ! -s due.txt ]; then
+            if [ -n "$number" ]; then
+              gh issue close "$number" --comment "No deprecated wrappers are due by ${NEXT_RELEASE} any more."
+            fi
+            exit 0
+          fi
+          {
+            printf '%s\n\n' "$marker"
+            printf 'These deprecated wrappers are due by %s:\n\n' "$NEXT_RELEASE"
+            cat due.txt
+          } > body.md
+          if [ -n "$number" ]; then
+            gh issue edit "$number" --body-file body.md
+          else
+            gh issue create --title "$title" --body-file body.md
+          fi
+```
+
+**Check the report before writing an issue.** Exit codes `2` and `3` stop the workflow. Exit `1` can indicate expired wrappers or a strict-mode scan gap. A missing report or any gap fails the job. The tracker includes expired entries accepted by the project's suppression rules, within the configured scan scope. Module exclusions still apply.
+
+**Keep one tracker per release.** Concurrency serializes scheduled and manual runs. The workflow edits or closes only an open issue with the exact release title, its marker, and the GitHub Actions bot as author. A complete report with nothing due closes that tracker and never opens a new one, so a removed wrapper does not linger in the list. Close the old tracker after release.
+
+The scan imports your package. The job runs only on the default branch, including for manual dispatch. See the import-time warning in [GitHub Action](#github-action).
+
 ## See also
 
 - [Python audit API](index.md)

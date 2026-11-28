@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 424" width="960" height="424" role="img" aria-labelledby="t d">
+  <title id="t">Warning budget per wrapper</title>
+  <desc id="d">Six calls to a deprecated wrapper under four num_warns settings. With num_warns=1, the default, only the first call warns. With num_warns=3 the first three warn. With num_warns=-1 every call warns. With num_warns=0 none warns. Every call still forwards to the replacement.</desc>
+  <style>
+    text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+    .pop { opacity: 0; transform-box: fill-box; transform-origin: center; }
+    .head { animation: sweep 9s linear infinite; opacity: 0; }
+    .pop0 { animation: pop0 9s ease-out infinite; }
+    @keyframes pop0 { 0%, 4% { opacity: 0; transform: scale(0.5) } 6% { opacity: 1; transform: scale(1.15) } 8%, 90% { opacity: 1; transform: scale(1) } 96%, 100% { opacity: 0; transform: scale(1) } }
+    .pop1 { animation: pop1 9s ease-out infinite; }
+    @keyframes pop1 { 0%, 17% { opacity: 0; transform: scale(0.5) } 19% { opacity: 1; transform: scale(1.15) } 21%, 90% { opacity: 1; transform: scale(1) } 96%, 100% { opacity: 0; transform: scale(1) } }
+    .pop2 { animation: pop2 9s ease-out infinite; }
+    @keyframes pop2 { 0%, 30% { opacity: 0; transform: scale(0.5) } 32% { opacity: 1; transform: scale(1.15) } 34%, 90% { opacity: 1; transform: scale(1) } 96%, 100% { opacity: 0; transform: scale(1) } }
+    .pop3 { animation: pop3 9s ease-out infinite; }
+    @keyframes pop3 { 0%, 43% { opacity: 0; transform: scale(0.5) } 45% { opacity: 1; transform: scale(1.15) } 47%, 90% { opacity: 1; transform: scale(1) } 96%, 100% { opacity: 0; transform: scale(1) } }
+    .pop4 { animation: pop4 9s ease-out infinite; }
+    @keyframes pop4 { 0%, 56% { opacity: 0; transform: scale(0.5) } 58% { opacity: 1; transform: scale(1.15) } 60%, 90% { opacity: 1; transform: scale(1) } 96%, 100% { opacity: 0; transform: scale(1) } }
+    .pop5 { animation: pop5 9s ease-out infinite; }
+    @keyframes pop5 { 0%, 69% { opacity: 0; transform: scale(0.5) } 71% { opacity: 1; transform: scale(1.15) } 73%, 90% { opacity: 1; transform: scale(1) } 96%, 100% { opacity: 0; transform: scale(1) } }
+    @keyframes sweep { 0% { opacity: 0; transform: translateX(0) } 4%, 5% { opacity: 0.9; transform: translateX(0) } 70% { opacity: 0.9; transform: translateX(500px) } 74%, 100% { opacity: 0; transform: translateX(500px) } }
+    @media (prefers-reduced-motion: reduce) { .pop { animation: none !important; opacity: 1 !important; transform: none !important; } .head { animation: none !important; opacity: 0 !important; } }
+  </style>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6B7F99"/></marker>
+    <marker id="ahg" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6FCF97"/></marker>
+    <marker id="ahr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#E8735A"/></marker>
+    <marker id="aha" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#EAA238"/></marker>
+  </defs>
+  <rect width="960" height="424" rx="18" fill="#1B2330"/>
+  <text x="40" y="44" font-size="22" fill="#F7F9FC" font-weight="700">Warning budget per wrapper</text>
+  <text x="920" y="44" font-size="13" fill="#EAA238" text-anchor="end" class="mono">num_warns</text>
+  <text x="360" y="92" font-size="11" fill="#9FB0C6" text-anchor="middle" letter-spacing="1">call 1</text>
+  <text x="460" y="92" font-size="11" fill="#9FB0C6" text-anchor="middle" letter-spacing="1">call 2</text>
+  <text x="560" y="92" font-size="11" fill="#9FB0C6" text-anchor="middle" letter-spacing="1">call 3</text>
+  <text x="660" y="92" font-size="11" fill="#9FB0C6" text-anchor="middle" letter-spacing="1">call 4</text>
+  <text x="760" y="92" font-size="11" fill="#9FB0C6" text-anchor="middle" letter-spacing="1">call 5</text>
+  <text x="860" y="92" font-size="11" fill="#9FB0C6" text-anchor="middle" letter-spacing="1">call 6</text>
+  <rect x="40" y="120" width="880" height="52" rx="12" fill="#1F2938" stroke="#2E3B50" stroke-width="1.5"/>
+  <text x="60" y="143" font-size="13" fill="#F7F9FC" class="mono" font-weight="600">num_warns=1</text>
+  <text x="60" y="161" font-size="11" fill="#9FB0C6">default: warns once</text>
+  <g class="pop pop0"><circle cx="360" cy="146" r="15" fill="#EAA238"/><text x="360" y="151" font-size="15" font-weight="700" fill="#1B2330" text-anchor="middle">!</text></g>
+  <g class="pop pop1"><circle cx="460" cy="146" r="13" fill="none" stroke="#6B7F99" stroke-width="2" stroke-dasharray="3 3"/></g>
+  <g class="pop pop2"><circle cx="560" cy="146" r="13" fill="none" stroke="#6B7F99" stroke-width="2" stroke-dasharray="3 3"/></g>
+  <g class="pop pop3"><circle cx="660" cy="146" r="13" fill="none" stroke="#6B7F99" stroke-width="2" stroke-dasharray="3 3"/></g>
+  <g class="pop pop4"><circle cx="760" cy="146" r="13" fill="none" stroke="#6B7F99" stroke-width="2" stroke-dasharray="3 3"/></g>
+  <g class="pop pop5"><circle cx="860" cy="146" r="13" fill="none" stroke="#6B7F99" stroke-width="2" stroke-dasharray="3 3"/></g>
+  <rect x="40" y="182" width="880" height="52" rx="12" fill="#1F2938" stroke="#2E3B50" stroke-width="1.5"/>
+  <text x="60" y="205" font-size="13" fill="#F7F9FC" class="mono" font-weight="600">num_warns=3</text>
+  <text x="60" y="223" font-size="11" fill="#9FB0C6">warns three times</text>
+  <g class="pop pop0"><circle cx="360" cy="208" r="15" fill="#EAA238"/><text x="360" y="213" font-size="15" font-weight="700" fill="#1B2330" text-anchor="middle">!</text></g>
+  <g class="pop pop1"><circle cx="460" cy="208" r="15" fill="#EAA238"/><text x="460" y="213" font-size="15" font-weight="700" fill="#1B2330" text-anchor="middle">!</text></g>
+  <g class="pop pop2"><circle cx="560" cy="208" r="15" fill="#EAA238"/><text x="560" y="213" font-size="15" font-weight="700" fill="#1B2330" text-anchor="middle">!</text></g>
+  <g class="pop pop3"><circle cx="660" cy="208" r="13" fill="none" stroke="#6B7F99" stroke-width="2" stroke-dasharray="3 3"/></g>
+  <g class="pop pop4"><circle cx="760" cy="208" r="13" fill="none" stroke="#6B7F99" stroke-width="2" stroke-dasharray="3 3"/></g>
+  <g class="pop pop5"><circle cx="860" cy="208" r="13" fill="none" stroke="#6B7F99" stroke-width="2" stroke-dasharray="3 3"/></g>
+  <rect x="40" y="244" width="880" height="52" rx="12" fill="#1F2938" stroke="#2E3B50" stroke-width="1.5"/>
+  <text x="60" y="267" font-size="13" fill="#F7F9FC" class="mono" font-weight="600">num_warns=-1</text>
+  <text x="60" y="285" font-size="11" fill="#9FB0C6">warns on every call</text>
+  <g class="pop pop0"><circle cx="360" cy="270" r="15" fill="#EAA238"/><text x="360" y="275" font-size="15" font-weight="700" fill="#1B2330" text-anchor="middle">!</text></g>
+  <g class="pop pop1"><circle cx="460" cy="270" r="15" fill="#EAA238"/><text x="460" y="275" font-size="15" font-weight="700" fill="#1B2330" text-anchor="middle">!</text></g>
+  <g class="pop pop2"><circle cx="560" cy="270" r="15" fill="#EAA238"/><text x="560" y="275" font-size="15" font-weight="700" fill="#1B2330" text-anchor="middle">!</text></g>
+  <g class="pop pop3"><circle cx="660" cy="270" r="15" fill="#EAA238"/><text x="660" y="275" font-size="15" font-weight="700" fill="#1B2330" text-anchor="middle">!</text></g>
+  <g class="pop pop4"><circle cx="760" cy="270" r="15" fill="#EAA238"/><text x="760" y="275" font-size="15" font-weight="700" fill="#1B2330" text-anchor="middle">!</text></g>
+  <g class="pop pop5"><circle cx="860" cy="270" r="15" fill="#EAA238"/><text x="860" y="275" font-size="15" font-weight="700" fill="#1B2330" text-anchor="middle">!</text></g>
+  <rect x="40" y="306" width="880" height="52" rx="12" fill="#1F2938" stroke="#2E3B50" stroke-width="1.5"/>
+  <text x="60" y="329" font-size="13" fill="#F7F9FC" class="mono" font-weight="600">num_warns=0</text>
+  <text x="60" y="347" font-size="11" fill="#9FB0C6">never warns</text>
+  <g class="pop pop0"><circle cx="360" cy="332" r="13" fill="none" stroke="#6B7F99" stroke-width="2" stroke-dasharray="3 3"/></g>
+  <g class="pop pop1"><circle cx="460" cy="332" r="13" fill="none" stroke="#6B7F99" stroke-width="2" stroke-dasharray="3 3"/></g>
+  <g class="pop pop2"><circle cx="560" cy="332" r="13" fill="none" stroke="#6B7F99" stroke-width="2" stroke-dasharray="3 3"/></g>
+  <g class="pop pop3"><circle cx="660" cy="332" r="13" fill="none" stroke="#6B7F99" stroke-width="2" stroke-dasharray="3 3"/></g>
+  <g class="pop pop4"><circle cx="760" cy="332" r="13" fill="none" stroke="#6B7F99" stroke-width="2" stroke-dasharray="3 3"/></g>
+  <g class="pop pop5"><circle cx="860" cy="332" r="13" fill="none" stroke="#6B7F99" stroke-width="2" stroke-dasharray="3 3"/></g>
+  <g class="head"><rect x="357" y="104" width="6" height="238" rx="3" fill="#7FB6E3"/></g>
+  <text x="40" y="388" font-size="12" fill="#9FB0C6">Every call still forwards; only the warning is budgeted.</text>
+  <text x="40" y="408" font-size="11" fill="#9FB0C6">Argument rename: budget counts per deprecated argument.</text>
+</svg>

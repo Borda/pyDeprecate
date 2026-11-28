@@ -55,3 +55,7 @@ jobs:
       - name: 🧪 Run generated tests
         if: matrix.test_dir
         run: python -m pytest ${{ matrix.test_dir }} -v
+
+      - name: Test the browser runner's controls
+        if: matrix.test_dir
+        run: node --test tests/docs/test_try_it.cjs
