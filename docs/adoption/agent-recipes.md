@@ -38,7 +38,7 @@ Preview remains read-only. A removal plan requires an explicit release deadline:
 
     A plan also includes a `remove_in` whose base release equals an explicitly requested RC target (`2.0rc1` for `remove_in="2.0"`). This applies only when the user is preparing that final release.
 
-The plan keeps surviving functions or classes available for argument/attribute compatibility, and leaves incomplete scans unresolved. Use the consumer environment's existing `pyDeprecate`; expiry, policy and `all` audits need `[audit]`; the other audits do not.
+The plan keeps surviving functions or classes available for argument and attribute compatibility, and leaves incomplete scans unresolved. Use the consumer project's installed `pyDeprecate` with `[audit]` for expiry and version-based policy checks. On Python 3.9–3.10, any audit that reads project settings from TOML also needs `tomli`, which `[audit]` supplies.
 
 The plugin source lives under `plugins/pydeprecate/`: `.codex-plugin/plugin.json`, `.claude-plugin/plugin.json`, `skills/sunset/SKILL.md`, `skills/audit/SKILL.md`, and `skills/prune/SKILL.md`.
 
@@ -52,14 +52,14 @@ For audits of deprecations a project already declares, ask:
 
 > “Audit `src/acme` with pyDeprecate and list what is misconfigured, chained, expired or badly scheduled; do not edit.”
 
-The audit skill runs the CLI audits, reads every gap, and returns findings by rule with their source location. It edits only after you confirm a fix list, and it adds pre-commit, GitHub Action or pytest gates only when asked. A typical run since v0.16 uses a fresh temporary report destination:
+The audit skill runs the CLI audits, reads every gap, and returns findings by rule with their source location. It edits only after you confirm a fix list, and it adds pre-commit, GitHub Action or pytest gates only when asked. Run the following command only when it is safe to execute the package and submodule initializers. The temporary directory holds the report, while import-time code runs in the current environment. The command uses options available since v0.16.
 
 ```bash
 report_dir="$(mktemp -d)" &&
     pydeprecate all src/acme --version 2.0 --gate=policy --strict --report-json "$report_dir/audit.json"
 ```
 
-Verify the current run produced a parseable report before reading it. Check active and suppressed findings as well as gaps. Since v0.16, when the package's runtime dependencies are unavailable, `pydeprecate expiry --static` and `pydeprecate policy --static` read the source without importing it; see the [CLI static mode](../audit/cli.md#static-mode). On older releases, report which machine checks were blocked and describe any source-only coverage as incomplete.
+Verify the current run produced a parseable report before reading it. Check active and suppressed findings as well as gaps. Since v0.16, when imports are unsafe or dependencies are unavailable, `pydeprecate expiry --static` and `pydeprecate policy --static` read source without running initializers. Report that wrapper configuration and chains still need the import-mode `check` and `chains` commands. On older releases, report unavailable checks and describe any source-only coverage as incomplete. See [CLI static mode](../audit/cli.md#static-mode).
 
 ## Rules for agents
 

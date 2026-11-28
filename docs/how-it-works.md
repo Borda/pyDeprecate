@@ -7,13 +7,13 @@ description: How pyDeprecate works inside — what a decorator builds at decorat
 
 pyDeprecate does its work at three moments: when the decorator runs, when a caller uses the old API, and when an audit looks for deprecations. Knowing what happens at each makes the rest of the guide predictable.
 
-![How pyDeprecate works: the decorator wraps the old API and stores the original, a message and a frozen configuration; a forwarding call can warn within its budget, remap arguments and forward to the target; the audit reads that metadata by importing the package or by reading its source](assets/images/pydeprecate-how-it-works.svg)
+![How pyDeprecate works: the decorator wraps the old API and stores the original, a message and a frozen configuration; a forwarding call can warn within its budget and remap or inject arguments when configured before forwarding to the target; the audit reads that metadata by importing the package or by reading its source](assets/images/pydeprecate-how-it-works.svg)
 
 ## 1. Decoration time
 
 The decorator runs once, when the module defining the old API is imported. It does the expensive thinking up front so a call stays cheap.
 
-- It reads the signature of the old API and of the `target`, so a later call can be matched against them without re-inspecting anything.
+- It reads the signature of the old API and of the `target` so later calls can normally use cached signature information. A forwarded call can retry introspection if the separate target defaults read failed at decoration time.
 - It resolves the *target mode* from what you passed. For `@deprecated`, a callable target forwards the call, `TargetMode.NOTIFY` warns and keeps the original behavior, and `TargetMode.ARGS_REMAP` renames arguments. Omission and explicit `TargetMode.AUTO` select the mode from the mapping. Class and instance proxy factories support `TargetMode.ATTRS_REMAP` for deprecated attributes.
 - It flags a contradictory setup, such as `TargetMode.NOTIFY` together with a mapping, with a `UserWarning` at decoration time.
 - It returns a **wrapper** that replaces the old API under the same name.
@@ -63,7 +63,7 @@ print(calc_total([1, 2], tax=0.5))  # warns: FutureWarning
 A synchronous function that forwards to a callable target follows this path:
 
 1. **Warn.** The wrapper emits the notice, subject to its warning budget. For whole-call deprecations, the default `num_warns=1` warns once per wrapper, and `num_warns=-1` removes the budget. An argument-only remap has a separate budget for each deprecated argument and calls using only the new names stay silent. The warning points at the *caller's* line, so the migration target is easy to find. See [Customization](usage/customization.md) for templates and streams.
-2. **Remap.** `args_mapping` renames or drops arguments, and `args_extra` injects new ones.
+2. **Remap when configured.** `args_mapping` renames or drops arguments, and `args_extra` injects new ones.
 3. **Forward.** The wrapper calls the target and returns its result. <u>The body of the deprecated function is never executed</u> when it forwards.
 
 Three options change that path without changing the model:
@@ -89,7 +89,7 @@ A proxy exposes `__wrapped__` and `__signature__` without warning, so documentat
 
 Audit discovery reads wrapper metadata or source declarations. Import mode also executes package and module initializers, which can themselves call deprecated APIs.
 
-- **Import mode** imports the package, walks its modules and classes, and reads each wrapper's configuration through its metadata. It sees what the import creates, including wrappers the source does not show literally, at the cost of running module-level code.
+- **Import mode** imports the package, walks its modules and classes, and reads the metadata of wrappers it discovers. It can discover wrappers created dynamically during module initialization.
 - **Static mode** reads the source with `ast` and imports nothing, for environments without the package's runtime dependencies. Forms it cannot settle become *gaps*, reported without failing the run unless `--strict` is set; some dynamic forms stay invisible without a gap.
 
 Import mode supports all four checks below. Use static mode for `expiry` and `policy`.
@@ -105,7 +105,7 @@ The result is findings, gaps and an exit code, optionally written as a JSON or S
 
 !!! info "A green exit is not a complete audit"
 
-    A failed import of an explicitly requested target exits `3`. Skipped recursive imports and unresolved versions can produce gaps. Strict gates fail on those gaps, and other hard findings can fail a run independently. Read the gaps even when the exit code is `0`.
+    A failed import of an explicitly requested target exits `3`. Skipped recursive imports and unresolved versions can produce gaps. Strict gates fail on recorded gaps. Some wrappers can be missed without a gap, including private module bindings in import mode and unrecognized dynamic declarations in static mode. Read the gaps and verify that the discovery scope covers the APIs you need to audit.
 
 ## What it does not do
 
