@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 400" width="960" height="400" role="img" aria-labelledby="t d">
+  <title id="t">Deprecating a whole module</title>
+  <desc id="d">Two deprecated_module patterns. Mode 1 warns on public access and serves unmapped names from the old module. Mode 2 also looks up missing names in the replacement module. Explicit mappings take precedence over existing local names.</desc>
+  <style>
+    text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  </style>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6B7F99"/></marker>
+    <marker id="ahg" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6FCF97"/></marker>
+    <marker id="ahr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#E8735A"/></marker>
+    <marker id="aha" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#EAA238"/></marker>
+  </defs>
+  <rect width="960" height="400" rx="18" fill="#1B2330"/>
+  <text x="40" y="44" font-size="22" fill="#F7F9FC" font-weight="700">Deprecate a whole module</text>
+  <text x="920" y="44" font-size="13" fill="#EAA238" text-anchor="end">deprecated_module(…) at end of old file</text>
+  <rect x="40" y="72" width="430" height="300" rx="14" fill="#141B26" stroke="#2E3B50" stroke-width="1.5"/>
+  <text x="60" y="100" font-size="15" fill="#F7F9FC" font-weight="700">Mode 1 · warn in place</text>
+  <text x="450" y="100" font-size="11" fill="#9FB0C6" text-anchor="end" class="mono">no target</text>
+  <rect x="490" y="72" width="430" height="300" rx="14" fill="#141B26" stroke="#2E3B50" stroke-width="1.5"/>
+  <text x="510" y="100" font-size="15" fill="#F7F9FC" font-weight="700">Mode 2 · redirect</text>
+  <text x="900" y="100" font-size="11" fill="#9FB0C6" text-anchor="end" class="mono">target=new_calculator</text>
+  <g>
+  <rect x="60" y="124" width="390" height="38" rx="8" fill="#263246" stroke="#3A4A60" stroke-width="1.5"/>
+  <text x="255" y="148" font-size="12.5" fill="#F7F9FC" text-anchor="middle" class="mono">import old_calculator</text>
+  <rect x="510" y="124" width="390" height="38" rx="8" fill="#263246" stroke="#3A4A60" stroke-width="1.5"/>
+  <text x="705" y="148" font-size="12.5" fill="#F7F9FC" text-anchor="middle" class="mono">import old_calculator</text>
+  </g>
+  <g>
+  <line x1="255" y1="164" x2="255" y2="180" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
+  <rect x="60" y="182" width="390" height="38" rx="8" fill="#263246" stroke="#3A4A60" stroke-width="1.5"/>
+  <text x="255" y="206" font-size="12.5" fill="#F7F9FC" text-anchor="middle" class="mono">old_calculator.add(1, 2)</text>
+  <line x1="705" y1="164" x2="705" y2="180" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
+  <rect x="510" y="182" width="390" height="38" rx="8" fill="#263246" stroke="#3A4A60" stroke-width="1.5"/>
+  <text x="705" y="206" font-size="12.5" fill="#F7F9FC" text-anchor="middle" class="mono">old_calculator.compute(…)</text>
+  </g>
+  <g>
+  <line x1="255" y1="222" x2="255" y2="238" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
+  <rect x="60" y="240" width="390" height="38" rx="8" fill="#3A2B10" stroke="#EAA238" stroke-width="1.5"/>
+  <text x="255" y="264" font-size="12" fill="#EAA238" text-anchor="middle" font-weight="600">⚠ FutureWarning on every public attribute access</text>
+  <line x1="705" y1="222" x2="705" y2="238" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
+  <rect x="510" y="240" width="390" height="38" rx="8" fill="#3A2B10" stroke="#EAA238" stroke-width="1.5"/>
+  <text x="705" y="264" font-size="12" fill="#EAA238" text-anchor="middle" font-weight="600">⚠ FutureWarning on every public attribute access</text>
+  </g>
+  <g>
+  <line x1="255" y1="280" x2="255" y2="296" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
+  <rect x="60" y="298" width="390" height="38" rx="8" fill="#1F2938" stroke="#7FB6E3" stroke-width="1.5"/>
+  <text x="255" y="322" font-size="12" fill="#7FB6E3" text-anchor="middle" font-weight="600">served from old_calculator</text>
+  <line x1="705" y1="280" x2="705" y2="296" stroke="#6B7F99" stroke-width="2" marker-end="url(#ah)"/>
+  <rect x="510" y="298" width="390" height="38" rx="8" fill="#1F2938" stroke="#7FB6E3" stroke-width="1.5"/>
+  <text x="705" y="322" font-size="12" fill="#7FB6E3" text-anchor="middle" font-weight="600">not in old module → forwarded to new_calculator</text>
+  </g>
+  <text x="480" y="380" font-size="11.5" fill="#9FB0C6" text-anchor="middle">Mode 3: module exposed as package attribute.</text>
+  <text x="480" y="392" font-size="11.5" fill="#9FB0C6" text-anchor="middle">Unmapped attributes defined in the old module stay there. Explicit mappings take precedence.</text>
+</svg>

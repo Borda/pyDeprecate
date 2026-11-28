@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 470" width="960" height="470" role="img" aria-labelledby="t d">
+  <title id="t">Which pyDeprecate tool do I need</title>
+  <desc id="d">A map from what you are deprecating to the pyDeprecate call that fits: functions and methods, classes, objects and modules, and the audit checks that enforce deadlines.</desc>
+  <style>
+    text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  </style>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6B7F99"/></marker>
+    <marker id="ahg" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#6FCF97"/></marker>
+    <marker id="ahr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#E8735A"/></marker>
+    <marker id="aha" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#EAA238"/></marker>
+  </defs>
+  <rect width="960" height="470" rx="18" fill="#1B2330"/>
+  <text x="40" y="44" font-size="22" fill="#F7F9FC" font-weight="700">Which tool fits?</text>
+  <text x="920" y="44" font-size="13" fill="#EAA238" text-anchor="end">start from what you deprecate</text>
+  <rect x="340" y="66" width="280" height="38" rx="19" fill="#3A2B10" stroke="#EAA238" stroke-width="2"/>
+  <text x="480" y="90" font-size="14" fill="#F7F9FC" text-anchor="middle" font-weight="600">What are you deprecating?</text>
+  <line x1="480" y1="104" x2="480" y2="114" stroke="#6B7F99" stroke-width="2"/>
+  <line x1="145.5" y1="114" x2="814.5" y2="114" stroke="#6B7F99" stroke-width="2"/>
+  <line x1="145.5" y1="114" x2="145.5" y2="124" stroke="#6B7F99" stroke-width="2"/>
+  <rect x="40" y="124" width="211" height="32" rx="16" fill="#1F2938" stroke="#7FB6E3" stroke-width="1.8"/>
+  <text x="145.5" y="145" font-size="13" fill="#F7F9FC" text-anchor="middle" font-weight="600">Function / method</text>
+  <rect x="40" y="170" width="211" height="262" rx="12" fill="#141B26" stroke="#2E3B50" stroke-width="1.5"/>
+  <text x="54" y="196" font-size="10" fill="#9FB0C6" letter-spacing="1.5">RENAME IT</text>
+  <rect x="50" y="206" width="191" height="38" rx="8" fill="#263246" stroke="#3A4A60" stroke-width="1.5"/>
+  <text x="145.5" y="229" font-size="9.5" fill="#EAA238" text-anchor="middle" class="mono" font-weight="600">@deprecated(target=new_func)</text>
+  <text x="54" y="276" font-size="10" fill="#9FB0C6" letter-spacing="1.5">RENAME AN ARGUMENT</text>
+  <rect x="50" y="286" width="191" height="38" rx="8" fill="#263246" stroke="#3A4A60" stroke-width="1.5"/>
+  <text x="145.5" y="309" font-size="10.5" fill="#EAA238" text-anchor="middle" class="mono" font-weight="600">TargetMode.ARGS_REMAP</text>
+  <text x="54" y="356" font-size="10" fill="#9FB0C6" letter-spacing="1.5">NO REPLACEMENT YET</text>
+  <rect x="50" y="366" width="191" height="38" rx="8" fill="#263246" stroke="#3A4A60" stroke-width="1.5"/>
+  <text x="145.5" y="389" font-size="10.5" fill="#EAA238" text-anchor="middle" class="mono" font-weight="600">TargetMode.NOTIFY</text>
+  <line x1="368.5" y1="114" x2="368.5" y2="124" stroke="#6B7F99" stroke-width="2"/>
+  <rect x="263" y="124" width="211" height="32" rx="16" fill="#1F2938" stroke="#7FB6E3" stroke-width="1.8"/>
+  <text x="368.5" y="145" font-size="13" fill="#F7F9FC" text-anchor="middle" font-weight="600">Class</text>
+  <rect x="263" y="170" width="211" height="262" rx="12" fill="#141B26" stroke="#2E3B50" stroke-width="1.5"/>
+  <text x="277" y="196" font-size="10" fill="#9FB0C6" letter-spacing="1.5">RENAME THE CLASS</text>
+  <rect x="273" y="206" width="191" height="38" rx="8" fill="#263246" stroke="#3A4A60" stroke-width="1.5"/>
+  <text x="368.5" y="229" font-size="9.5" fill="#EAA238" text-anchor="middle" class="mono" font-weight="600">deprecated_class(target=NewClass)</text>
+  <text x="277" y="276" font-size="10" fill="#9FB0C6" letter-spacing="1.5">ONLY SOME ATTRIBUTES</text>
+  <rect x="273" y="286" width="191" height="38" rx="8" fill="#263246" stroke="#3A4A60" stroke-width="1.5"/>
+  <text x="368.5" y="309" font-size="9.5" fill="#EAA238" text-anchor="middle" class="mono" font-weight="600">deprecated_class(attrs_mapping=…)</text>
+  <line x1="591.5" y1="114" x2="591.5" y2="124" stroke="#6B7F99" stroke-width="2"/>
+  <rect x="486" y="124" width="211" height="32" rx="16" fill="#1F2938" stroke="#7FB6E3" stroke-width="1.8"/>
+  <text x="591.5" y="145" font-size="13" fill="#F7F9FC" text-anchor="middle" font-weight="600">Object / module</text>
+  <rect x="486" y="170" width="211" height="262" rx="12" fill="#141B26" stroke="#2E3B50" stroke-width="1.5"/>
+  <text x="500" y="196" font-size="10" fill="#9FB0C6" letter-spacing="1.5">KEEP AN OBJECT ALIAS</text>
+  <rect x="496" y="206" width="191" height="38" rx="8" fill="#263246" stroke="#3A4A60" stroke-width="1.5"/>
+  <text x="591.5" y="229" font-size="9.5" fill="#EAA238" text-anchor="middle" class="mono" font-weight="600">deprecated_instance(obj, …)</text>
+  <text x="500" y="276" font-size="10" fill="#9FB0C6" letter-spacing="1.5">RENAME A WHOLE MODULE</text>
+  <rect x="496" y="286" width="191" height="38" rx="8" fill="#263246" stroke="#3A4A60" stroke-width="1.5"/>
+  <text x="591.5" y="309" font-size="10.5" fill="#EAA238" text-anchor="middle" class="mono" font-weight="600">deprecated_module(…)</text>
+  <line x1="814.5" y1="114" x2="814.5" y2="124" stroke="#6B7F99" stroke-width="2"/>
+  <rect x="709" y="124" width="211" height="32" rx="16" fill="#1F2938" stroke="#6FCF97" stroke-width="1.8"/>
+  <text x="814.5" y="145" font-size="13" fill="#F7F9FC" text-anchor="middle" font-weight="600">Enforce it in CI</text>
+  <rect x="709" y="170" width="211" height="262" rx="12" fill="#141B26" stroke="#2E3B50" stroke-width="1.5"/>
+  <text x="723" y="196" font-size="10" fill="#9FB0C6" letter-spacing="1.5">MISSED REMOVAL DATE</text>
+  <rect x="719" y="206" width="191" height="38" rx="8" fill="#263246" stroke="#3A4A60" stroke-width="1.5"/>
+  <text x="814.5" y="229" font-size="10.5" fill="#6FCF97" text-anchor="middle" class="mono" font-weight="600">pydeprecate expiry</text>
+  <text x="723" y="276" font-size="10" fill="#9FB0C6" letter-spacing="1.5">RELEASE-RULE POLICY</text>
+  <rect x="719" y="286" width="191" height="38" rx="8" fill="#263246" stroke="#3A4A60" stroke-width="1.5"/>
+  <text x="814.5" y="309" font-size="10.5" fill="#6FCF97" text-anchor="middle" class="mono" font-weight="600">pydeprecate policy</text>
+  <text x="723" y="356" font-size="10" fill="#9FB0C6" letter-spacing="1.5">CHAINS AND BAD CONFIG</text>
+  <rect x="719" y="366" width="191" height="38" rx="8" fill="#263246" stroke="#3A4A60" stroke-width="1.5"/>
+  <text x="814.5" y="389" font-size="10.5" fill="#6FCF97" text-anchor="middle" class="mono" font-weight="600">pydeprecate all</text>
+  <text x="480" y="456" font-size="12" fill="#9FB0C6" text-anchor="middle">Mix freely: one project, several tools.</text>
+</svg>

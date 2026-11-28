@@ -507,17 +507,19 @@ See the [CLI Reference](cli.md) for flags and exit codes. See [Enforcing the pol
 
 ## Detecting Deprecation Chains
 
-A *chain* forms when a deprecated wrapper targets another deprecated function. Callers receive **two notices**, and the intermediate hop adds no value.
+A *chain* forms when a deprecated wrapper targets another deprecated function. Callers can receive **a notice from each wrapper**. When you forward directly to the final API, preserve any argument mappings and defaults applied by the intermediate wrappers.
 
 `validate_deprecation_chains()` scans a module or package for chains using metadata alone. It requires no source-code inspection.
 
+![In a pure forwarding chain, old_func reaches new_func through deprecated mid_func and can emit two notices. Forwarding directly removes that extra warning. Preserve arguments and defaults when intermediate wrappers modify them.](../assets/images/pydeprecate-chains.svg)
+
 Two chain types are reported:
 
-| Type                                       | Meaning                                                                                                                                  | Remedy                                                   |
-| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| `ChainType.TARGET`                         | The target is deprecated: a callable forwarding to another function, or a deprecated object passed as `deprecated_instance(target=...)`. | Point directly to the final, non-deprecated replacement. |
-| `ChainType.STACKED`                        | Mappings chain through multiple hops.                                                                                                    | Compose the mappings.                                    |
-| `ChainType.STACKED` covers these patterns: |                                                                                                                                          |                                                          |
+| Type                                       | Meaning                                                                                                                                  | Remedy                                                                                                   |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `ChainType.TARGET`                         | The target is deprecated: a callable forwarding to another function, or a deprecated object passed as `deprecated_instance(target=...)`. | Point to the final, non-deprecated replacement and preserve intermediate argument mappings and defaults. |
+| `ChainType.STACKED`                        | Mappings chain through multiple hops.                                                                                                    | Compose the mappings.                                                                                    |
+| `ChainType.STACKED` covers these patterns: |                                                                                                                                          |                                                                                                          |
 
 - Callable argument mappings form chains.
 - Multiple `@deprecated(TargetMode.ARGS_REMAP, args_mapping=...)` decorators are stacked.

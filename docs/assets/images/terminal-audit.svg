@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 401" width="960" height="401" role="img" aria-labelledby="t d">
+  <title id="t">pydeprecate audit report</title>
+  <desc id="d">Terminal: pydeprecate all billing --version 1.5 reports one expired wrapper, no policy violations and no chains, prints the deprecation status table and exits with code 1. Output abridged.</desc>
+  <style>text { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }</style>
+  <rect width="960" height="401" rx="14" fill="#141B26" stroke="#2E3B50" stroke-width="1.5"/>
+  <circle cx="26" cy="24" r="5" fill="#E8735A"/><circle cx="44" cy="24" r="5" fill="#EAA238"/><circle cx="62" cy="24" r="5" fill="#6FCF97"/>
+  <text x="934" y="28" text-anchor="end" fill="#9FB0C6" font-size="11">terminal · output abridged</text>
+  <line x1="0" y1="42" x2="960" y2="42" stroke="#2E3B50" stroke-width="1"/>
+  <text x="24" y="62" xml:space="preserve"><tspan fill="#6FCF97">$ </tspan><tspan fill="#E6EDF7">pydeprecate all billing --version 1.5</tspan></text>
+  <text x="24" y="83" xml:space="preserve"><tspan fill="#9FB0C6">Scanning: billing</tspan></text>
+  <text x="24" y="104" xml:space="preserve"><tspan fill="#9FB0C6">Package: billing  Version: 1.5 (user-provided)</tspan></text>
+  <text x="24" y="125" xml:space="preserve"><tspan fill="#E6EDF7">All deprecated wrappers look correct!</tspan></text>
+  <text x="24" y="146" xml:space="preserve"><tspan fill="#E8735A">[ERROR] Found expired deprecated wrappers:</tspan></text>
+  <text x="24" y="167" xml:space="preserve"><tspan fill="#E6EDF7">	- Callable `billing.calc_total` was scheduled for removal in version 1.4 but still exists …</tspan></text>
+  <text x="24" y="188" xml:space="preserve"><tspan fill="#E8735A">1 expired wrapper(s) found.</tspan></text>
+  <text x="24" y="209" xml:space="preserve"><tspan fill="#9FB0C6">Policy: min-grace=0.3 (built-in)  message-required=True (built-in)</tspan></text>
+  <text x="24" y="230" xml:space="preserve"><tspan fill="#E6EDF7">No deprecation policy violations found.</tspan></text>
+  <text x="24" y="251" xml:space="preserve"><tspan fill="#E6EDF7">No deprecation chains found.</tspan></text>
+  <text x="24" y="272" xml:space="preserve"><tspan fill="#9FB0C6">| Original API         | API Type | New API                 | Deprecated | Remove | Current Status        |</tspan></text>
+  <text x="24" y="293" xml:space="preserve"><tspan fill="#9FB0C6">| `billing.calc_total` | callable | `billing.compute_total` | v1.0       | v1.4   | </tspan><tspan fill="#E8735A">💥 Past Removal Date</tspan></text>
+  <text x="24" y="314" xml:space="preserve"><tspan fill="#9FB0C6">| `billing.total`      | callable | `billing.compute_total` | v1.3       | v2.0   | </tspan><tspan fill="#EAA238">📢 Deprecation Active</tspan></text>
+  <text x="24" y="335" xml:space="preserve"><tspan fill="#6FCF97">$ </tspan><tspan fill="#E6EDF7">echo $?</tspan></text>
+  <text x="24" y="356" xml:space="preserve"><tspan fill="#E8735A">1</tspan></text>
+</svg>

@@ -1,6 +1,5 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/banner-dark.svg">
-  <img alt="pyDeprecate — seamless API migration" src="docs/assets/brand/banner-light.svg">
+  <img src="docs/assets/brand/mark.svg" alt="" width="120">
 </picture>
 
 # pyDeprecate

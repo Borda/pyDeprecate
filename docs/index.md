@@ -128,7 +128,7 @@ Choose pyDeprecate for call forwarding, argument mapping, proxies, and CI audits
 - [Agent Recipes](adoption/agent-recipes.md) — copy-paste patterns for AI coding assistants.
 - [Troubleshooting](troubleshooting.md) — common errors and how to fix them.
 - [Brand](brand.md) — logos, colors, banners, and the "API migration by pyDeprecate" badge.
-- [Sphinx demo](demo-sphinx/index.html) · [MkDocs demo](demo-mkdocs/index.html) — live rendered output.
+- [Docs Integration](integrations/docs-integration.md) — [Sphinx demo](demo-sphinx/api.html) · [MkDocs demo](demo-mkdocs/api.html), live rendered output.
 
 ## Show that you use pyDeprecate
 

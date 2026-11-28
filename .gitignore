@@ -170,12 +170,14 @@ tasks/
 releases/
 
 # Docs site demo subdirs — CI rsyncs built Sphinx/MkDocs HTML into these
-# directories before `mike deploy`; only the local-dev placeholder index.html
-# is tracked.
+# directories before `mike deploy`; only the local-dev placeholders index.html
+# and api.html are tracked.
 docs/demo-sphinx/*
 !docs/demo-sphinx/index.html
+!docs/demo-sphinx/api.html
 docs/demo-mkdocs/*
 !docs/demo-mkdocs/index.html
+!docs/demo-mkdocs/api.html
 
 # local raw brand dump; committed copy lives in docs/assets/brand/
 branding-raw/
